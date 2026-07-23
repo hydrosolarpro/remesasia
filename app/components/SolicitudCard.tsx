@@ -1,0 +1,36 @@
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Solicitud } from '../types/database';
+import { EstadoBadge } from './EstadoBadge';
+import { colors } from '../constants/theme';
+
+export function SolicitudCard({ solicitud, onPress }: { solicitud: Solicitud; onPress?: () => void }) {
+  return (
+    <Pressable style={styles.card} onPress={onPress}>
+      <View style={styles.row}>
+        <Text style={styles.id}>#{solicitud.id.slice(0, 8)}</Text>
+        <EstadoBadge estado={solicitud.estado} />
+      </View>
+      <Text style={styles.beneficiario}>{solicitud.beneficiario_nombre}</Text>
+      <View style={styles.row}>
+        <Text style={styles.monto}>S/ {solicitud.monto_pen.toFixed(2)}</Text>
+        <Text style={styles.montoVes}>Bs {solicitud.monto_ves.toFixed(2)}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    gap: 8,
+  },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  id: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  beneficiario: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  monto: { color: colors.text, fontSize: 14 },
+  montoVes: { color: colors.accent, fontSize: 14, fontWeight: '600' },
+});

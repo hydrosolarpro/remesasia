@@ -1,0 +1,27 @@
+project_id = "remesas-ia"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+# SMS OTP (F: autenticación por teléfono) — configura el proveedor SMS
+# (Twilio/MessageBird/Vonage) desde el dashboard: Authentication > Providers > Phone.
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
