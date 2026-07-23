@@ -4,7 +4,7 @@ Digitaliza el flujo PEN → USDT → VES del operador Remesas. Ver el diagnósti
 estudio de mercado y breakdown técnico en [`PRD_Maestro_AppRemesasIA.md`](./PRD_Maestro_AppRemesasIA.md)
 (generado por Hermes Agents — Paso 2 del pipeline).
 
-**Pipeline:** ① Hermes Agents (diagnóstico) → ② PRD Maestro → **③ Claude (este repo)** → ④ N8N → ⑤ Supabase + Vercel + EAS Build
+**Pipeline:** ① Hermes Agents (diagnóstico) → ② PRD Maestro → **③ Claude (este repo: backend Supabase + frontend app móvil, con Claude Design como sistema de diseño de componentes)** → ④ N8N → ⑤ Supabase + Vercel + EAS Build
 
 ## Estructura
 
@@ -25,17 +25,30 @@ supabase/
 
 Proyecto ya creado: https://supabase.com/dashboard/project/vddyynachdgqmtofqxnr
 
+**Estado actual:** las 5 migraciones de `supabase/migrations/` y las 2 Edge Functions
+(`generar-comprobante`, `notificar-cambio-estado`) ya están desplegadas en el proyecto
+remoto (aplicadas vía Supabase MCP). Esto incluye: enums, tablas (`usuarios`, `tasas`,
+`solicitudes`, `mensajes_chat`), RLS por rol, la máquina de estados, la vista
+`operaciones_dashboard` y el bucket de Storage `comprobantes`. Ambas funciones se
+desplegaron con `verify_jwt: true` — el trigger de la sección "Configurar webhooks de
+estado" les envía el `service_role_key` como Bearer token, que es un JWT válido del
+proyecto, así que no hace falta desactivar la verificación.
+
+Si necesitas re-aplicar todo desde cero (por ejemplo, en un proyecto nuevo), usa la CLI:
+
 ```bash
 npm install -g supabase
 supabase login
 cd "PRODUCTO SaaS - REMESAS IA"
 supabase link --project-ref vddyynachdgqmtofqxnr
 supabase db push
+supabase functions deploy generar-comprobante
+supabase functions deploy notificar-cambio-estado
 ```
 
-Esto aplica las migraciones de `supabase/migrations/`: enums, tablas (`usuarios`, `tasas`,
-`solicitudes`, `mensajes_chat`), RLS por rol, la máquina de estados, la vista
-`operaciones_dashboard` y el bucket de Storage `comprobantes`.
+Lo que **todavía falta configurar manualmente** (requiere secretos/credenciales que no
+viven en el repo — ver las dos secciones siguientes): el proveedor de SMS OTP, los
+ajustes de base de datos para los webhooks, y el secreto de Firebase para push.
 
 ### Habilitar SMS OTP
 
@@ -98,6 +111,14 @@ npx eas login
 npx eas build:configure
 npx eas build --platform android --profile preview
 ```
+
+## Frontend — sistema de diseño (Claude Design)
+
+Los componentes visuales de la app móvil (`app/components/`, `app/constants/theme.ts`:
+`EstadoBadge`, `KPICard`, `SolicitudCard`, paleta y tipografía) se mantienen sincronizados
+con un proyecto de sistema de diseño en claude.ai/design vía el flujo `/design-sync`, en
+lugar de diseñarse ad-hoc pantalla por pantalla. Esto mantiene consistencia visual entre
+las 3 apps (cliente, operador Perú, operador Venezuela) a medida que se agregan pantallas.
 
 ## Pendiente (siguientes pasos del pipeline)
 

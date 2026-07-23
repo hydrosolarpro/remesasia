@@ -31,6 +31,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code local settings (config específica de esta máquina/sesión)
+.claude/settings.local.json
+
 # Office lock files (Hermes Agents docs)
 ~$*.md
 ~$*.docx
