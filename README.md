@@ -124,11 +124,19 @@ web (Vercel, sección "Pendiente"), define `EXPO_PUBLIC_WEB_BASE_URL=https://tu-
 
 ### Rol Administrador
 
-Ve un único panel: la lista de todos los Operadores Perú con sus datos de contacto, los
-pagos de suscripción pendientes de verificar, y la configuración de a dónde deben pagar
-(banco/CCI/titular/QR). La cuenta `productosaas2026@gmail.com` se auto-asigna este rol al
-iniciar sesión por primera vez (hardcodeado en `handle_new_user`, migración `0009`); para
-agregar más administradores, promuévelos a mano:
+Home del admin: invitar Operador Perú, y "Panel de control" (pantalla aparte) con el
+resumen de estadísticas (total de Operadores Perú + monto total pagado) y la lista
+enumerada de cada uno con **dos checks independientes**:
+
+- **Validación de pago** — aprueba el comprobante del período en curso.
+- **Acceso a la sesión operador de Perú** — candado separado; el Operador Perú NO entra
+  solo con el pago validado, el admin tiene que conceder el acceso aparte (a propósito,
+  por si quiere revisar algo más antes de dejarlo operar).
+
+También la configuración de a dónde debe pagar el Operador Perú su suscripción
+(banco/CCI/titular/QR de Yape). La cuenta `productosaas2026@gmail.com` se auto-asigna el
+rol admin al iniciar sesión por primera vez (hardcodeado en `handle_new_user`, migración
+`0009`); para agregar más administradores, promuévelos a mano:
 
 ```sql
 update usuarios set rol = 'administrador' where email = 'otro-admin@gmail.com';
@@ -136,15 +144,17 @@ update usuarios set rol = 'administrador' where email = 'otro-admin@gmail.com';
 
 ### Suscripción mensual del Operador Perú
 
-Cada Operador Perú paga S/ 50/mes (configurable en `configuracion_pagos_admin.monto_suscripcion`,
-editable desde el panel Admin) para poder usar la app. Sin un pago **verificado** para el
-mes en curso, `(operador-peru)/_layout.tsx` bloquea el acceso a todo el panel (incluido el
-onboarding) y solo muestra la pantalla de pago (`components/SuscripcionGate.tsx`): datos
-bancarios del admin + QR + botón para subir el comprobante. El admin aprueba o rechaza
-desde su panel; si rechaza, el Operador Perú puede volver a subir el comprobante del mismo
-período. Es un candado a nivel de la app (routing), no de RLS — el Operador Perú técnicamente
-puede seguir escribiendo en las tablas de su negocio vía API aunque no haya pagado; endurecer
-esto a nivel de base de datos queda pendiente si se necesita.
+Cada Operador Perú paga S/ 50/mes (configurable en `configuracion_pagos_admin.monto_suscripcion`)
+para poder usar la app. `(operador-peru)/_layout.tsx` bloquea el acceso a todo el panel
+(incluido el onboarding) hasta que se cumplan **los dos checks** del admin (pago
+verificado del mes en curso Y acceso concedido, ver "Rol Administrador" arriba) — solo
+entonces se muestran las pestañas normales; antes de eso ve la pantalla de solicitud
+(`components/SuscripcionGate.tsx`): Formas de pago (selector YAPE / Transferencia
+bancaria, empieza en YAPE con el QR visible), comprobante de depósito, sus datos
+(nombre/teléfono/correo) y "Enviar solicitud" → "Solicitud enviada. En breve te
+responderemos.". Es un candado a nivel de la app (routing), no de RLS — el Operador Perú
+técnicamente puede seguir escribiendo en las tablas de su negocio vía API aunque no tenga
+acceso concedido; endurecer esto a nivel de base de datos queda pendiente si se necesita.
 
 ### Configurar webhooks de estado (F8/F9)
 

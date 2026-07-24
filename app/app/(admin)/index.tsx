@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
@@ -109,6 +109,10 @@ export default function PanelAdmin() {
       <RoleTag rol="administrador" />
       <Text style={styles.titulo}>Panel de Administrador</Text>
       <Text style={styles.subtitulo}>{usuario?.email}</Text>
+
+      <Pressable style={styles.panelControlBtn} onPress={() => router.push('/(admin)/panel-control')}>
+        <Text style={styles.panelControlBtnTexto}>Panel de control →</Text>
+      </Pressable>
 
       <Section titulo="Invitar Operador Perú">
         <Text style={styles.texto}>Genera un enlace y compártelo por WhatsApp. Al abrirlo, esa persona entra directo como Operador Perú.</Text>
@@ -341,6 +345,8 @@ const styles = StyleSheet.create({
   seccionTitulo: { color: colors.text, fontSize: 15, fontWeight: '800' },
   texto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
   boton: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 4 },
+  panelControlBtn: { backgroundColor: colors.cardAlt, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, alignItems: 'center' },
+  panelControlBtnTexto: { color: colors.accent, fontWeight: '800', fontSize: 15 },
   botonTexto: { color: colors.text, fontWeight: '700' },
   enlaceRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 },
   enlaceTexto: { flex: 1, color: colors.accent, fontSize: 12 },

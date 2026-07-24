@@ -17,6 +17,7 @@ export default function AdminLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerBackVisible: false }} />
+        <Stack.Screen name="panel-control" options={{ title: 'Panel de control' }} />
       </Stack>
     </NarrowShell>
   );

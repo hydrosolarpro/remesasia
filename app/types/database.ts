@@ -21,6 +21,7 @@ export interface Usuario {
   rol: Rol;
   push_token: string | null;
   negocio_operador_peru_id: string | null;
+  acceso_concedido: boolean;
   created_at: string;
 }
 
