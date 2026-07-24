@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { enviarPush } from '../_shared/fcm.ts';
+import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
  * F8 — Notificaciones push por cambio de estado de una solicitud.
@@ -7,16 +8,25 @@ import { enviarPush } from '../_shared/fcm.ts';
  * (ver supabase/migrations/0005_webhooks.sql).
  */
 Deno.serve(async (req) => {
+  const preflight = manejarPreflight(req);
+  if (preflight) return preflight;
+
   try {
     const { solicitud_id, estado_nuevo } = await req.json();
     if (!solicitud_id || !estado_nuevo) {
-      return new Response(JSON.stringify({ error: 'Falta solicitud_id o estado_nuevo' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Falta solicitud_id o estado_nuevo' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
     const supabase = supabaseAdmin();
     const { data: solicitud } = await supabase.from('solicitudes').select('*').eq('id', solicitud_id).single();
     if (!solicitud) {
-      return new Response(JSON.stringify({ error: 'Solicitud no encontrada' }), { status: 404 });
+      return new Response(JSON.stringify({ error: 'Solicitud no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
     const destinatario = await resolverDestinatario(supabase, solicitud, estado_nuevo);
@@ -25,10 +35,13 @@ Deno.serve(async (req) => {
       await enviarPush(destinatario.push_token, titulo, cuerpo, { solicitud_id, estado: estado_nuevo });
     }
 
-    return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
   } catch (err) {
     console.error(err);
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
   }
 });
 

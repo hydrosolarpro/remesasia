@@ -1,5 +1,6 @@
 import PDFDocument from 'npm:pdfkit@0.15.0';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
+import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
  * F9 — Comprobante PDF automático, generado al marcar una solicitud COMPLETADA.
@@ -8,10 +9,16 @@ import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
  * y guarda la URL pública en `solicitudes.comprobante_pdf_url`.
  */
 Deno.serve(async (req) => {
+  const preflight = manejarPreflight(req);
+  if (preflight) return preflight;
+
   try {
     const { solicitud_id } = await req.json();
     if (!solicitud_id) {
-      return new Response(JSON.stringify({ error: 'Falta solicitud_id' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Falta solicitud_id' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
     const supabase = supabaseAdmin();
@@ -22,7 +29,10 @@ Deno.serve(async (req) => {
       .single();
 
     if (error || !solicitud) {
-      return new Response(JSON.stringify({ error: 'Solicitud no encontrada' }), { status: 404 });
+      return new Response(JSON.stringify({ error: 'Solicitud no encontrada' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
     const pdfBytes = await renderizarComprobante(solicitud);
@@ -33,7 +43,10 @@ Deno.serve(async (req) => {
       .upload(path, pdfBytes, { contentType: 'application/pdf', upsert: true });
 
     if (uploadError) {
-      return new Response(JSON.stringify({ error: uploadError.message }), { status: 500 });
+      return new Response(JSON.stringify({ error: uploadError.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
     const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
@@ -44,11 +57,14 @@ Deno.serve(async (req) => {
       .eq('id', solicitud_id);
 
     return new Response(JSON.stringify({ comprobante_pdf_url: publicUrl.publicUrl }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   } catch (err) {
     console.error(err);
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
   }
 });
 

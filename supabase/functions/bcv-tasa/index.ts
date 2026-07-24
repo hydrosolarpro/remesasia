@@ -1,5 +1,6 @@
 import { DOMParser } from 'https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
+import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
  * Tasa oficial BCV (USD/EUR a VES), scrapeada de bcv.org.ve bajo demanda.
@@ -56,7 +57,10 @@ JEltkYnTAH41QJ6SAWO66GrrUESwN/cgZzL4JLEqz1Y=
 
 const clienteBcv = Deno.createHttpClient({ caCerts: [SECTIGO_DV_R36_INTERMEDIATE] });
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const preflight = manejarPreflight(req);
+  if (preflight) return preflight;
+
   const supabase = supabaseAdmin();
 
   const { data: ultima } = await supabase
@@ -125,5 +129,8 @@ function horasDesde(fechaIso: string): number {
 }
 
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  });
 }
