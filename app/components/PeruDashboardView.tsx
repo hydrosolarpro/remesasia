@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { PerfilNegocio, Tasa } from '../types/database';
 import { OperationRow, OperationRowData } from './OperationRow';
 import { LiveClock } from './LiveClock';
+import { RoleTag } from './RoleTag';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const HOY = () => new Date().toISOString().slice(0, 10);
@@ -136,6 +137,10 @@ export function PeruDashboardView({
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <RoleTag
+        rol={restringido ? 'operador_venezuela' : 'operador_peru'}
+        etiqueta={restringido ? 'Operador Venezuela 🇻🇪 · Solo lectura' : undefined}
+      />
       <Text style={styles.bienvenida}>Hola, {nombreUsuarioActual}</Text>
       <LiveClock />
 
@@ -211,18 +216,21 @@ export function PeruDashboardView({
 
       <Text style={styles.seccionTitulo}>Operaciones en curso ({enCurso.length})</Text>
       {enCurso.length === 0 && <Text style={styles.vacio}>No hay operaciones en curso.</Text>}
-      {enCurso.map((op) => (
-        <OperationRow
-          key={op.id}
-          op={op}
-          puedeValidarPeru={!restringido}
-          puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
-          onValidarPeru={() => validarPeru(op.id)}
-          onValidarVe={() => validarVe(op.id)}
-          validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
-          validandoVe={validando?.id === op.id && validando.tipo === 've'}
-        />
-      ))}
+      <View style={styles.grid}>
+        {enCurso.map((op) => (
+          <OperationRow
+            key={op.id}
+            style={styles.gridItem}
+            op={op}
+            puedeValidarPeru={!restringido}
+            puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
+            onValidarPeru={() => validarPeru(op.id)}
+            onValidarVe={() => validarVe(op.id)}
+            validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
+            validandoVe={validando?.id === op.id && validando.tipo === 've'}
+          />
+        ))}
+      </View>
 
       <Text style={styles.seccionTitulo}>Operaciones realizadas ({realizadas.length})</Text>
       <TextInput
@@ -233,18 +241,21 @@ export function PeruDashboardView({
         placeholderTextColor={colors.textMuted}
       />
       {realizadasFiltradas.length === 0 && <Text style={styles.vacio}>Sin resultados.</Text>}
-      {realizadasFiltradas.map((op) => (
-        <OperationRow
-          key={op.id}
-          op={op}
-          puedeValidarPeru={false}
-          puedeValidarVe={false}
-          onValidarPeru={() => {}}
-          onValidarVe={() => {}}
-          validandoPeru={false}
-          validandoVe={false}
-        />
-      ))}
+      <View style={styles.grid}>
+        {realizadasFiltradas.map((op) => (
+          <OperationRow
+            key={op.id}
+            style={styles.gridItem}
+            op={op}
+            puedeValidarPeru={false}
+            puedeValidarVe={false}
+            onValidarPeru={() => {}}
+            onValidarVe={() => {}}
+            validandoPeru={false}
+            validandoVe={false}
+          />
+        ))}
+      </View>
 
       <View style={[styles.card, cardShadow, styles.resumenCard]}>
         <Text style={styles.seccionTitulo}>Resumen de hoy</Text>
@@ -286,6 +297,10 @@ const styles = StyleSheet.create({
   esloganInput: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 },
   seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
+  // 1 columna en móvil; en pantallas anchas (operador en web/tablet) las
+  // tarjetas se acomodan solas en 2-3 columnas gracias al flexWrap.
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  gridItem: { flexGrow: 1, flexBasis: 340, minWidth: 300 },
   buscador: {
     borderWidth: 1,
     borderColor: colors.border,

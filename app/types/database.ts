@@ -1,4 +1,4 @@
-export type Rol = 'cliente' | 'operador_peru' | 'operador_venezuela';
+export type Rol = 'cliente' | 'operador_peru' | 'operador_venezuela' | 'administrador';
 
 export type EstadoSolicitud =
   | 'BORRADOR'

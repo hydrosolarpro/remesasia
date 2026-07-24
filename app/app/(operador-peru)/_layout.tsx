@@ -1,6 +1,19 @@
 import { Tabs } from 'expo-router';
+import { Text, ColorValue } from 'react-native';
 import { colors } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
+
+const ICONO = {
+  index: '📋',
+  tasa: '💱',
+  estadisticas: '📊',
+  clientes: '👥',
+  perfil: '👤',
+};
+
+function TabIcon({ nombre, color }: { nombre: keyof typeof ICONO; color: ColorValue }) {
+  return <Text style={{ fontSize: 18, color }}>{ICONO[nombre]}</Text>;
+}
 
 export default function OperadorPeruLayout() {
   return (
@@ -23,11 +36,14 @@ export default function OperadorPeruLayout() {
         tabBarInactiveTintColor: colors.textMuted,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Panel' }} />
-      <Tabs.Screen name="tasa" options={{ title: 'Tasa del día' }} />
-      <Tabs.Screen name="estadisticas" options={{ title: 'Estadísticas' }} />
-      <Tabs.Screen name="clientes" options={{ title: 'Clientes' }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
+      <Tabs.Screen name="index" options={{ title: 'Panel', tabBarIcon: ({ color }) => <TabIcon nombre="index" color={color} /> }} />
+      <Tabs.Screen name="tasa" options={{ title: 'Tasa del día', tabBarIcon: ({ color }) => <TabIcon nombre="tasa" color={color} /> }} />
+      <Tabs.Screen
+        name="estadisticas"
+        options={{ title: 'Estadísticas', tabBarIcon: ({ color }) => <TabIcon nombre="estadisticas" color={color} /> }}
+      />
+      <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: ({ color }) => <TabIcon nombre="clientes" color={color} /> }} />
+      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <TabIcon nombre="perfil" color={color} /> }} />
       <Tabs.Screen name="onboarding" options={{ title: 'Datos del negocio', href: null }} />
     </Tabs>
   );

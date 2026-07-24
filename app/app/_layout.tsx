@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '../lib/auth';
-import { colors, APP_MAX_WIDTH } from '../constants/theme';
+import { colors, APP_MAX_WIDTH_WIDE } from '../constants/theme';
 import { BannerTitle, BannerFlags } from '../components/AppBanner';
 
 export default function RootLayout() {
@@ -11,9 +11,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <StatusBar style="light" />
-        {/* En pantallas anchas (web/tablet) la app se centra como un "shell" de
-            ancho móvil; en celulares el viewport ya es menor a APP_MAX_WIDTH,
-            así que esto no cambia nada ahí. */}
+        {/* Shell general: el ancho máximo que necesita cualquier sección
+            (operador). auth/cliente lo angostan más adentro de su propio
+            grupo (ver sus _layout.tsx) porque son flujos de una columna. En
+            celulares el viewport ya es menor a cualquiera de estos valores,
+            así que nada de esto cambia algo ahí. */}
         <View style={styles.outer}>
           <View style={[styles.shell, Platform.OS === 'web' ? webShellShadow : null]}>
             <Stack
@@ -31,6 +33,7 @@ export default function RootLayout() {
               <Stack.Screen name="(cliente)" options={{ headerShown: false }} />
               <Stack.Screen name="(operador-peru)" options={{ headerShown: false }} />
               <Stack.Screen name="(operador-venezuela)" options={{ headerShown: false }} />
+              <Stack.Screen name="(admin)" options={{ headerShown: false }} />
             </Stack>
           </View>
         </View>
@@ -52,7 +55,7 @@ const styles = StyleSheet.create({
   shell: {
     flex: 1,
     width: '100%',
-    maxWidth: APP_MAX_WIDTH,
+    maxWidth: APP_MAX_WIDTH_WIDE,
     backgroundColor: colors.bg,
   },
 });

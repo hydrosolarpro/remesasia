@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors, radius, cardShadow } from '../../constants/theme';
+import { RoleTag } from '../../components/RoleTag';
 
 interface CuentaForm {
   id?: string;
@@ -192,6 +193,7 @@ export default function OnboardingNegocio() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <RoleTag rol="operador_peru" />
       <Text style={styles.titulo}>Datos de tu negocio</Text>
       <Text style={styles.subtitulo}>Se guardan una vez y puedes editarlos cuando quieras.</Text>
 

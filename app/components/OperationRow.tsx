@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp } from 'react-native';
 import { Solicitud } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -33,6 +33,7 @@ export function OperationRow({
   onValidarVe,
   validandoPeru,
   validandoVe,
+  style,
 }: {
   op: OperationRowData;
   puedeValidarPeru: boolean;
@@ -41,11 +42,12 @@ export function OperationRow({
   onValidarVe: () => void;
   validandoPeru: boolean;
   validandoVe: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   const [abierto, setAbierto] = useState(false);
 
   return (
-    <View style={[styles.card, cardShadow]}>
+    <View style={[styles.card, cardShadow, style]}>
       <Pressable style={styles.header} onPress={() => setAbierto((v) => !v)}>
         <View style={styles.headerTextos}>
           <Text style={styles.fecha}>{FORMATTER_FECHA_HORA.format(new Date(op.created_at))}</Text>

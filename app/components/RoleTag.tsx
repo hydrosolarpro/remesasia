@@ -1,0 +1,32 @@
+import { View, Text, StyleSheet } from 'react-native';
+import { Rol } from '../types/database';
+import { roleColors, roleLabel, radius } from '../constants/theme';
+
+// Insignia de rol — deja siempre claro en qué "sesión" estás parado, sobre
+// todo porque el Operador Venezuela ve la misma pantalla que el Operador
+// Perú (en modo restringido). `etiqueta` permite sobreescribir el texto
+// (p. ej. "Operador Venezuela · Solo lectura").
+export function RoleTag({ rol, etiqueta }: { rol: Rol; etiqueta?: string }) {
+  const color = roleColors[rol];
+  return (
+    <View style={[styles.wrap, { borderColor: color, backgroundColor: `${color}1F` }]}>
+      <View style={[styles.dot, { backgroundColor: color }]} />
+      <Text style={[styles.texto, { color }]}>{etiqueta ?? roleLabel[rol]}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  texto: { fontSize: 12, fontWeight: '700' },
+});

@@ -21,7 +21,9 @@ export default function Index() {
       setResolviendo(true);
       let ruta: string;
 
-      if (usuario.rol === 'cliente') {
+      if (usuario.rol === 'administrador') {
+        ruta = '/(admin)';
+      } else if (usuario.rol === 'cliente') {
         // Primera vez: sin teléfono todavía -> falta el registro corto.
         ruta = usuario.telefono ? '/(cliente)' : '/(auth)/registro';
       } else if (usuario.rol === 'operador_peru') {

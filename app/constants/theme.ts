@@ -59,6 +59,24 @@ export const estadoLabel: Record<string, string> = {
   CANCELADA: 'Cancelada',
 };
 
-// Ancho máximo del "shell" de la app en pantallas grandes (web/tablet) — en
-// móvil el viewport siempre es menor, así que esto no tiene efecto ahí.
-export const APP_MAX_WIDTH = 480;
+// Anchos máximos del "shell" en pantallas grandes (web/tablet) — en móvil el
+// viewport siempre es menor a todos estos valores, así que no cambia nada ahí.
+// El root usa WIDE (lo más ancho que necesita cualquier sección); auth y
+// cliente lo angostan más porque son flujos de una sola columna tipo móvil.
+export const APP_MAX_WIDTH_NARROW = 480; // login / registro
+export const APP_MAX_WIDTH_MEDIUM = 640; // cliente: calculadora, formularios
+export const APP_MAX_WIDTH_WIDE = 1080; // operador Perú/Venezuela: dashboard, listas, gráficas
+
+export const roleColors: Record<string, string> = {
+  cliente: colors.accent,
+  operador_peru: colors.primary,
+  operador_venezuela: colors.warning,
+  administrador: colors.danger,
+};
+
+export const roleLabel: Record<string, string> = {
+  cliente: 'Cliente',
+  operador_peru: 'Operador Perú 🇵🇪',
+  operador_venezuela: 'Operador Venezuela 🇻🇪',
+  administrador: 'Administrador',
+};

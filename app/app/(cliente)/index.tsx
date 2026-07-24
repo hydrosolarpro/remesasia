@@ -19,6 +19,7 @@ import { calcularConversion } from '../../lib/tasaCalculo';
 import { obtenerTasaBcv } from '../../lib/bcv';
 import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
+import { RoleTag } from '../../components/RoleTag';
 import {
   Tasa,
   TasaBcv,
@@ -203,6 +204,7 @@ export default function InicioCliente() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <RoleTag rol="cliente" />
       <Text style={styles.bienvenida}>Hola, {usuario?.nombre}</Text>
       <LiveClock />
       {!!perfil?.eslogan && <Text style={styles.eslogan}>&quot;{perfil.eslogan}&quot;</Text>}

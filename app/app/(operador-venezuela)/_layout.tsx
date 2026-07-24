@@ -1,6 +1,13 @@
 import { Tabs } from 'expo-router';
+import { Text, ColorValue } from 'react-native';
 import { colors } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
+
+const ICONO = { index: '📋', perfil: '👤' };
+
+function TabIcon({ nombre, color }: { nombre: keyof typeof ICONO; color: ColorValue }) {
+  return <Text style={{ fontSize: 18, color }}>{ICONO[nombre]}</Text>;
+}
 
 export default function OperadorVenezuelaLayout() {
   return (
@@ -23,8 +30,8 @@ export default function OperadorVenezuelaLayout() {
         tabBarInactiveTintColor: colors.textMuted,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Panel' }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
+      <Tabs.Screen name="index" options={{ title: 'Panel', tabBarIcon: ({ color }) => <TabIcon nombre="index" color={color} /> }} />
+      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <TabIcon nombre="perfil" color={color} /> }} />
     </Tabs>
   );
 }

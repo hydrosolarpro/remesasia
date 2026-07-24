@@ -1,11 +1,11 @@
 import { Stack } from 'expo-router';
-import { colors, APP_MAX_WIDTH_NARROW } from '../../constants/theme';
+import { colors, APP_MAX_WIDTH_MEDIUM } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 import { NarrowShell } from '../../components/NarrowShell';
 
-export default function AuthLayout() {
+export default function AdminLayout() {
   return (
-    <NarrowShell maxWidth={APP_MAX_WIDTH_NARROW}>
+    <NarrowShell maxWidth={APP_MAX_WIDTH_MEDIUM}>
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.card },
@@ -16,8 +16,7 @@ export default function AuthLayout() {
           contentStyle: { backgroundColor: colors.bg },
         }}
       >
-        <Stack.Screen name="login" options={{ headerBackVisible: false }} />
-        <Stack.Screen name="registro" options={{ headerBackVisible: false }} />
+        <Stack.Screen name="index" options={{ headerBackVisible: false }} />
       </Stack>
     </NarrowShell>
   );
