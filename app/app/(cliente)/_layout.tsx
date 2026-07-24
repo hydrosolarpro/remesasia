@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { colors } from '../../constants/theme';
+import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 
 export default function ClienteLayout() {
   return (
@@ -7,7 +8,8 @@ export default function ClienteLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitle: () => <BannerTitle />,
+        headerRight: () => <BannerFlags />,
         headerShadowVisible: false,
         tabBarStyle: {
           backgroundColor: colors.card,
@@ -21,10 +23,10 @@ export default function ClienteLayout() {
         tabBarInactiveTintColor: colors.textMuted,
       }}
     >
-      <Tabs.Screen name="calculadora" options={{ title: 'Calculadora' }} />
-      <Tabs.Screen name="historial" options={{ title: 'Historial' }} />
+      <Tabs.Screen name="index" options={{ title: 'Inicio' }} />
+      <Tabs.Screen name="cuentas-utilizadas" options={{ title: 'Mis cuentas' }} />
+      <Tabs.Screen name="estadisticas" options={{ title: 'Estadísticas' }} />
       <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
-      <Tabs.Screen name="nueva-solicitud" options={{ title: 'Nueva solicitud', href: null }} />
       <Tabs.Screen name="solicitud/[id]" options={{ title: 'Detalle de solicitud', href: null }} />
     </Tabs>
   );

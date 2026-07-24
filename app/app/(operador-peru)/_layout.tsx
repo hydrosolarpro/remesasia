@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { colors } from '../../constants/theme';
+import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 
 export default function OperadorPeruLayout() {
   return (
@@ -7,7 +8,8 @@ export default function OperadorPeruLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitle: () => <BannerTitle />,
+        headerRight: () => <BannerFlags />,
         headerShadowVisible: false,
         tabBarStyle: {
           backgroundColor: colors.card,
@@ -21,12 +23,12 @@ export default function OperadorPeruLayout() {
         tabBarInactiveTintColor: colors.textMuted,
       }}
     >
-      <Tabs.Screen name="solicitudes" options={{ title: 'Solicitudes' }} />
+      <Tabs.Screen name="index" options={{ title: 'Panel' }} />
       <Tabs.Screen name="tasa" options={{ title: 'Tasa del día' }} />
-      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Tabs.Screen name="estadisticas" options={{ title: 'Estadísticas' }} />
+      <Tabs.Screen name="clientes" options={{ title: 'Clientes' }} />
       <Tabs.Screen name="perfil" options={{ title: 'Perfil' }} />
-      <Tabs.Screen name="solicitud/[id]" options={{ title: 'Solicitud', href: null }} />
-      <Tabs.Screen name="chat/[solicitudId]" options={{ title: 'Chat con Venezuela', href: null }} />
+      <Tabs.Screen name="onboarding" options={{ title: 'Datos del negocio', href: null }} />
     </Tabs>
   );
 }

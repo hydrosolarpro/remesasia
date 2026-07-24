@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { colors } from '../../constants/theme';
+import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 
 export default function AuthLayout() {
   return (
@@ -7,14 +8,14 @@ export default function AuthLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitle: () => <BannerTitle />,
+        headerRight: () => <BannerFlags />,
         headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Stack.Screen name="login" options={{ title: 'Ingresar' }} />
-      <Stack.Screen name="verify" options={{ title: 'Verificar código' }} />
-      <Stack.Screen name="pendiente-alta" options={{ title: 'Cuenta en revisión', headerBackVisible: false }} />
+      <Stack.Screen name="login" options={{ headerBackVisible: false }} />
+      <Stack.Screen name="registro" options={{ headerBackVisible: false }} />
     </Stack>
   );
 }

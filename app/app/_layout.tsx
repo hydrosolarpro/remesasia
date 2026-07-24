@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '../lib/auth';
 import { colors, APP_MAX_WIDTH } from '../constants/theme';
+import { BannerTitle, BannerFlags } from '../components/AppBanner';
 
 export default function RootLayout() {
   return (
@@ -19,7 +20,8 @@ export default function RootLayout() {
               screenOptions={{
                 headerStyle: { backgroundColor: colors.card },
                 headerTintColor: colors.text,
-                headerTitleStyle: { fontWeight: '700' },
+                headerTitle: () => <BannerTitle />,
+                headerRight: () => <BannerFlags />,
                 headerShadowVisible: false,
                 contentStyle: { backgroundColor: colors.bg },
               }}

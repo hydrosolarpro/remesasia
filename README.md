@@ -9,30 +9,40 @@ estudio de mercado y breakdown técnico en [`PRD_Maestro_AppRemesasIA.md`](./PRD
 ## Estructura
 
 ```
-app/                    App móvil (React Native + Expo + expo-router)
-  app/(auth)/           Login por SMS OTP
-  app/(cliente)/        F2 F3 F4 F9 F12 — calculadora, solicitud, pago, historial
-  app/(operador-peru)/  F1 F5 F6 F10 F11 F13 — tasa, verificación, gestión, dashboard, chat
-  app/(operador-venezuela)/  F7 F13 — beneficiario, marcar completada, chat
-  lib/                  cliente Supabase, auth context, cálculo de tasas, push, PDF
+app/                          App móvil (React Native + Expo + expo-router)
+  app/(auth)/                 Login con Google, registro de cliente (primera vez)
+  app/(cliente)/               index (calculadora + solicitud), cuentas-utilizadas,
+                               estadísticas, perfil, solicitud/[id]
+  app/(operador-peru)/         onboarding (perfil del negocio), index (panel:
+                               operaciones en curso/realizadas, resumen del día),
+                               tasa, estadísticas (gráficas + PDF), clientes (PDF), perfil
+  app/(operador-venezuela)/    index (mismo panel de Perú en modo restringido), perfil
+  components/                  AppBanner, RoundCheck, LiveClock, CopyField, OperationRow,
+                               PeruDashboardView (compartida Perú/Venezuela), DateRangeFilter
+  lib/                         cliente Supabase, auth (Google), cálculo de tasas, tasa BCV,
+                               generación de PDF, push, comprobantes
 supabase/
-  migrations/           esquema SQL (tablas, RLS, máquina de estados, dashboard, storage, webhooks)
-  functions/            Edge Functions: generar-comprobante (F9), notificar-cambio-estado (F8)
-*.md / *.pdf            Documentos de diagnóstico de Hermes Agents (Paso 1-2)
+  migrations/                  esquema SQL: tablas, RLS, máquina de estados, dashboard,
+                               storage, webhooks, negocio/Venezuela/cuentas cliente (0007)
+  functions/                   generar-comprobante (F9), notificar-cambio-estado (F8),
+                               bcv-tasa (scraper de bcv.org.ve con caché)
+*.md / *.pdf                  Documentos de diagnóstico de Hermes Agents (Paso 1-2)
 ```
 
 ## 1. Configurar Supabase
 
 Proyecto ya creado: https://supabase.com/dashboard/project/vddyynachdgqmtofqxnr
 
-**Estado actual:** las 5 migraciones de `supabase/migrations/` y las 2 Edge Functions
-(`generar-comprobante`, `notificar-cambio-estado`) ya están desplegadas en el proyecto
-remoto (aplicadas vía Supabase MCP). Esto incluye: enums, tablas (`usuarios`, `tasas`,
-`solicitudes`, `mensajes_chat`), RLS por rol, la máquina de estados, la vista
-`operaciones_dashboard` y el bucket de Storage `comprobantes`. Ambas funciones se
-desplegaron con `verify_jwt: true` — el trigger de la sección "Configurar webhooks de
-estado" les envía el `service_role_key` como Bearer token, que es un JWT válido del
-proyecto, así que no hace falta desactivar la verificación.
+**Estado actual:** las 7 migraciones de `supabase/migrations/` y las 3 Edge Functions
+(`generar-comprobante`, `notificar-cambio-estado`, `bcv-tasa`) ya están desplegadas en el
+proyecto remoto (aplicadas vía Supabase MCP). Esto incluye: enums, tablas (`usuarios`,
+`tasas`, `solicitudes`, `mensajes_chat`, `perfil_negocio`, `cuentas_bancarias_operador`,
+`operador_venezuela_perfil`, `cuentas_utilizadas_cliente`, `tasa_bcv`), RLS por rol, la
+máquina de estados sincronizada con los checks de validación, la vista
+`operaciones_dashboard` y el bucket de Storage `comprobantes`. `generar-comprobante` y
+`notificar-cambio-estado` se desplegaron con `verify_jwt: true` (reciben el
+`service_role_key` como Bearer token desde el trigger de BD); `bcv-tasa` también con
+`verify_jwt: true` porque la llama directo la app con la sesión del usuario.
 
 Si necesitas re-aplicar todo desde cero (por ejemplo, en un proyecto nuevo), usa la CLI:
 
@@ -50,23 +60,45 @@ Lo que **todavía falta configurar manualmente** (requiere secretos/credenciales
 viven en el repo — ver las dos secciones siguientes): el proveedor de SMS OTP, los
 ajustes de base de datos para los webhooks, y el secreto de Firebase para push.
 
-### Habilitar SMS OTP
+### Habilitar Google Sign-In (pendiente — bloquea el login)
 
-Dashboard → Authentication → Providers → Phone → activa un proveedor (Twilio, MessageBird o Vonage)
-y agrega sus credenciales. Sin esto, `signInWithOtp({ phone })` fallará.
+La app ya no usa SMS OTP: el login es con Google (`signInWithOAuth`). Esto **requiere que
+completes estos pasos afuera del repo** — sin ellos el botón "Continuar con Google" falla:
 
-### Dar de alta operadores
+1. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)):
+   - Crea (o usa) un proyecto → APIs & Services → OAuth consent screen → configúralo en modo
+     "External" con el email de soporte y los scopes básicos (`email`, `profile`, `openid`).
+   - Credentials → Create Credentials → OAuth client ID → tipo **Web application**.
+   - En "Authorized redirect URIs" agrega exactamente:
+     `https://vddyynachdgqmtofqxnr.supabase.co/auth/v1/callback`
+   - Copia el **Client ID** y el **Client Secret** que genera.
+2. **Supabase Dashboard** → Authentication → Providers → Google:
+   - Actívalo y pega el Client ID / Client Secret del paso anterior.
+   - Authentication → URL Configuration → Additional Redirect URLs: agrega
+     `remesasia://` (login nativo) y `http://localhost:8081` (pruebas en `expo start --web`).
+     Cuando despliegues el panel/dominio de producción, agrega también esa URL.
 
-Toda cuenta nueva entra automáticamente como `cliente` (trigger `handle_new_user`). Los 2-3
-usuarios internos se promueven manualmente una vez que inician sesión la primera vez:
+**Limitación de Expo Go:** el login con Google usa un redirect por navegador
+(`expo-auth-session` + `signInWithOAuth`, no el SDK nativo de Google) justamente para
+seguir funcionando en Expo Go. En **web** (`npm run web`) funciona igual que en producción.
+En **nativo dentro de Expo Go** el redirect `remesasia://` no lo puede capturar el
+contenedor de Expo Go (ese esquema solo lo resuelve un build real de la app) — para probar
+el login nativo hace falta un development/preview build de EAS (sección 3 más abajo). El
+resto de la app sí funciona normalmente en Expo Go.
+
+### Vincular operadores
+
+El **Operador Perú** (dueño del negocio) se promueve manualmente una sola vez, la primera
+vez que inicia sesión con su Gmail:
 
 ```sql
-update usuarios set rol = 'operador_peru', nombre = 'Nombre del operador'
-where telefono = '+51999999999';
-
-update usuarios set rol = 'operador_venezuela', nombre = 'Nombre del operador'
-where telefono = '+58999999999';
+update usuarios set rol = 'operador_peru' where email = 'operador@gmail.com';
 ```
+
+El **Operador Venezuela** se vincula solo: el Operador Perú carga su email en la pantalla
+de onboarding (`operador_venezuela_perfil.email`), y en cuanto esa persona inicia sesión
+con ese mismo Gmail, el trigger `handle_new_user` lo asigna automáticamente al rol
+`operador_venezuela` y lo vincula — no requiere SQL manual.
 
 ### Configurar webhooks de estado (F8/F9)
 
@@ -91,6 +123,21 @@ supabase secrets set FIREBASE_SERVICE_ACCOUNT_JSON='<contenido del JSON de la cu
 
 La cuenta de servicio de Firebase se descarga desde Firebase Console → Project Settings →
 Service Accounts → Generate new private key (necesaria para FCM HTTP v1, ver F8).
+
+### Tasa BCV (`bcv-tasa`)
+
+Scrapea el dólar y euro oficial de bcv.org.ve bajo demanda (la calculadora del cliente la
+llama al abrir la pantalla) con caché de 6 horas en `tasa_bcv` — si el scraping falla,
+devuelve el último valor conocido en vez de romper la calculadora. bcv.org.ve no tiene
+API pública, así que esto es HTML scraping y es inherentemente frágil si el sitio cambia
+de estructura (selectores `#dolar` / `#euro`).
+
+Nota técnica: bcv.org.ve sirve una cadena de certificados TLS incompleta (le falta el
+intermediate "Sectigo Public Server Authentication CA DV R36"). Los navegadores la
+completan solos vía AIA chasing, pero el runtime de Deno no, así que sin el fix la función
+fallaba con `UnknownIssuer`. El certificado que falta está embebido en
+`supabase/functions/bcv-tasa/index.ts` y se pasa a `Deno.createHttpClient({ caCerts })` —
+no baja la seguridad, solo completa la cadena con la CA correcta.
 
 ## 2. Correr la app móvil
 
@@ -120,12 +167,23 @@ con un proyecto de sistema de diseño en claude.ai/design vía el flujo `/design
 lugar de diseñarse ad-hoc pantalla por pantalla. Esto mantiene consistencia visual entre
 las 3 apps (cliente, operador Perú, operador Venezuela) a medida que se agregan pantallas.
 
-## Pendiente (siguientes pasos del pipeline)
+## Pendiente
 
+**Bloquea probar el login real ahora mismo:**
+- **Google Sign-In** — completar Google Cloud Console + Supabase Dashboard (ver
+  "Habilitar Google Sign-In" arriba). Sin esto el botón "Continuar con Google" responde
+  400 (verificado: el resto de la app funciona, solo falta esta configuración externa).
+
+**No bloquea, pero falta para producción:**
+- **Firebase (push F8)** — subir `FIREBASE_SERVICE_ACCOUNT_JSON` como secreto.
+- **EAS dev/preview build** — para probar el login de Google en nativo (Expo Go no puede
+  capturar el redirect `remesasia://`, ver nota arriba). El resto de la app sí corre en
+  Expo Go sin problema.
+
+**Siguientes pasos del pipeline:**
 - **④ N8N** — automatizar: alertas de tasa desactualizada, resumen diario a WhatsApp/Telegram
   del dueño, reintentos de generación de PDF, sincronización con Google Sheets si se requiere respaldo.
 - **Panel web (Op. Perú/Venezuela)** — React + Vite en Vercel, descrito en el PRD como opcional
   para operadores que prefieran computadora. No incluido en este scaffold; la app móvil cubre
-  el 100% de las 14 funciones núcleo del MVP.
-- **V2** — OCR de comprobantes (Google Vision), tasa automática vía API Binance/El Dorado (F14),
-  pagos online (Culqi/Niubiz).
+  el 100% de las funciones núcleo del MVP.
+- **V2** — OCR de comprobantes (Google Vision), pagos online (Culqi/Niubiz).
