@@ -60,10 +60,11 @@ Lo que **todavía falta configurar manualmente** (requiere secretos/credenciales
 viven en el repo — ver las dos secciones siguientes): el proveedor de SMS OTP, los
 ajustes de base de datos para los webhooks, y el secreto de Firebase para push.
 
-### Habilitar Google Sign-In (pendiente — bloquea el login)
+### Habilitar Google Sign-In
 
-La app ya no usa SMS OTP: el login es con Google (`signInWithOAuth`). Esto **requiere que
-completes estos pasos afuera del repo** — sin ellos el botón "Continuar con Google" falla:
+La app ya no usa SMS OTP: el login es con Google (`signInWithOAuth`). **Ya está activado y
+verificado en producción** (probado con una cuenta real de punta a punta). Si necesitas
+volver a configurarlo desde cero (proyecto nuevo, otro dominio), estos son los pasos:
 
 1. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)):
    - Crea (o usa) un proyecto → APIs & Services → OAuth consent screen → configúralo en modo
@@ -86,19 +87,64 @@ contenedor de Expo Go (ese esquema solo lo resuelve un build real de la app) —
 el login nativo hace falta un development/preview build de EAS (sección 3 más abajo). El
 resto de la app sí funciona normalmente en Expo Go.
 
-### Vincular operadores
+### Multi-tenant: cada Operador Perú es un negocio independiente
 
-El **Operador Perú** (dueño del negocio) se promueve manualmente una sola vez, la primera
-vez que inicia sesión con su Gmail:
+La app soporta varios negocios (Operadores Perú) al mismo tiempo, cada uno con sus propios
+clientes, tasa del día, operaciones y estadísticas — aislados entre sí por RLS
+(`negocio_operador_peru_id` en `usuarios`/`solicitudes`, función `mi_negocio_operador_peru_id()`).
+Nadie ve datos de un negocio que no es el suyo, ni siquiera el admin (el admin solo ve
+nombre/contacto de los Operadores Perú y sus pagos de suscripción, no sus clientes ni
+operaciones).
+
+**Alta de un Operador Perú (por el admin):** panel Admin → "Invitar Operador Perú" → genera
+un enlace (`/invitacion/<token>`) → se comparte por WhatsApp. Quien lo abre inicia sesión
+con Google y el rol se asigna solo (RPC `canjear_invitacion`). Sigue funcionando el alta
+manual por SQL como respaldo:
 
 ```sql
 update usuarios set rol = 'operador_peru' where email = 'operador@gmail.com';
 ```
 
-El **Operador Venezuela** se vincula solo: el Operador Perú carga su email en la pantalla
-de onboarding (`operador_venezuela_perfil.email`), y en cuanto esa persona inicia sesión
+**Alta de un cliente (por el Operador Perú):** pestaña Perfil → "Invitar clientes" → genera
+un enlace scopeado a ese negocio (`invitaciones.negocio_operador_peru_id`). Quien lo abre
+queda vinculado automáticamente a ese Operador Perú (`usuarios.negocio_operador_peru_id`).
+Un cliente que entra sin enlace de invitación ve un aviso pidiéndole el enlace — no hay
+forma de adivinar a qué negocio pertenece.
+
+**El Operador Venezuela** se vincula solo, sin enlace: el Operador Perú carga su email en
+el onboarding (`operador_venezuela_perfil.email`), y en cuanto esa persona inicia sesión
 con ese mismo Gmail, el trigger `handle_new_user` lo asigna automáticamente al rol
-`operador_venezuela` y lo vincula — no requiere SQL manual.
+`operador_venezuela` y lo vincula a ese negocio.
+
+**Enlaces de invitación (WhatsApp):** por defecto los enlaces copiados apuntan a
+`http://localhost:8081/invitacion/<token>` (sirve para probar pegándolo en el navegador,
+pero WhatsApp no lo vuelve clickeable — no es `https://`). En cuanto despliegues el panel
+web (Vercel, sección "Pendiente"), define `EXPO_PUBLIC_WEB_BASE_URL=https://tu-dominio` en
+`app/.env` para que los enlaces sean reales y abran bien desde WhatsApp.
+
+### Rol Administrador
+
+Ve un único panel: la lista de todos los Operadores Perú con sus datos de contacto, los
+pagos de suscripción pendientes de verificar, y la configuración de a dónde deben pagar
+(banco/CCI/titular/QR). La cuenta `productosaas2026@gmail.com` se auto-asigna este rol al
+iniciar sesión por primera vez (hardcodeado en `handle_new_user`, migración `0009`); para
+agregar más administradores, promuévelos a mano:
+
+```sql
+update usuarios set rol = 'administrador' where email = 'otro-admin@gmail.com';
+```
+
+### Suscripción mensual del Operador Perú
+
+Cada Operador Perú paga S/ 50/mes (configurable en `configuracion_pagos_admin.monto_suscripcion`,
+editable desde el panel Admin) para poder usar la app. Sin un pago **verificado** para el
+mes en curso, `(operador-peru)/_layout.tsx` bloquea el acceso a todo el panel (incluido el
+onboarding) y solo muestra la pantalla de pago (`components/SuscripcionGate.tsx`): datos
+bancarios del admin + QR + botón para subir el comprobante. El admin aprueba o rechaza
+desde su panel; si rechaza, el Operador Perú puede volver a subir el comprobante del mismo
+período. Es un candado a nivel de la app (routing), no de RLS — el Operador Perú técnicamente
+puede seguir escribiendo en las tablas de su negocio vía API aunque no haya pagado; endurecer
+esto a nivel de base de datos queda pendiente si se necesita.
 
 ### Configurar webhooks de estado (F8/F9)
 
@@ -167,23 +213,35 @@ con un proyecto de sistema de diseño en claude.ai/design vía el flujo `/design
 lugar de diseñarse ad-hoc pantalla por pantalla. Esto mantiene consistencia visual entre
 las 3 apps (cliente, operador Perú, operador Venezuela) a medida que se agregan pantallas.
 
-## Pendiente
+## WhatsApp al beneficiario en Venezuela
 
-**Bloquea probar el login real ahora mismo:**
-- **Google Sign-In** — completar Google Cloud Console + Supabase Dashboard (ver
-  "Habilitar Google Sign-In" arriba). Sin esto el botón "Continuar con Google" responde
-  400 (verificado: el resto de la app funciona, solo falta esta configuración externa).
+Al completar una operación (check "Depósito transferido en Venezuela"), aparece un botón
+"Notificar por WhatsApp" que abre `wa.me/<teléfono>?text=...` con el mensaje ya escrito al
+beneficiario — el operador solo toca enviar. Formateo del teléfono venezolano en
+`lib/whatsapp.ts` (agrega el `58` y quita el `0` inicial de los números locales tipo
+`0412-1234567`). **No es 100% automático a propósito:** el envío verdaderamente automático
+(sin tocar nada) requiere la API oficial de WhatsApp Business de Meta — cuenta verificada,
+número registrado, credenciales — que es justo lo que el PRD ya reserva para el Paso ④
+(N8N). Mientras no se configure esa API, el enlace con un toque es la mejor opción sin
+depender de cuentas externas nuevas.
+
+## Pendiente
 
 **No bloquea, pero falta para producción:**
 - **Firebase (push F8)** — subir `FIREBASE_SERVICE_ACCOUNT_JSON` como secreto.
 - **EAS dev/preview build** — para probar el login de Google en nativo (Expo Go no puede
   capturar el redirect `remesasia://`, ver nota arriba). El resto de la app sí corre en
   Expo Go sin problema.
+- **QR de pago del admin** — el admin todavía debe subir el QR de Yape/Plin desde su panel
+  (no pude extraer la imagen que se compartió en el chat; los datos bancarios de texto ya
+  quedaron precargados).
 
 **Siguientes pasos del pipeline:**
-- **④ N8N** — automatizar: alertas de tasa desactualizada, resumen diario a WhatsApp/Telegram
-  del dueño, reintentos de generación de PDF, sincronización con Google Sheets si se requiere respaldo.
-- **Panel web (Op. Perú/Venezuela)** — React + Vite en Vercel, descrito en el PRD como opcional
-  para operadores que prefieran computadora. No incluido en este scaffold; la app móvil cubre
-  el 100% de las funciones núcleo del MVP.
-- **V2** — OCR de comprobantes (Google Vision), pagos online (Culqi/Niubiz).
+- **④ N8N** — WhatsApp Business API para notificaciones 100% automáticas (ver arriba),
+  alertas de tasa desactualizada, resumen diario al dueño, reintentos de generación de PDF,
+  sincronización con Google Sheets si se requiere respaldo.
+- **Panel web (Op. Perú/Venezuela)** — React + Vite en Vercel. También es lo que hace que
+  los enlaces de invitación sean `https://` de verdad y funcionen desde WhatsApp (ver
+  `EXPO_PUBLIC_WEB_BASE_URL` arriba).
+- **V2** — OCR de comprobantes (Google Vision), pagos online (Culqi/Niubiz), endurecer el
+  candado de suscripción a nivel de RLS (hoy es solo a nivel de routing en la app).

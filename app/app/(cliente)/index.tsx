@@ -54,16 +54,30 @@ export default function InicioCliente() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const negocioId = usuario?.negocio_operador_peru_id ?? null;
+
   const cargar = useCallback(async () => {
     if (!usuario) return;
     setCargando(true);
 
-    const { data: operadorRow } = await supabase.from('usuarios').select('id, nombre').eq('rol', 'operador_peru').limit(1).maybeSingle();
+    if (!negocioId) {
+      setCargando(false);
+      return;
+    }
+
+    const { data: operadorRow } = await supabase.from('usuarios').select('id, nombre').eq('id', negocioId).maybeSingle();
 
     const [{ data: tasaData }, { data: perfilData }, { data: cuentasData }, { data: guardadasData }] = await Promise.all([
-      supabase.from('tasas').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-      operadorRow ? supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorRow.id).maybeSingle() : Promise.resolve({ data: null }),
-      operadorRow ? supabase.from('cuentas_bancarias_operador').select('*').eq('operador_peru_id', operadorRow.id) : Promise.resolve({ data: [] }),
+      supabase
+        .from('tasas')
+        .select('*')
+        .eq('publicada_por', negocioId)
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from('perfil_negocio').select('*').eq('operador_peru_id', negocioId).maybeSingle(),
+      supabase.from('cuentas_bancarias_operador').select('*').eq('operador_peru_id', negocioId),
       supabase.from('cuentas_utilizadas_cliente').select('*').eq('cliente_id', usuario.id).order('created_at', { ascending: false }),
     ]);
 
@@ -73,7 +87,7 @@ export default function InicioCliente() {
     setCuentasOperador((cuentasData as CuentaBancariaOperador[] | null) ?? []);
     setCuentasGuardadas((guardadasData as CuentaUtilizadaCliente[] | null) ?? []);
     setCargando(false);
-  }, [usuario]);
+  }, [usuario, negocioId]);
 
   useEffect(() => {
     cargar();
@@ -126,7 +140,7 @@ export default function InicioCliente() {
 
   const enviarSolicitud = async () => {
     setError(null);
-    if (!usuario || !tasa || !conversion) {
+    if (!usuario || !negocioId || !tasa || !conversion) {
       setError('Ingresa un monto válido.');
       return;
     }
@@ -145,6 +159,7 @@ export default function InicioCliente() {
         .from('solicitudes')
         .insert({
           cliente_id: usuario.id,
+          negocio_operador_peru_id: negocioId,
           estado: 'EN_VERIFICACION',
           monto_pen: conversion.montoPen,
           tasa_pen_usdt: conversion.tasaPenUsdt,
@@ -155,6 +170,7 @@ export default function InicioCliente() {
           beneficiario_banco: beneficiarioBanco.trim(),
           beneficiario_cuenta: beneficiarioCuenta.trim(),
           beneficiario_ci: beneficiarioCi.trim(),
+          beneficiario_telefono: beneficiarioTelefono.trim() || null,
           metodo_pago: metodoPago,
         })
         .select()
@@ -198,6 +214,18 @@ export default function InicioCliente() {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!negocioId) {
+    return (
+      <View style={styles.center}>
+        <RoleTag rol="cliente" />
+        <Text style={styles.avisoSinNegocio}>
+          Tu cuenta todavía no está vinculada a ningún negocio. Pide al operador que te comparta su enlace de invitación por
+          WhatsApp para poder usar la app.
+        </Text>
       </View>
     );
   }
@@ -379,7 +407,8 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
+  center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 },
+  avisoSinNegocio: { color: colors.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
   bienvenida: { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: -4 },
   eslogan: { color: colors.accent, fontSize: 13, fontStyle: 'italic', fontWeight: '600' },

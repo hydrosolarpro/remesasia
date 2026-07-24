@@ -20,6 +20,7 @@ export interface Usuario {
   pais: string | null;
   rol: Rol;
   push_token: string | null;
+  negocio_operador_peru_id: string | null;
   created_at: string;
 }
 
@@ -53,6 +54,7 @@ export interface Solicitud {
   beneficiario_banco: string;
   beneficiario_cuenta: string;
   beneficiario_ci: string | null;
+  beneficiario_telefono: string | null;
   metodo_pago: MetodoPago;
   comprobante_pago_url: string | null;
   motivo_rechazo: string | null;
@@ -63,6 +65,7 @@ export interface Solicitud {
   check_deposito_peru_at: string | null;
   check_deposito_ve: boolean;
   check_deposito_ve_at: string | null;
+  negocio_operador_peru_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -126,6 +129,46 @@ export interface MensajeChat {
   autor_rol: Rol;
   mensaje: string;
   created_at: string;
+}
+
+export type TipoInvitacion = 'operador_peru' | 'cliente';
+
+export interface Invitacion {
+  id: string;
+  token: string;
+  tipo: TipoInvitacion;
+  negocio_operador_peru_id: string | null;
+  creado_por: string;
+  usado_por: string | null;
+  used_at: string | null;
+  created_at: string;
+}
+
+export type EstadoPago = 'pendiente' | 'verificado' | 'rechazado';
+
+export interface PagoSuscripcion {
+  id: string;
+  operador_peru_id: string;
+  periodo: string; // 'YYYY-MM'
+  monto: number;
+  comprobante_url: string | null;
+  estado: EstadoPago;
+  motivo_rechazo: string | null;
+  verificado_por: string | null;
+  verificado_at: string | null;
+  created_at: string;
+}
+
+export interface ConfiguracionPagosAdmin {
+  id: string;
+  banco: string | null;
+  cuenta_soles: string | null;
+  cci: string | null;
+  titular: string | null;
+  yape_qr_url: string | null;
+  plin_qr_url: string | null;
+  monto_suscripcion: number;
+  updated_at: string;
 }
 
 export interface OperacionesDashboardRow {

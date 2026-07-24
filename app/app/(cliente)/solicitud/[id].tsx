@@ -5,11 +5,11 @@ import { supabase } from '../../../lib/supabase';
 import { descargarYCompartirComprobante } from '../../../lib/pdf';
 import { Solicitud } from '../../../types/database';
 import { EstadoBadge } from '../../../components/EstadoBadge';
-import { colors } from '../../../constants/theme';
+import { colors, radius, cardShadow } from '../../../constants/theme';
 
 /**
- * Seguimiento de una solicitud ya enviada: estado, checks de validación
- * y descarga del comprobante PDF cuando está COMPLETADA.
+ * Seguimiento de una solicitud ya enviada: estado, checks de validación,
+ * aviso visible cuando se completa, y descarga del comprobante PDF.
  */
 export default function DetalleSolicitud() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,6 +51,21 @@ export default function DetalleSolicitud() {
         <EstadoBadge estado={solicitud.estado} />
       </View>
 
+      {solicitud.check_deposito_ve && (
+        <View style={[styles.avisoCompletado, cardShadow]}>
+          <Text style={styles.avisoTitulo}>✓ ¡Operación completada!</Text>
+          <Text style={styles.avisoTexto}>
+            Confirmamos que {solicitud.beneficiario_nombre} recibió Bs {solicitud.monto_ves.toFixed(2)} en Venezuela.
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.progresoRow}>
+        <ProgresoPaso etiqueta="Pago validado en Perú" hecho={solicitud.check_deposito_peru} />
+        <View style={styles.progresoLinea} />
+        <ProgresoPaso etiqueta="Depósito transferido en Venezuela" hecho={solicitud.check_deposito_ve} />
+      </View>
+
       <View style={styles.card}>
         <Row label="Beneficiario" value={solicitud.beneficiario_nombre} />
         <Row label="C.I." value={solicitud.beneficiario_ci ?? '—'} />
@@ -59,11 +74,6 @@ export default function DetalleSolicitud() {
         <Row label="Envías" value={`S/ ${solicitud.monto_pen.toFixed(2)}`} />
         <Row label="Recibe" value={`Bs ${solicitud.monto_ves.toFixed(2)}`} />
         <Row label="Método de pago" value={solicitud.metodo_pago === 'yape' ? 'Yape' : 'Transferencia bancaria'} />
-      </View>
-
-      <View style={styles.card}>
-        <Row label="Depósito validado en Perú" value={solicitud.check_deposito_peru ? 'Sí' : 'Pendiente'} />
-        <Row label="Depósito efectuado en Venezuela" value={solicitud.check_deposito_ve ? 'Sí' : 'Pendiente'} />
       </View>
 
       {solicitud.comprobante_pago_url && (
@@ -89,6 +99,17 @@ export default function DetalleSolicitud() {
   );
 }
 
+function ProgresoPaso({ etiqueta, hecho }: { etiqueta: string; hecho: boolean }) {
+  return (
+    <View style={styles.progresoPaso}>
+      <View style={[styles.progresoCirculo, hecho && styles.progresoCirculoHecho]}>
+        {hecho && <Text style={styles.progresoCheck}>✓</Text>}
+      </View>
+      <Text style={styles.progresoTexto}>{etiqueta}</Text>
+    </View>
+  );
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.row}>
@@ -103,6 +124,24 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   id: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  avisoCompletado: { backgroundColor: `${colors.success}22`, borderColor: colors.success, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 4 },
+  avisoTitulo: { color: colors.success, fontSize: 16, fontWeight: '800' },
+  avisoTexto: { color: colors.text, fontSize: 13, lineHeight: 18 },
+  progresoRow: { flexDirection: 'row', alignItems: 'center' },
+  progresoPaso: { flex: 1, alignItems: 'center', gap: 6 },
+  progresoLinea: { height: 1, flex: 0.4, backgroundColor: colors.border, marginBottom: 22 },
+  progresoCirculo: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progresoCirculoHecho: { backgroundColor: colors.success, borderColor: colors.success },
+  progresoCheck: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  progresoTexto: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 14, padding: 16, gap: 10 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   rowLabel: { color: colors.textMuted, fontSize: 13 },

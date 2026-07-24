@@ -2,28 +2,32 @@ import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function ClientesRegistrados() {
+  const { usuario } = useAuth();
   const [clientes, setClientes] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [generandoPdf, setGenerandoPdf] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
+      if (!usuario) return;
       setCargando(true);
       supabase
         .from('usuarios')
         .select('*')
         .eq('rol', 'cliente')
+        .eq('negocio_operador_peru_id', usuario.id)
         .order('created_at', { ascending: false })
         .then(({ data }) => {
           setClientes((data as Usuario[] | null) ?? []);
           setCargando(false);
         });
-    }, [])
+    }, [usuario])
   );
 
   const exportarPdf = async () => {

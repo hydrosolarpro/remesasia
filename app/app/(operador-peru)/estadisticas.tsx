@@ -35,6 +35,7 @@ export default function EstadisticasOperador() {
         .from('solicitudes')
         .select('*')
         .eq('check_deposito_ve', true)
+        .eq('negocio_operador_peru_id', usuario.id)
         .gte('created_at', nuevoRango.desde)
         .lt('created_at', nuevoRango.hasta)
         .order('created_at', { ascending: true }),

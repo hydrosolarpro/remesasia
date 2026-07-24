@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Rol } from '../types/database';
 import { roleColors, roleLabel, radius } from '../constants/theme';
+import { FlagPeru, FlagVenezuela } from './FlagIcon';
 
 // Insignia de rol — deja siempre claro en qué "sesión" estás parado, sobre
 // todo porque el Operador Venezuela ve la misma pantalla que el Operador
@@ -11,6 +12,8 @@ export function RoleTag({ rol, etiqueta }: { rol: Rol; etiqueta?: string }) {
   return (
     <View style={[styles.wrap, { borderColor: color, backgroundColor: `${color}1F` }]}>
       <View style={[styles.dot, { backgroundColor: color }]} />
+      {rol === 'operador_peru' && <FlagPeru width={16} height={11} />}
+      {rol === 'operador_venezuela' && <FlagVenezuela width={16} height={11} />}
       <Text style={[styles.texto, { color }]}>{etiqueta ?? roleLabel[rol]}</Text>
     </View>
   );

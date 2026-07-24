@@ -39,10 +39,18 @@ export function PeruDashboardView({
   const cargar = useCallback(async () => {
     const [{ data: perfilData }, { data: tasaData }, { data: opsData }] = await Promise.all([
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
-      supabase.from('tasas').select('*').order('fecha', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase
+        .from('tasas')
+        .select('*')
+        .eq('publicada_por', operadorPeruId)
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       supabase
         .from('solicitudes')
         .select('*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono)')
+        .eq('negocio_operador_peru_id', operadorPeruId)
         .order('created_at', { ascending: false })
         .limit(200),
     ]);
@@ -103,11 +111,25 @@ export function PeruDashboardView({
     if (!error) cargar();
   };
 
-  const validarVe = async (id: string) => {
+  const validarVe = async (id: string, comprobanteUri: string) => {
     setValidando({ id, tipo: 've' });
-    const { error } = await supabase.rpc('validar_deposito_venezuela', { p_solicitud_id: id });
-    setValidando(null);
-    if (!error) cargar();
+    try {
+      const ext = comprobanteUri.split('.').pop() ?? 'jpg';
+      const path = `${id}/comprobante-vz.${ext}`;
+      const blob = await (await fetch(comprobanteUri)).blob();
+      const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
+
+      const { error } = await supabase.rpc('validar_deposito_venezuela', {
+        p_solicitud_id: id,
+        p_comprobante_url: publicUrl.publicUrl,
+      });
+      if (error) throw error;
+      cargar();
+    } finally {
+      setValidando(null);
+    }
   };
 
   const guardarEslogan = async () => {
@@ -139,7 +161,7 @@ export function PeruDashboardView({
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag
         rol={restringido ? 'operador_venezuela' : 'operador_peru'}
-        etiqueta={restringido ? 'Operador Venezuela 🇻🇪 · Solo lectura' : undefined}
+        etiqueta={restringido ? 'Operador Venezuela · Solo lectura' : undefined}
       />
       <Text style={styles.bienvenida}>Hola, {nombreUsuarioActual}</Text>
       <LiveClock />
@@ -225,7 +247,7 @@ export function PeruDashboardView({
             puedeValidarPeru={!restringido}
             puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
             onValidarPeru={() => validarPeru(op.id)}
-            onValidarVe={() => validarVe(op.id)}
+            onValidarVe={(comprobanteUri) => validarVe(op.id, comprobanteUri)}
             validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
             validandoVe={validando?.id === op.id && validando.tipo === 've'}
           />

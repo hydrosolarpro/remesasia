@@ -17,10 +17,12 @@ export default function TasaDelDia() {
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   const cargar = async () => {
+    if (!usuario) return;
     const { data } = await supabase
       .from('tasas')
       .select('*')
       .eq('fecha', HOY())
+      .eq('publicada_por', usuario.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -33,7 +35,8 @@ export default function TasaDelDia() {
 
   useEffect(() => {
     cargar();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id]);
 
   const publicar = async () => {
     if (!usuario) return;

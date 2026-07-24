@@ -3,10 +3,12 @@ import { Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { canjearInvitacion, leerYLimpiarTokenPendiente } from '../lib/invitaciones';
+import { Usuario } from '../types/database';
 import { colors } from '../constants/theme';
 
 export default function Index() {
-  const { session, usuario, loading } = useAuth();
+  const { session, usuario, loading, refreshUsuario } = useAuth();
   const [destino, setDestino] = useState<string | null>(null);
   const [resolviendo, setResolviendo] = useState(true);
 
@@ -19,18 +21,36 @@ export default function Index() {
     let cancelado = false;
     (async () => {
       setResolviendo(true);
+
+      // Si veníamos de un enlace de invitación (token guardado antes del
+      // login con Google), canjéalo ahora que ya hay sesión, y lee el
+      // usuario en fresco (el rol/negocio pudo haber cambiado) antes de
+      // decidir a dónde enrutar.
+      const tokenPendiente = await leerYLimpiarTokenPendiente();
+      let usuarioActual = usuario;
+      if (tokenPendiente) {
+        try {
+          await canjearInvitacion(tokenPendiente);
+          const { data } = await supabase.from('usuarios').select('*').eq('id', usuario.id).single();
+          if (data) usuarioActual = data as Usuario;
+          await refreshUsuario();
+        } catch {
+          // Invitación inválida/usada: seguimos con el usuario tal cual estaba.
+        }
+      }
+
       let ruta: string;
 
-      if (usuario.rol === 'administrador') {
+      if (usuarioActual.rol === 'administrador') {
         ruta = '/(admin)';
-      } else if (usuario.rol === 'cliente') {
+      } else if (usuarioActual.rol === 'cliente') {
         // Primera vez: sin teléfono todavía -> falta el registro corto.
-        ruta = usuario.telefono ? '/(cliente)' : '/(auth)/registro';
-      } else if (usuario.rol === 'operador_peru') {
+        ruta = usuarioActual.telefono ? '/(cliente)' : '/(auth)/registro';
+      } else if (usuarioActual.rol === 'operador_peru') {
         const { data } = await supabase
           .from('perfil_negocio')
           .select('id')
-          .eq('operador_peru_id', usuario.id)
+          .eq('operador_peru_id', usuarioActual.id)
           .maybeSingle();
         ruta = data ? '/(operador-peru)' : '/(operador-peru)/onboarding';
       } else {

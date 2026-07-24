@@ -34,6 +34,7 @@ export default function RootLayout() {
               <Stack.Screen name="(operador-peru)" options={{ headerShown: false }} />
               <Stack.Screen name="(operador-venezuela)" options={{ headerShown: false }} />
               <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+              <Stack.Screen name="invitacion/[token]" options={{ headerShown: false }} />
             </Stack>
           </View>
         </View>

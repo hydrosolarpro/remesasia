@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../constants/theme';
+import { FlagPeru, FlagVenezuela } from './FlagIcon';
 
 // Título de marca — se usa como `headerTitle` en cada Stack/Tabs para que
 // se repita en todas las sesiones, dejando el botón de "atrás" nativo intacto.
@@ -11,11 +12,13 @@ export function BannerTitle() {
   );
 }
 
-// Banderas PE/VE — se usa como `headerRight`.
+// Banderas PE/VE — se usa como `headerRight`. Dibujadas en SVG (no emoji):
+// los emoji de bandera no se renderizan en Windows/Chrome.
 export function BannerFlags() {
   return (
     <View style={styles.flagsWrap}>
-      <Text style={styles.flags}>🇵🇪 🇻🇪</Text>
+      <FlagPeru width={22} height={15} />
+      <FlagVenezuela width={22} height={15} />
     </View>
   );
 }
@@ -27,6 +30,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.2,
   },
-  flagsWrap: { paddingRight: 16 },
-  flags: { fontSize: 18 },
+  flagsWrap: { flexDirection: 'row', gap: 6, paddingRight: 16, alignItems: 'center' },
 });

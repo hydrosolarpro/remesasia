@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Solicitud } from '../types/database';
 import { RoundCheck } from './RoundCheck';
+import { construirEnlaceWhatsApp } from '../lib/whatsapp';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
@@ -24,7 +26,7 @@ export interface OperationRowData extends Solicitud {
 
 // Fila de "Operaciones en curso" / "Operaciones realizadas": resumen
 // colapsado con nombre/monto, expandible para ver los datos completos y
-// la imagen de depósito, con los dos checks verdes de validación.
+// las imágenes de depósito, con los dos checks verdes de validación.
 export function OperationRow({
   op,
   puedeValidarPeru,
@@ -39,12 +41,36 @@ export function OperationRow({
   puedeValidarPeru: boolean;
   puedeValidarVe: boolean;
   onValidarPeru: () => void;
-  onValidarVe: () => void;
+  /** El check VE exige subir la foto del depósito hecho en Venezuela primero. */
+  onValidarVe: (comprobanteUri: string) => void;
   validandoPeru: boolean;
   validandoVe: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const [abierto, setAbierto] = useState(false);
+
+  const tocarCheckVe = async () => {
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos para subir el comprobante del depósito en Venezuela.');
+      return;
+    }
+    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (resultado.canceled) return;
+    onValidarVe(resultado.assets[0].uri);
+  };
+
+  const enlaceWhatsApp = op.check_deposito_ve ? construirEnlaceWhatsApp(op.beneficiario_telefono, mensajeWhatsApp(op)) : null;
+
+  const notificarWhatsApp = async () => {
+    if (!enlaceWhatsApp) return;
+    const puedeAbrir = await Linking.canOpenURL(enlaceWhatsApp);
+    if (!puedeAbrir) {
+      Alert.alert('No se pudo abrir WhatsApp', 'Verifica el número del beneficiario.');
+      return;
+    }
+    Linking.openURL(enlaceWhatsApp);
+  };
 
   return (
     <View style={[styles.card, cardShadow, style]}>
@@ -68,12 +94,16 @@ export function OperationRow({
           <Row label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
           <Row label="Beneficiario (VE)" value={op.beneficiario_nombre} />
           <Row label="C.I." value={op.beneficiario_ci ?? '—'} />
+          <Row label="Teléfono beneficiario" value={op.beneficiario_telefono ?? '—'} />
           <Row label="Entidad bancaria" value={op.beneficiario_banco} />
           <Row label="N° cuenta" value={op.beneficiario_cuenta} />
           <Row label="Recibe" value={`Bs ${op.monto_ves.toFixed(2)}`} />
 
           {op.comprobante_pago_url && (
-            <Image source={{ uri: op.comprobante_pago_url }} style={styles.comprobante} resizeMode="contain" />
+            <ImagenDesplegable titulo="Comprobante de pago en Perú (cliente)" uri={op.comprobante_pago_url} />
+          )}
+          {op.comprobante_vz_url && (
+            <ImagenDesplegable titulo="Comprobante de depósito en Venezuela" uri={op.comprobante_vz_url} />
           )}
 
           <View style={styles.checksRow}>
@@ -90,20 +120,43 @@ export function OperationRow({
               )}
             </View>
             <View style={styles.checkCol}>
-              <Text style={styles.checkLabel}>Depósito efectuado en Venezuela</Text>
+              <Text style={styles.checkLabel}>Depósito transferido en Venezuela</Text>
               <RoundCheck
                 checked={op.check_deposito_ve}
                 disabled={!puedeValidarVe}
                 loading={validandoVe}
-                onPress={onValidarVe}
+                onPress={tocarCheckVe}
               />
               {op.check_deposito_ve_at && (
                 <Text style={styles.checkHora}>{FORMATTER_HORA_VE.format(new Date(op.check_deposito_ve_at))} (VE)</Text>
               )}
             </View>
           </View>
+
+          {enlaceWhatsApp && (
+            <Pressable style={styles.whatsappBtn} onPress={notificarWhatsApp}>
+              <Text style={styles.whatsappBtnTexto}>Notificar por WhatsApp al beneficiario</Text>
+            </Pressable>
+          )}
         </View>
       )}
+    </View>
+  );
+}
+
+function mensajeWhatsApp(op: OperationRowData): string {
+  return `Hola ${op.beneficiario_nombre}, te informamos que tu remesa de Bs ${op.monto_ves.toFixed(2)} ya fue transferida exitosamente. ¡Gracias por confiar en nosotros!`;
+}
+
+function ImagenDesplegable({ titulo, uri }: { titulo: string; uri: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <View>
+      <Pressable style={styles.imagenToggle} onPress={() => setVisible((v) => !v)}>
+        <Text style={styles.imagenToggleTexto}>{titulo}</Text>
+        <Text style={styles.imagenToggleChevron}>{visible ? '▲' : '▼'}</Text>
+      </Pressable>
+      {visible && <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />}
     </View>
   );
 }
@@ -150,9 +203,22 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   rowLabel: { color: colors.textMuted, fontSize: 12 },
   rowValue: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  imagenToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.sm,
+    padding: 10,
+    marginTop: 4,
+  },
+  imagenToggleTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  imagenToggleChevron: { color: colors.textMuted, fontSize: 10 },
   comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 },
   checkCol: { alignItems: 'center', gap: 6, flex: 1 },
   checkLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   checkHora: { color: colors.textMuted, fontSize: 10 },
+  whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
+  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 13 },
 });

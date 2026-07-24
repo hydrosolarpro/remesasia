@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
@@ -63,7 +64,7 @@ export default function EstadisticasCliente() {
       {!cargando &&
         depositos.map((d) => (
           <View key={d.id} style={{ marginTop: 8 }}>
-            <SolicitudCard solicitud={d} />
+            <SolicitudCard solicitud={d} onPress={() => router.push({ pathname: '/(cliente)/solicitud/[id]', params: { id: d.id } })} />
           </View>
         ))}
     </ScrollView>

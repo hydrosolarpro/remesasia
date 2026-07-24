@@ -74,9 +74,11 @@ export const roleColors: Record<string, string> = {
   administrador: colors.danger,
 };
 
+// Sin emoji de bandera en el texto: no se renderizan en Windows/Chrome.
+// RoleTag agrega el ícono de bandera (SVG) por separado cuando aplica.
 export const roleLabel: Record<string, string> = {
   cliente: 'Cliente',
-  operador_peru: 'Operador Perú 🇵🇪',
-  operador_venezuela: 'Operador Venezuela 🇻🇪',
+  operador_peru: 'Operador Perú',
+  operador_venezuela: 'Operador Venezuela',
   administrador: 'Administrador',
 };
