@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { extensionDeImagen } from '../../lib/imagenUtil';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { calcularConversion } from '../../lib/tasaCalculo';
@@ -51,6 +52,7 @@ export default function InicioCliente() {
   const [guardarCuenta, setGuardarCuenta] = useState(true);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('yape');
   const [comprobanteUri, setComprobanteUri] = useState<string | null>(null);
+  const [comprobanteExt, setComprobanteExt] = useState('jpg');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,7 +137,10 @@ export default function InicioCliente() {
       return;
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (!resultado.canceled) setComprobanteUri(resultado.assets[0].uri);
+    if (!resultado.canceled) {
+      setComprobanteUri(resultado.assets[0].uri);
+      setComprobanteExt(extensionDeImagen(resultado.assets[0]));
+    }
   };
 
   const enviarSolicitud = async () => {
@@ -177,8 +182,7 @@ export default function InicioCliente() {
         .single();
       if (insertError || !solicitud) throw insertError ?? new Error('No se pudo crear la solicitud.');
 
-      const ext = comprobanteUri.split('.').pop() ?? 'jpg';
-      const path = `${solicitud.id}/comprobante-cliente.${ext}`;
+      const path = `${solicitud.id}/comprobante-cliente.${comprobanteExt}`;
       const blob = await (await fetch(comprobanteUri)).blob();
       const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
       if (uploadError) throw uploadError;

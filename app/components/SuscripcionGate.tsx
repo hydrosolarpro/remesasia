@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { CopyField } from './CopyField';
 import { RoleTag } from './RoleTag';
+import { extensionDeImagen } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin, PagoSuscripcion } from '../types/database';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -26,6 +27,7 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
   const [comprobanteUri, setComprobanteUri] = useState<string | null>(null);
+  const [comprobanteExt, setComprobanteExt] = useState('jpg');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +61,10 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
       return;
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (!resultado.canceled) setComprobanteUri(resultado.assets[0].uri);
+    if (!resultado.canceled) {
+      setComprobanteUri(resultado.assets[0].uri);
+      setComprobanteExt(extensionDeImagen(resultado.assets[0]));
+    }
   };
 
   const enviarSolicitud = async () => {
@@ -79,8 +84,7 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
       await supabase.from('usuarios').update({ nombre: nombre.trim(), telefono: telefono.trim() }).eq('id', usuario.id);
 
       const periodo = periodoActual();
-      const ext = comprobanteUri.split('.').pop() ?? 'jpg';
-      const path = `suscripciones/${usuario.id}/${periodo}.${ext}`;
+      const path = `suscripciones/${usuario.id}/${periodo}.${comprobanteExt}`;
       const blob = await (await fetch(comprobanteUri)).blob();
       const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
       if (uploadError) throw uploadError;

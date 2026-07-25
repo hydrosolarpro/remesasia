@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { extensionDeImagen } from '../../lib/imagenUtil';
 import { RoleTag } from '../../components/RoleTag';
 import { ConfiguracionPagosAdmin } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -251,7 +252,7 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
 
     setSubiendo(tipo);
     const archivo = resultado.assets[0];
-    const ext = archivo.uri.split('.').pop() ?? 'jpg';
+    const ext = extensionDeImagen(archivo);
     const path = `admin/config/${tipo}.${ext}`;
     const blob = await (await fetch(archivo.uri)).blob();
     const { error } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });

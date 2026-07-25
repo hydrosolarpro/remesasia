@@ -111,11 +111,10 @@ export function PeruDashboardView({
     if (!error) cargar();
   };
 
-  const validarVe = async (id: string, comprobanteUri: string) => {
+  const validarVe = async (id: string, comprobanteUri: string, comprobanteExt: string) => {
     setValidando({ id, tipo: 've' });
     try {
-      const ext = comprobanteUri.split('.').pop() ?? 'jpg';
-      const path = `${id}/comprobante-vz.${ext}`;
+      const path = `${id}/comprobante-vz.${comprobanteExt}`;
       const blob = await (await fetch(comprobanteUri)).blob();
       const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
       if (uploadError) throw uploadError;
@@ -247,7 +246,7 @@ export function PeruDashboardView({
             puedeValidarPeru={!restringido}
             puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
             onValidarPeru={() => validarPeru(op.id)}
-            onValidarVe={(comprobanteUri) => validarVe(op.id, comprobanteUri)}
+            onValidarVe={(comprobanteUri, comprobanteExt) => validarVe(op.id, comprobanteUri, comprobanteExt)}
             validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
             validandoVe={validando?.id === op.id && validando.tipo === 've'}
           />

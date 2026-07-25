@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Solicitud } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { construirEnlaceWhatsApp } from '../lib/whatsapp';
+import { extensionDeImagen } from '../lib/imagenUtil';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
@@ -42,7 +43,7 @@ export function OperationRow({
   puedeValidarVe: boolean;
   onValidarPeru: () => void;
   /** El check VE exige subir la foto del depósito hecho en Venezuela primero. */
-  onValidarVe: (comprobanteUri: string) => void;
+  onValidarVe: (comprobanteUri: string, comprobanteExt: string) => void;
   validandoPeru: boolean;
   validandoVe: boolean;
   style?: StyleProp<ViewStyle>;
@@ -57,7 +58,7 @@ export function OperationRow({
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
     if (resultado.canceled) return;
-    onValidarVe(resultado.assets[0].uri);
+    onValidarVe(resultado.assets[0].uri, extensionDeImagen(resultado.assets[0]));
   };
 
   const enlaceWhatsApp = op.check_deposito_ve ? construirEnlaceWhatsApp(op.beneficiario_telefono, mensajeWhatsApp(op)) : null;

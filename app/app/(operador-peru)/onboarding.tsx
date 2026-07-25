@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { extensionDeImagen } from '../../lib/imagenUtil';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -91,7 +92,7 @@ export default function OnboardingNegocio() {
 
     setSubiendoImagen(tipo);
     const archivo = resultado.assets[0];
-    const ext = archivo.uri.split('.').pop() ?? 'jpg';
+    const ext = extensionDeImagen(archivo);
     const path = `negocio/${usuario.id}/${tipo}.${ext}`;
     const respuesta = await fetch(archivo.uri);
     const blob = await respuesta.blob();
