@@ -22,8 +22,21 @@ const ETIQUETA_TIPO_TRANSFERENCIA: Record<Solicitud['tipo_transferencia'], strin
 // obtenidas al momento del envío, y — cuando el operador de Venezuela ya
 // cargó el comprobante — la imagen con opción de descargar o reenviar por
 // WhatsApp al beneficiario.
-export function ClienteSolicitudRow({ solicitud, numero, style }: { solicitud: Solicitud; numero?: number; style?: StyleProp<ViewStyle> }) {
+export function ClienteSolicitudRow({
+  solicitud,
+  numero,
+  style,
+}: {
+  solicitud: Solicitud;
+  numero?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
   const [abierto, setAbierto] = useState(false);
+
+  // "En curso" destaca cuándo se envió; "realizada" destaca cuándo se
+  // efectuó el depósito en Venezuela (lo que el cliente quiere ver primero
+  // una vez completada).
+  const fechaPrincipal = solicitud.check_deposito_ve && solicitud.check_deposito_ve_at ? solicitud.check_deposito_ve_at : solicitud.created_at;
 
   const enlaceWhatsApp = solicitud.comprobante_vz_url
     ? construirEnlaceWhatsApp(
@@ -48,7 +61,7 @@ export function ClienteSolicitudRow({ solicitud, numero, style }: { solicitud: S
         <View style={styles.headerTextos}>
           <Text style={styles.fecha}>
             {numero ? `#${numero} · ` : ''}
-            {FORMATTER_FECHA_HORA.format(new Date(solicitud.created_at))}
+            {FORMATTER_FECHA_HORA.format(new Date(fechaPrincipal))}
           </Text>
           <Text style={styles.beneficiario} numberOfLines={1}>
             {solicitud.beneficiario_nombre}
