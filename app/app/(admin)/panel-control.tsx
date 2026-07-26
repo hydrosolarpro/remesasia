@@ -36,11 +36,14 @@ export default function PanelControl() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('usuarios')
-      .select('id, nombre, email, telefono, created_at, acceso_concedido, perfil_negocio(nombre_negocio), pagos_suscripcion(id, periodo, estado, monto)')
+      .select(
+        'id, nombre, email, telefono, created_at, acceso_concedido, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto)'
+      )
       .eq('rol', 'operador_peru')
       .order('created_at', { ascending: false });
+    if (error) console.error('Error cargando operadores:', error.message);
     setOperadores((data as unknown as OperadorFila[] | null) ?? []);
     setCargando(false);
   }, []);
