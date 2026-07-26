@@ -1,22 +1,36 @@
-import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
+import { generarYCompartirExcel } from '../../lib/excelReporte';
+import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from '../../components/OperationRow';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function ClientesRegistrados() {
   const { usuario } = useAuth();
   const [clientes, setClientes] = useState<Usuario[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [cargandoClientes, setCargandoClientes] = useState(true);
   const [generandoPdf, setGenerandoPdf] = useState(false);
+
+  const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
+  const [cargandoEnlace, setCargandoEnlace] = useState(true);
+  const [copiado, setCopiado] = useState(false);
+
+  const [operaciones, setOperaciones] = useState<OperationRowData[]>([]);
+  const [cargandoOps, setCargandoOps] = useState(true);
+  const [validando, setValidando] = useState<{ id: string; tipo: 'peru' | 've' } | null>(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [exportando, setExportando] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       if (!usuario) return;
-      setCargando(true);
+      setCargandoClientes(true);
       supabase
         .from('usuarios')
         .select('*')
@@ -25,12 +39,140 @@ export default function ClientesRegistrados() {
         .order('created_at', { ascending: false })
         .then(({ data }) => {
           setClientes((data as Usuario[] | null) ?? []);
-          setCargando(false);
+          setCargandoClientes(false);
         });
-    }, [usuario])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [usuario?.id])
   );
 
-  const exportarPdf = async () => {
+  useEffect(() => {
+    if (!usuario) return;
+    setCargandoEnlace(true);
+    obtenerOCrearInvitacionCliente(usuario.id)
+      .then((inv) => setEnlaceCliente(construirEnlaceInvitacion(inv.token)))
+      .finally(() => setCargandoEnlace(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id]);
+
+  const copiarEnlace = async () => {
+    if (!enlaceCliente) return;
+    await Clipboard.setStringAsync(enlaceCliente);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 1500);
+  };
+
+  const cargarOperaciones = useCallback(async () => {
+    if (!usuario) return;
+    setCargandoOps(true);
+    const { data } = await supabase
+      .from('solicitudes')
+      .select('*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email)')
+      .eq('negocio_operador_peru_id', usuario.id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (data) {
+      setOperaciones(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (data as any[]).map((row) => ({
+          ...row,
+          cliente_nombre: row.cliente?.nombre ?? 'Cliente',
+          cliente_telefono: row.cliente?.telefono ?? null,
+          cliente_email: row.cliente?.email ?? null,
+        }))
+      );
+    }
+    setCargandoOps(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id]);
+
+  useEffect(() => {
+    if (!usuario) return;
+    cargarOperaciones();
+    const channel = supabase
+      .channel(`clientes-ops-${usuario.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => cargarOperaciones())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id, cargarOperaciones]);
+
+  const enCurso = useMemo(() => operaciones.filter((o) => !o.check_deposito_ve), [operaciones]);
+  const realizadas = useMemo(() => operaciones.filter((o) => o.check_deposito_ve), [operaciones]);
+
+  const realizadasFiltradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return realizadas;
+    return realizadas.filter((o) => {
+      const fecha = new Date(o.created_at);
+      return (
+        o.cliente_nombre.toLowerCase().includes(q) ||
+        (o.cliente_telefono ?? '').toLowerCase().includes(q) ||
+        o.monto_pen.toFixed(2).includes(q) ||
+        String(fecha.getFullYear()).includes(q) ||
+        fecha.toLocaleDateString('es-PE').includes(q)
+      );
+    });
+  }, [realizadas, busqueda]);
+
+  const numeracion = useMemo(() => {
+    const ordenadas = [...operaciones].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const mapa = new Map<string, number>();
+    ordenadas.forEach((op, i) => mapa.set(op.id, i + 1));
+    return mapa;
+  }, [operaciones]);
+
+  const validarPeru = async (id: string) => {
+    setValidando({ id, tipo: 'peru' });
+    await supabase.rpc('validar_deposito_peru', { p_solicitud_id: id });
+    setValidando(null);
+  };
+
+  const validarVe = async (id: string, comprobanteUri: string, comprobanteExt: string) => {
+    setValidando({ id, tipo: 've' });
+    try {
+      const path = `${id}/comprobante-vz.${comprobanteExt}`;
+      const blob = await (await fetch(comprobanteUri)).blob();
+      const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
+      const { error } = await supabase.rpc('validar_deposito_venezuela', {
+        p_solicitud_id: id,
+        p_comprobante_url: publicUrl.publicUrl,
+      });
+      if (error) throw error;
+    } finally {
+      setValidando(null);
+    }
+  };
+
+  const exportarExcel = async () => {
+    setExportando(true);
+    try {
+      const filas = realizadasFiltradas.map((op) => ({
+        '#': numeracion.get(op.id) ?? '',
+        Cliente: op.cliente_nombre,
+        Teléfono: op.cliente_telefono ?? '',
+        Correo: op.cliente_email ?? '',
+        'Beneficiario (VE)': op.beneficiario_nombre,
+        'C.I.': op.beneficiario_ci ?? '',
+        'Monto (S/)': op.monto_pen,
+        'Recibe (Bs)': op.monto_ves,
+        'Validado en Perú': op.check_deposito_peru_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_peru_at)) : '',
+        'Validado en Venezuela': op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '',
+        'Tiempo de respuesta':
+          op.check_deposito_peru_at && op.check_deposito_ve_at
+            ? formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)
+            : '',
+      }));
+      await generarYCompartirExcel('operaciones-realizadas', 'Operaciones', filas);
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const exportarPdfClientes = async () => {
     setGenerandoPdf(true);
     try {
       const filas = clientes
@@ -58,48 +200,135 @@ export default function ClientesRegistrados() {
     }
   };
 
-  if (cargando) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
-  }
-
   return (
-    <FlatList
-      style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={styles.container}
-      data={clientes}
-      keyExtractor={(item) => item.id}
-      ListHeaderComponent={
-        <View style={styles.header}>
-          <Text style={styles.titulo}>Clientes registrados ({clientes.length})</Text>
-          <Pressable style={styles.pdfBtn} onPress={exportarPdf} disabled={generandoPdf || clientes.length === 0}>
-            {generandoPdf ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>PDF</Text>}
-          </Pressable>
-        </View>
-      }
-      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-      renderItem={({ item }) => (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.nombre}>{item.nombre}</Text>
-          <Text style={styles.dato}>{item.email}</Text>
-          <Text style={styles.dato}>{item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}</Text>
+    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
+      <View style={[styles.card, cardShadow]}>
+        <Text style={styles.cardTitulo}>Invitar clientes</Text>
+        <Text style={styles.cardTexto}>
+          Un solo enlace para todos tus clientes — compártelo por WhatsApp. Quien lo abra entra directo como tu cliente.
+        </Text>
+        {cargandoEnlace ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
+        ) : (
+          enlaceCliente && (
+            <View style={styles.enlaceRow}>
+              <Text style={styles.enlaceTexto} numberOfLines={1}>
+                {enlaceCliente}
+              </Text>
+              <Pressable style={styles.copiarBtn} onPress={copiarEnlace}>
+                <Text style={styles.copiarBtnTexto}>{copiado ? '✓ Copiado' : 'Copiar'}</Text>
+              </Pressable>
+            </View>
+          )
+        )}
+      </View>
+
+      <View style={styles.header}>
+        <Text style={styles.titulo}>Clientes registrados ({clientes.length})</Text>
+        <Pressable style={styles.pdfBtn} onPress={exportarPdfClientes} disabled={generandoPdf || clientes.length === 0}>
+          {generandoPdf ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>PDF</Text>}
+        </Pressable>
+      </View>
+      {cargandoClientes ? (
+        <ActivityIndicator color={colors.primary} />
+      ) : clientes.length === 0 ? (
+        <Text style={styles.vacio}>Todavía no tienes clientes registrados.</Text>
+      ) : (
+        <View style={styles.lista}>
+          {clientes.map((item) => (
+            <View key={item.id} style={[styles.card, cardShadow]}>
+              <Text style={styles.nombre}>{item.nombre}</Text>
+              <Text style={styles.dato}>{item.email}</Text>
+              <Text style={styles.dato}>
+                {item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}
+              </Text>
+            </View>
+          ))}
         </View>
       )}
-    />
+
+      {cargandoOps ? (
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
+      ) : (
+        <>
+          <Text style={styles.titulo}>Operaciones en curso ({enCurso.length})</Text>
+          {enCurso.length === 0 && <Text style={styles.vacio}>No hay operaciones en curso.</Text>}
+          <View style={styles.lista}>
+            {enCurso.map((op) => (
+              <OperationRow
+                key={op.id}
+                op={op}
+                numero={numeracion.get(op.id)}
+                puedeValidarPeru
+                puedeValidarVe
+                onValidarPeru={() => validarPeru(op.id)}
+                onValidarVe={(uri, ext) => validarVe(op.id, uri, ext)}
+                validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
+                validandoVe={validando?.id === op.id && validando.tipo === 've'}
+              />
+            ))}
+          </View>
+
+          <View style={styles.header}>
+            <Text style={styles.titulo}>Operaciones realizadas ({realizadas.length})</Text>
+            <Pressable style={styles.pdfBtn} onPress={exportarExcel} disabled={exportando || realizadasFiltradas.length === 0}>
+              {exportando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>Excel</Text>}
+            </Pressable>
+          </View>
+          <TextInput
+            style={styles.buscador}
+            value={busqueda}
+            onChangeText={setBusqueda}
+            placeholder="Buscar por nombre, teléfono, fecha, monto o año..."
+            placeholderTextColor={colors.textMuted}
+          />
+          {realizadasFiltradas.length === 0 && <Text style={styles.vacio}>Sin resultados.</Text>}
+          <View style={styles.lista}>
+            {realizadasFiltradas.map((op) => (
+              <OperationRow
+                key={op.id}
+                op={op}
+                numero={numeracion.get(op.id)}
+                puedeValidarPeru={false}
+                puedeValidarVe={false}
+                onValidarPeru={() => {}}
+                onValidarVe={() => {}}
+                validandoPeru={false}
+                validandoVe={false}
+              />
+            ))}
+          </View>
+        </>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
-  container: { padding: 20, flexGrow: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  titulo: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  container: { padding: 20, gap: 12, flexGrow: 1, paddingBottom: 48 },
+  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
+  cardTitulo: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  cardTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  enlaceRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  enlaceTexto: { flex: 1, color: colors.accent, fontSize: 12 },
+  copiarBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
+  copiarBtnTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  titulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
   pdfBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 16, paddingVertical: 8 },
   pdfBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 12 },
-  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 14, gap: 2 },
   nombre: { color: colors.text, fontSize: 15, fontWeight: '700' },
   dato: { color: colors.textMuted, fontSize: 12 },
+  vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
+  lista: { gap: 10 },
+  buscador: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    color: colors.text,
+    fontSize: 14,
+    backgroundColor: colors.cardAlt,
+  },
 });
