@@ -48,7 +48,8 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
     setNombre(usuario.nombre ?? '');
     setTelefono(usuario.telefono ?? '');
     setCargando(false);
-  }, [usuario]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id]);
 
   useEffect(() => {
     cargar();

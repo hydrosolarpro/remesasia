@@ -86,7 +86,8 @@ export default function OnboardingNegocio() {
       setVeEmail(vePerfil.email ?? '');
     }
     setCargando(false);
-  }, [usuario]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id]);
 
   useEffect(() => {
     cargar();

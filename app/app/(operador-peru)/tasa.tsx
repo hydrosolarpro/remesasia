@@ -40,8 +40,12 @@ export default function TasaDelDia() {
 
   const publicar = async () => {
     if (!usuario) return;
-    setLoading(true);
     setMensaje(null);
+    if (!penUsdt || !usdtVes) {
+      setMensaje('Completa las dos tasas antes de publicar.');
+      return;
+    }
+    setLoading(true);
     const { error } = await supabase.from('tasas').insert({
       fecha: HOY(),
       tasa_pen_usdt: Number(penUsdt),
@@ -88,7 +92,7 @@ export default function TasaDelDia() {
 
       {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
 
-      <Pressable style={styles.button} onPress={publicar} disabled={loading || !penUsdt || !usdtVes}>
+      <Pressable style={styles.button} onPress={publicar} disabled={loading}>
         {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Publicar tasa</Text>}
       </Pressable>
     </View>
