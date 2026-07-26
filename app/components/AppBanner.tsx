@@ -54,7 +54,11 @@ export function BannerFlags() {
   return (
     <View style={styles.flagsWrap}>
       {usuario && (
-        <Pressable style={styles.inicioBtn} onPress={() => router.navigate(HOME_POR_ROL[usuario.rol] as never)}>
+        <Pressable
+          style={styles.inicioBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={() => router.replace(HOME_POR_ROL[usuario.rol] as never)}
+        >
           <Text style={styles.inicioBtnTexto}>Inicio</Text>
         </Pressable>
       )}
