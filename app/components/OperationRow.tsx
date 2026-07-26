@@ -24,6 +24,8 @@ export interface OperationRowData extends Solicitud {
   cliente_nombre: string;
   cliente_telefono: string | null;
   cliente_email: string | null;
+  validador_peru_nombre: string | null;
+  validador_ve_nombre: string | null;
 }
 
 const ETIQUETA_METODO_PAGO: Record<OperationRowData['metodo_pago'], string> = {
@@ -167,6 +169,7 @@ export function OperationRow({
               {op.check_deposito_peru_at && (
                 <Text style={styles.checkHora}>{FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_peru_at))}</Text>
               )}
+              {op.validador_peru_nombre && <Text style={styles.checkValidador}>Validó: {op.validador_peru_nombre}</Text>}
             </View>
             <View style={styles.checkCol}>
               <Text style={styles.checkLabel}>Depósito transferido en Venezuela</Text>
@@ -179,6 +182,7 @@ export function OperationRow({
               {op.check_deposito_ve_at && (
                 <Text style={styles.checkHora}>{FORMATTER_HORA_VE.format(new Date(op.check_deposito_ve_at))} (VE)</Text>
               )}
+              {op.validador_ve_nombre && <Text style={styles.checkValidador}>Validó: {op.validador_ve_nombre}</Text>}
             </View>
           </View>
 
@@ -268,6 +272,7 @@ const styles = StyleSheet.create({
   checkCol: { alignItems: 'center', gap: 6, flex: 1 },
   checkLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   checkHora: { color: colors.textMuted, fontSize: 10 },
+  checkValidador: { color: colors.accent, fontSize: 9, fontWeight: '700', marginTop: 1 },
   whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
   whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 13 },
 });

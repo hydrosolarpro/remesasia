@@ -53,6 +53,11 @@ export default function Index() {
           .eq('operador_peru_id', usuarioActual.id)
           .maybeSingle();
         ruta = data ? '/(operador-peru)' : '/(operador-peru)/onboarding';
+      } else if (usuarioActual.rol === 'operador_peru_miembro') {
+        // Miembro de equipo: entra directo al panel del negocio al que
+        // pertenece, sin pasar por onboarding (eso es solo del dueño) ni
+        // por el candado de suscripción (ver SuscripcionGate).
+        ruta = '/(operador-peru)';
       } else {
         ruta = '/(operador-venezuela)';
       }

@@ -14,14 +14,50 @@ interface Punto {
   monto: number;
 }
 
+interface SolicitudConValidadores extends Solicitud {
+  validador_peru_nombre: string | null;
+  validador_ve_nombre: string | null;
+}
+
+interface DesglosePorMiembro {
+  nombre: string;
+  nOps: number;
+  monto: number;
+}
+
+function agruparPorValidador(
+  operaciones: SolicitudConValidadores[],
+  campo: 'validador_peru_nombre' | 'validador_ve_nombre'
+): DesglosePorMiembro[] {
+  const grupos = new Map<string, DesglosePorMiembro>();
+  for (const op of operaciones) {
+    const nombre = op[campo] ?? 'Sin registrar';
+    const actual = grupos.get(nombre) ?? { nombre, nOps: 0, monto: 0 };
+    actual.nOps += 1;
+    actual.monto += op.monto_pen;
+    grupos.set(nombre, actual);
+  }
+  return [...grupos.values()].sort((a, b) => b.monto - a.monto);
+}
+
 // Estadísticas de operaciones — usada tanto por el Operador Perú (dueño
-// del negocio) como por el Operador Venezuela (`restringido`, ve todo
-// menos la rentabilidad salvo que el operador Perú la haya compartido).
-export function EstadisticasView({ operadorPeruId, restringido = false }: { operadorPeruId: string; restringido?: boolean }) {
+// del negocio o miembro de su equipo) como por el Operador Venezuela
+// (`restringido`, ve todo menos la rentabilidad salvo que el operador
+// Perú la haya compartido).
+export function EstadisticasView({
+  operadorPeruId,
+  restringido = false,
+  esDuenio = !restringido,
+}: {
+  operadorPeruId: string;
+  restringido?: boolean;
+  /** Solo el dueño del negocio ve el desglose por miembro de equipo (Perú y Venezuela). */
+  esDuenio?: boolean;
+}) {
   const [cargando, setCargando] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [rango, setRango] = useState<RangoFecha | null>(null);
-  const [operaciones, setOperaciones] = useState<Solicitud[]>([]);
+  const [operaciones, setOperaciones] = useState<SolicitudConValidadores[]>([]);
   const [rentabilidadPct, setRentabilidadPct] = useState(0);
   const [compartirRentabilidad, setCompartirRentabilidad] = useState(false);
   const [buscado, setBuscado] = useState(false);
@@ -37,7 +73,9 @@ export function EstadisticasView({ operadorPeruId, restringido = false }: { oper
     const [{ data: ops }, { data: perfil }] = await Promise.all([
       supabase
         .from('solicitudes')
-        .select('*')
+        .select(
+          '*, validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre)'
+        )
         .eq('check_deposito_ve', true)
         .eq('negocio_operador_peru_id', operadorPeruId)
         .gte('created_at', nuevoRango.desde)
@@ -46,12 +84,24 @@ export function EstadisticasView({ operadorPeruId, restringido = false }: { oper
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
     ]);
 
-    setOperaciones((ops as Solicitud[] | null) ?? []);
+    setOperaciones(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((ops as any[]) ?? []).map((row) => ({
+        ...row,
+        validador_peru_nombre: row.validador_peru?.nombre ?? null,
+        validador_ve_nombre: row.validador_ve?.nombre ?? null,
+      }))
+    );
     const p = perfil as PerfilNegocio | null;
     setRentabilidadPct(p?.rentabilidad_pct ?? 0);
     setCompartirRentabilidad(p?.compartir_rentabilidad_ve ?? false);
     setCargando(false);
   };
+
+  // Desglose de operaciones y montos por cada persona que validó — tanto
+  // del lado Perú (dueño o miembros de equipo) como del lado Venezuela.
+  const desglosePeru = useMemo(() => agruparPorValidador(operaciones, 'validador_peru_nombre'), [operaciones]);
+  const desgloseVe = useMemo(() => agruparPorValidador(operaciones, 'validador_ve_nombre'), [operaciones]);
 
   // La granularidad del gráfico se adapta al tamaño del rango elegido: por
   // día si es corto, por mes si abarca varios meses, y por año si abarca
@@ -149,6 +199,34 @@ export function EstadisticasView({ operadorPeruId, restringido = false }: { oper
             </View>
           )}
 
+          {esDuenio && operaciones.length > 0 && (
+            <View style={[styles.card, cardShadow]}>
+              <Text style={styles.chartTitulo}>Por miembro del equipo</Text>
+              <Text style={styles.desgloseSubtitulo}>Operador Perú (validó el depósito en Perú)</Text>
+              {desglosePeru.map((d) => (
+                <View key={d.nombre} style={styles.desgloseFila}>
+                  <Text style={styles.desgloseNombre} numberOfLines={1}>
+                    {d.nombre}
+                  </Text>
+                  <Text style={styles.desgloseValor}>
+                    {d.nOps} op. · S/ {d.monto.toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+              <Text style={[styles.desgloseSubtitulo, styles.desgloseSubtituloVe]}>Operador Venezuela (validó el depósito en VE)</Text>
+              {desgloseVe.map((d) => (
+                <View key={d.nombre} style={styles.desgloseFila}>
+                  <Text style={styles.desgloseNombre} numberOfLines={1}>
+                    {d.nombre}
+                  </Text>
+                  <Text style={styles.desgloseValor}>
+                    {d.nOps} op. · S/ {d.monto.toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           <Pressable style={styles.pdfBtn} onPress={exportarPdf} disabled={generandoPdf}>
             {generandoPdf ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>Descargar PDF</Text>}
           </Pressable>
@@ -178,7 +256,12 @@ const styles = StyleSheet.create({
   resumenLabel: { color: colors.textMuted, fontSize: 11 },
   resumenValor: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
-  chartTitulo: { color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 12 },
+  chartTitulo: { color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  desgloseSubtitulo: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 10, marginBottom: 4 },
+  desgloseSubtituloVe: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
+  desgloseFila: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 3 },
+  desgloseNombre: { color: colors.text, fontSize: 12, fontWeight: '600', flex: 1 },
+  desgloseValor: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   pdfBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   pdfBtnTexto: { color: colors.text, fontWeight: '700' },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic', textAlign: 'center' },

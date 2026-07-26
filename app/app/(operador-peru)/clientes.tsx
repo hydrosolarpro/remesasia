@@ -13,6 +13,9 @@ import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function ClientesRegistrados() {
   const { usuario } = useAuth();
+  // Para un miembro de equipo el negocio es el del dueño que lo agregó,
+  // no el suyo propio (mismo criterio que (operador-peru)/index.tsx).
+  const [negocioId, setNegocioId] = useState<string | null | undefined>(undefined);
   const [clientes, setClientes] = useState<Usuario[]>([]);
   const [cargandoClientes, setCargandoClientes] = useState(true);
   const [generandoPdf, setGenerandoPdf] = useState(false);
@@ -27,32 +30,45 @@ export default function ClientesRegistrados() {
   const [busqueda, setBusqueda] = useState('');
   const [exportando, setExportando] = useState(false);
 
+  useEffect(() => {
+    if (!usuario) return;
+    if (usuario.rol === 'operador_peru') {
+      setNegocioId(usuario.id);
+      return;
+    }
+    supabase
+      .from('operador_peru_miembro')
+      .select('operador_peru_id')
+      .eq('usuario_id', usuario.id)
+      .maybeSingle()
+      .then(({ data }) => setNegocioId(data?.operador_peru_id ?? null));
+  }, [usuario]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!usuario) return;
+      if (!negocioId) return;
       setCargandoClientes(true);
       supabase
         .from('usuarios')
         .select('*')
         .eq('rol', 'cliente')
-        .eq('negocio_operador_peru_id', usuario.id)
+        .eq('negocio_operador_peru_id', negocioId)
         .order('created_at', { ascending: false })
         .then(({ data }) => {
           setClientes((data as Usuario[] | null) ?? []);
           setCargandoClientes(false);
         });
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [usuario?.id])
+    }, [negocioId])
   );
 
   useEffect(() => {
-    if (!usuario) return;
+    if (!negocioId) return;
     setCargandoEnlace(true);
-    obtenerOCrearInvitacionCliente(usuario.id)
+    obtenerOCrearInvitacionCliente(negocioId)
       .then((inv) => setEnlaceCliente(construirEnlaceInvitacion(inv.token)))
       .finally(() => setCargandoEnlace(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuario?.id]);
+  }, [negocioId]);
 
   const copiarEnlace = async () => {
     if (!enlaceCliente) return;
@@ -62,12 +78,14 @@ export default function ClientesRegistrados() {
   };
 
   const cargarOperaciones = useCallback(async () => {
-    if (!usuario) return;
+    if (!negocioId) return;
     setCargandoOps(true);
     const { data } = await supabase
       .from('solicitudes')
-      .select('*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email)')
-      .eq('negocio_operador_peru_id', usuario.id)
+      .select(
+        '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre)'
+      )
+      .eq('negocio_operador_peru_id', negocioId)
       .order('created_at', { ascending: false })
       .limit(200);
     if (data) {
@@ -78,25 +96,25 @@ export default function ClientesRegistrados() {
           cliente_nombre: row.cliente?.nombre ?? 'Cliente',
           cliente_telefono: row.cliente?.telefono ?? null,
           cliente_email: row.cliente?.email ?? null,
+          validador_peru_nombre: row.validador_peru?.nombre ?? null,
+          validador_ve_nombre: row.validador_ve?.nombre ?? null,
         }))
       );
     }
     setCargandoOps(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuario?.id]);
+  }, [negocioId]);
 
   useEffect(() => {
-    if (!usuario) return;
+    if (!negocioId) return;
     cargarOperaciones();
     const channel = supabase
-      .channel(`clientes-ops-${usuario.id}`)
+      .channel(`clientes-ops-${negocioId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => cargarOperaciones())
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuario?.id, cargarOperaciones]);
+  }, [negocioId, cargarOperaciones]);
 
   const enCurso = useMemo(() => operaciones.filter((o) => !o.check_deposito_ve), [operaciones]);
   const realizadas = useMemo(() => operaciones.filter((o) => o.check_deposito_ve), [operaciones]);

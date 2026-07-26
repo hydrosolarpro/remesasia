@@ -9,6 +9,7 @@ import { Rol } from '../types/database';
 const HOME_POR_ROL: Record<Rol, string> = {
   administrador: '/(admin)',
   operador_peru: '/(operador-peru)',
+  operador_peru_miembro: '/(operador-peru)',
   operador_venezuela: '/(operador-venezuela)',
   cliente: '/(cliente)',
 };

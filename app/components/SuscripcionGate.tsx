@@ -120,6 +120,14 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
     );
   }
 
+  // La suscripción es del dueño del negocio (operador_peru); un miembro de
+  // equipo no tiene pago propio que verificar, así que este candado no le
+  // aplica — su acceso depende de que el dueño lo haya agregado como
+  // miembro, no de esta pantalla.
+  if (usuario.rol === 'operador_peru_miembro') {
+    return <>{children}</>;
+  }
+
   if (pago?.estado === 'verificado' && usuario.acceso_concedido) {
     return <>{children}</>;
   }

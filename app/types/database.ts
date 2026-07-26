@@ -1,4 +1,4 @@
-export type Rol = 'cliente' | 'operador_peru' | 'operador_venezuela' | 'administrador';
+export type Rol = 'cliente' | 'operador_peru' | 'operador_peru_miembro' | 'operador_venezuela' | 'administrador';
 
 export type EstadoSolicitud =
   | 'BORRADOR'
@@ -67,6 +67,8 @@ export interface Solicitud {
   check_deposito_peru_at: string | null;
   check_deposito_ve: boolean;
   check_deposito_ve_at: string | null;
+  validado_peru_por: string | null;
+  validado_ve_por: string | null;
   negocio_operador_peru_id: string;
   created_at: string;
   updated_at: string;
@@ -85,6 +87,7 @@ export interface PerfilNegocio {
   horario_inicio: string;
   horario_fin: string;
   compartir_rentabilidad_ve: boolean;
+  compartir_rentabilidad_pe_miembros: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -105,6 +108,17 @@ export interface OperadorVenezuelaPerfil {
   nombre: string;
   telefono: string | null;
   email: string | null;
+  usuario_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OperadorPeruMiembro {
+  id: string;
+  operador_peru_id: string;
+  nombre: string;
+  telefono: string | null;
+  email: string;
   usuario_id: string | null;
   created_at: string;
   updated_at: string;
