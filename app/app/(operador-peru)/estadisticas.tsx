@@ -47,17 +47,27 @@ export default function EstadisticasOperador() {
     setCargando(false);
   };
 
+  // La granularidad del gráfico se adapta al tamaño del rango elegido: por
+  // día si es corto (fecha específica o pocos días), por mes si abarca
+  // varios meses, y por año si abarca varios años — así "por año" no
+  // termina mostrando cientos de barras diarias.
   const puntos = useMemo<Punto[]>(() => {
+    if (!rango) return [];
+    const diasSpan = (new Date(rango.hasta).getTime() - new Date(rango.desde).getTime()) / 86400000;
+    const granularidad: 'dia' | 'mes' | 'anio' = diasSpan <= 31 ? 'dia' : diasSpan <= 730 ? 'mes' : 'anio';
+
     const grupos = new Map<string, Punto>();
     for (const op of operaciones) {
-      const clave = op.created_at.slice(0, 10);
-      const actual = grupos.get(clave) ?? { etiqueta: clave.slice(5), nOps: 0, monto: 0 };
+      const clave =
+        granularidad === 'dia' ? op.created_at.slice(0, 10) : granularidad === 'mes' ? op.created_at.slice(0, 7) : op.created_at.slice(0, 4);
+      const etiqueta = granularidad === 'dia' ? clave.slice(5) : clave;
+      const actual = grupos.get(clave) ?? { etiqueta, nOps: 0, monto: 0 };
       actual.nOps += 1;
       actual.monto += op.monto_pen;
       grupos.set(clave, actual);
     }
-    return [...grupos.values()];
-  }, [operaciones]);
+    return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, p]) => p);
+  }, [operaciones, rango]);
 
   const totales = useMemo(() => {
     const montoTotal = operaciones.reduce((acc, o) => acc + o.monto_pen, 0);
@@ -119,7 +129,7 @@ export default function EstadisticasOperador() {
 
           {puntos.length > 1 && (
             <View style={[styles.card, cardShadow]}>
-              <Text style={styles.chartTitulo}>Monto por día (S/)</Text>
+              <Text style={styles.chartTitulo}>Monto vs. período (S/)</Text>
               <BarChart
                 data={puntos.map((p) => ({ value: Math.round(p.monto), label: p.etiqueta }))}
                 barWidth={22}

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { PerfilNegocio, Tasa } from '../types/database';
@@ -201,6 +201,11 @@ export function PeruDashboardView({
     cargar();
   };
 
+  const guardarCompartirRentabilidad = async (valor: boolean) => {
+    await supabase.from('perfil_negocio').update({ compartir_rentabilidad_ve: valor }).eq('operador_peru_id', operadorPeruId);
+    cargar();
+  };
+
   if (cargando) {
     return (
       <View style={styles.center}>
@@ -231,7 +236,9 @@ export function PeruDashboardView({
       <View style={styles.filaDos}>
         <View style={[styles.card, cardShadow, styles.miniCard]}>
           <Text style={styles.miniLabel}>Rentabilidad</Text>
-          {editandoRentabilidad ? (
+          {restringido && !perfil?.compartir_rentabilidad_ve ? (
+            <Text style={styles.miniValor}>— Privado</Text>
+          ) : editandoRentabilidad ? (
             <View style={styles.editRow}>
               <TextInput
                 style={styles.editInput}
@@ -261,6 +268,18 @@ export function PeruDashboardView({
           <Text style={styles.miniValor}>{resumenHoy.nOps}</Text>
         </View>
       </View>
+
+      {!restringido && (
+        <View style={[styles.card, cardShadow, styles.horarioCard]}>
+          <Text style={styles.switchLabelCompartir}>Compartir rentabilidad con el Operador Venezuela</Text>
+          <Switch
+            value={perfil?.compartir_rentabilidad_ve ?? false}
+            onValueChange={guardarCompartirRentabilidad}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={colors.text}
+          />
+        </View>
+      )}
 
       <View style={[styles.card, cardShadow, styles.horarioCard]}>
         <View>
@@ -387,6 +406,7 @@ const styles = StyleSheet.create({
   miniValor: { color: colors.text, fontSize: 20, fontWeight: '800' },
   horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   horarioValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
+  switchLabelCompartir: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 8 },
   editRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   editInput: { color: colors.text, fontSize: 20, fontWeight: '800', borderBottomWidth: 1, borderBottomColor: colors.primary, minWidth: 50 },
   eslogan: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },

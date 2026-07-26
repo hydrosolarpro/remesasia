@@ -85,6 +85,7 @@ export interface PerfilNegocio {
   es_operador_venezuela_mismo: boolean;
   horario_inicio: string;
   horario_fin: string;
+  compartir_rentabilidad_ve: boolean;
   created_at: string;
   updated_at: string;
 }
