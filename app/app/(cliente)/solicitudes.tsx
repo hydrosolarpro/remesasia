@@ -38,13 +38,15 @@ export default function SolicitudesCliente() {
   const enCurso = useMemo(() => solicitudes.filter((s) => !s.check_deposito_ve), [solicitudes]);
   const realizadas = useMemo(() => solicitudes.filter((s) => s.check_deposito_ve), [solicitudes]);
 
-  // Numeración estable (más antigua = #1), no depende del orden de carga.
+  // Numeración única y continua sobre TODAS las solicitudes (en curso +
+  // realizadas), por orden de envío — así una solicitud conserva su
+  // número al completarse, sin importar el orden en que se validen.
   const numeracion = useMemo(() => {
-    const ordenadas = [...realizadas].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const ordenadas = [...solicitudes].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     const mapa = new Map<string, number>();
     ordenadas.forEach((s, i) => mapa.set(s.id, i + 1));
     return mapa;
-  }, [realizadas]);
+  }, [solicitudes]);
 
   const exportarExcel = async () => {
     setExportando(true);
@@ -83,7 +85,7 @@ export default function SolicitudesCliente() {
       {enCurso.length === 0 && <Text style={styles.vacio}>No tienes solicitudes en curso.</Text>}
       <View style={styles.lista}>
         {enCurso.map((s) => (
-          <ClienteSolicitudRow key={s.id} solicitud={s} />
+          <ClienteSolicitudRow key={s.id} solicitud={s} numero={numeracion.get(s.id)} />
         ))}
       </View>
 

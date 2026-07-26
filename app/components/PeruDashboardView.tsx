@@ -107,14 +107,16 @@ export function PeruDashboardView({
     });
   }, [realizadas, busqueda]);
 
-  // Numeración estable por operación (orden de finalización, del más
-  // antiguo al más reciente) — no cambia al buscar/filtrar la lista.
+  // Numeración única y continua sobre TODAS las operaciones (en curso +
+  // realizadas), asignada por orden de creación. Así una operación
+  // conserva su número al pasar de "en curso" a "realizada", sin importar
+  // el orden en que se vayan validando unas y otras.
   const numeracion = useMemo(() => {
-    const ordenadas = [...realizadas].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const ordenadas = [...operaciones].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     const mapa = new Map<string, number>();
     ordenadas.forEach((op, i) => mapa.set(op.id, i + 1));
     return mapa;
-  }, [realizadas]);
+  }, [operaciones]);
 
   const exportarExcel = async () => {
     setExportando(true);
@@ -329,6 +331,7 @@ export function PeruDashboardView({
             key={op.id}
             style={styles.gridItem}
             op={op}
+            numero={numeracion.get(op.id)}
             puedeValidarPeru={!restringido}
             puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
             onValidarPeru={() => validarPeru(op.id)}
