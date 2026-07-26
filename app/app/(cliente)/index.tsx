@@ -48,6 +48,7 @@ export default function InicioCliente() {
   const [beneficiarioTelefono, setBeneficiarioTelefono] = useState('');
   const [beneficiarioCi, setBeneficiarioCi] = useState('');
   const [beneficiarioBanco, setBeneficiarioBanco] = useState('');
+  const [tipoTransferencia, setTipoTransferencia] = useState<'transferencia_bancaria' | 'pago_movil'>('transferencia_bancaria');
   const [beneficiarioCuenta, setBeneficiarioCuenta] = useState('');
   const [guardarCuenta, setGuardarCuenta] = useState(true);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('yape');
@@ -176,6 +177,7 @@ export default function InicioCliente() {
           beneficiario_cuenta: beneficiarioCuenta.trim(),
           beneficiario_ci: beneficiarioCi.trim(),
           beneficiario_telefono: beneficiarioTelefono.trim() || null,
+          tipo_transferencia: tipoTransferencia,
           metodo_pago: metodoPago,
         })
         .select()
@@ -312,6 +314,23 @@ export default function InicioCliente() {
             <Field label="Nombre completo" value={beneficiarioNombre} onChangeText={setBeneficiarioNombre} />
             <Field label="Teléfono" value={beneficiarioTelefono} onChangeText={setBeneficiarioTelefono} keyboardType="phone-pad" />
             <Field label="Cédula (C.I.)" value={beneficiarioCi} onChangeText={setBeneficiarioCi} />
+            <Text style={styles.label}>Tipo de transferencia</Text>
+            <View style={styles.metodoRow}>
+              {(
+                [
+                  { valor: 'transferencia_bancaria', etiqueta: 'Transferencia bancaria' },
+                  { valor: 'pago_movil', etiqueta: 'Pago móvil' },
+                ] as const
+              ).map((op) => (
+                <Pressable
+                  key={op.valor}
+                  style={[styles.metodoOption, tipoTransferencia === op.valor && styles.metodoOptionActive]}
+                  onPress={() => setTipoTransferencia(op.valor)}
+                >
+                  <Text style={[styles.metodoText, tipoTransferencia === op.valor && styles.metodoTextActive]}>{op.etiqueta}</Text>
+                </Pressable>
+              ))}
+            </View>
             <Field label="Entidad bancaria" value={beneficiarioBanco} onChangeText={setBeneficiarioBanco} />
             <Field label="N° de cuenta" value={beneficiarioCuenta} onChangeText={setBeneficiarioCuenta} keyboardType="numeric" />
 
@@ -346,19 +365,24 @@ export default function InicioCliente() {
             </View>
 
             {cuentasOperador.map((c) => (
-              <CopyField key={c.id} label={c.entidad} value={c.numero_cuenta} />
+              <View key={c.id} style={styles.cuentaBanco}>
+                <Text style={styles.cuentaBancoEntidad}>{c.entidad}</Text>
+                {c.titular ? <CopyField label="Titular" value={c.titular} /> : null}
+                <CopyField label="N° de cuenta" value={c.numero_cuenta} />
+                {c.cci ? <CopyField label="CCI" value={c.cci} /> : null}
+              </View>
             ))}
 
-            <Text style={styles.label}>Método de pago usado</Text>
+            <Text style={styles.label}>Forma de pago</Text>
             <View style={styles.metodoRow}>
-              {(['yape', 'banco'] as MetodoPago[]).map((m) => (
+              {(['yape', 'plin', 'banco'] as MetodoPago[]).map((m) => (
                 <Pressable
                   key={m}
                   style={[styles.metodoOption, metodoPago === m && styles.metodoOptionActive]}
                   onPress={() => setMetodoPago(m)}
                 >
                   <Text style={[styles.metodoText, metodoPago === m && styles.metodoTextActive]}>
-                    {m === 'yape' ? 'Yape / Plin' : 'Transferencia bancaria'}
+                    {m === 'yape' ? 'Yape' : m === 'plin' ? 'Plin' : 'Transferencia bancaria'}
                   </Text>
                 </Pressable>
               ))}
@@ -459,6 +483,8 @@ const styles = StyleSheet.create({
   qrCol: { flex: 1, alignItems: 'center' },
   qrLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 4 },
   qrImg: { width: '100%', aspectRatio: 1, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
+  cuentaBanco: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  cuentaBancoEntidad: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   metodoRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
   metodoOption: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
   metodoOptionActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },

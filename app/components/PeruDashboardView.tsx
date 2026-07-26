@@ -3,7 +3,8 @@ import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndic
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { PerfilNegocio, Tasa } from '../types/database';
-import { OperationRow, OperationRowData } from './OperationRow';
+import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
+import { generarYCompartirExcel } from '../lib/excelReporte';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -31,6 +32,7 @@ export function PeruDashboardView({
   const [operaciones, setOperaciones] = useState<OperationRowData[]>([]);
   const [validando, setValidando] = useState<{ id: string; tipo: 'peru' | 've' } | null>(null);
   const [busqueda, setBusqueda] = useState('');
+  const [exportando, setExportando] = useState(false);
   const [editandoEslogan, setEditandoEslogan] = useState(false);
   const [esloganBorrador, setEsloganBorrador] = useState('');
   const [editandoRentabilidad, setEditandoRentabilidad] = useState(false);
@@ -49,7 +51,7 @@ export function PeruDashboardView({
         .maybeSingle(),
       supabase
         .from('solicitudes')
-        .select('*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono)')
+        .select('*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email)')
         .eq('negocio_operador_peru_id', operadorPeruId)
         .order('created_at', { ascending: false })
         .limit(200),
@@ -64,6 +66,7 @@ export function PeruDashboardView({
           ...row,
           cliente_nombre: row.cliente?.nombre ?? 'Cliente',
           cliente_telefono: row.cliente?.telefono ?? null,
+          cliente_email: row.cliente?.email ?? null,
         }))
       );
     }
@@ -84,13 +87,63 @@ export function PeruDashboardView({
   const enCurso = useMemo(() => operaciones.filter((o) => !o.check_deposito_ve), [operaciones]);
   const realizadas = useMemo(() => operaciones.filter((o) => o.check_deposito_ve), [operaciones]);
 
+  // Buscador único (nombre, teléfono, fecha, monto en soles o año) — un solo
+  // campo de texto en vez de varios filtros separados, para no sobrecargar
+  // la pantalla en dispositivos de gama baja.
   const realizadasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     if (!q) return realizadas;
-    return realizadas.filter(
-      (o) => o.cliente_nombre.toLowerCase().includes(q) || (o.cliente_telefono ?? '').toLowerCase().includes(q)
-    );
+    return realizadas.filter((o) => {
+      const fecha = new Date(o.created_at);
+      const anio = String(fecha.getFullYear());
+      const fechaCorta = fecha.toLocaleDateString('es-PE');
+      return (
+        o.cliente_nombre.toLowerCase().includes(q) ||
+        (o.cliente_telefono ?? '').toLowerCase().includes(q) ||
+        o.monto_pen.toFixed(2).includes(q) ||
+        anio.includes(q) ||
+        fechaCorta.includes(q)
+      );
+    });
   }, [realizadas, busqueda]);
+
+  // Numeración estable por operación (orden de finalización, del más
+  // antiguo al más reciente) — no cambia al buscar/filtrar la lista.
+  const numeracion = useMemo(() => {
+    const ordenadas = [...realizadas].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const mapa = new Map<string, number>();
+    ordenadas.forEach((op, i) => mapa.set(op.id, i + 1));
+    return mapa;
+  }, [realizadas]);
+
+  const exportarExcel = async () => {
+    setExportando(true);
+    try {
+      const filas = realizadasFiltradas.map((op) => ({
+        '#': numeracion.get(op.id) ?? '',
+        Cliente: op.cliente_nombre,
+        Teléfono: op.cliente_telefono ?? '',
+        Correo: op.cliente_email ?? '',
+        'Beneficiario (VE)': op.beneficiario_nombre,
+        'C.I.': op.beneficiario_ci ?? '',
+        'Tipo de transferencia': op.tipo_transferencia === 'pago_movil' ? 'Pago móvil' : 'Transferencia bancaria',
+        'Entidad bancaria': op.beneficiario_banco,
+        'N° cuenta': op.beneficiario_cuenta,
+        'Monto (S/)': op.monto_pen,
+        'Forma de pago': op.metodo_pago === 'yape' ? 'Yape' : op.metodo_pago === 'plin' ? 'Plin' : 'Transferencia bancaria',
+        'Recibe (Bs)': op.monto_ves,
+        'Validado en Perú': op.check_deposito_peru_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_peru_at)) : '',
+        'Validado en Venezuela': op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '',
+        'Tiempo de respuesta':
+          op.check_deposito_peru_at && op.check_deposito_ve_at
+            ? formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)
+            : '',
+      }));
+      await generarYCompartirExcel('operaciones-realizadas', 'Operaciones', filas);
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const resumenHoy = useMemo(() => {
     const hoy = HOY();
@@ -162,7 +215,7 @@ export function PeruDashboardView({
         rol={restringido ? 'operador_venezuela' : 'operador_peru'}
         etiqueta={restringido ? 'Operador Venezuela · Solo lectura' : undefined}
       />
-      <Text style={styles.bienvenida}>Hola, {nombreUsuarioActual}</Text>
+      <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
       <LiveClock />
 
       <View style={[styles.card, cardShadow, styles.tasaCard]}>
@@ -209,6 +262,20 @@ export function PeruDashboardView({
         </View>
       </View>
 
+      <View style={[styles.card, cardShadow, styles.horarioCard]}>
+        <View>
+          <Text style={styles.miniLabel}>Horario de atención</Text>
+          <Text style={styles.horarioValor}>
+            {perfil?.horario_inicio && perfil?.horario_fin ? `${perfil.horario_inicio} – ${perfil.horario_fin}` : 'Sin definir'}
+          </Text>
+        </View>
+        {!restringido && (
+          <Pressable onPress={() => router.push('/(operador-peru)/onboarding')}>
+            <Text style={styles.tasaEditar}>Editar →</Text>
+          </Pressable>
+        )}
+      </View>
+
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.miniLabel}>Eslogan (sesión cliente)</Text>
         {editandoEslogan ? (
@@ -253,12 +320,17 @@ export function PeruDashboardView({
         ))}
       </View>
 
-      <Text style={styles.seccionTitulo}>Operaciones realizadas ({realizadas.length})</Text>
+      <View style={styles.seccionHeaderRow}>
+        <Text style={styles.seccionTitulo}>Operaciones realizadas ({realizadas.length})</Text>
+        <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando || realizadasFiltradas.length === 0}>
+          {exportando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
+        </Pressable>
+      </View>
       <TextInput
         style={styles.buscador}
         value={busqueda}
         onChangeText={setBusqueda}
-        placeholder="Buscar por nombre o teléfono..."
+        placeholder="Buscar por nombre, teléfono, fecha, monto o año..."
         placeholderTextColor={colors.textMuted}
       />
       {realizadasFiltradas.length === 0 && <Text style={styles.vacio}>Sin resultados.</Text>}
@@ -268,6 +340,7 @@ export function PeruDashboardView({
             key={op.id}
             style={styles.gridItem}
             op={op}
+            numero={numeracion.get(op.id)}
             puedeValidarPeru={false}
             puedeValidarVe={false}
             onValidarPeru={() => {}}
@@ -312,11 +385,16 @@ const styles = StyleSheet.create({
   miniCard: { flex: 1, gap: 4 },
   miniLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   miniValor: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  horarioValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
   editRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   editInput: { color: colors.text, fontSize: 20, fontWeight: '800', borderBottomWidth: 1, borderBottomColor: colors.primary, minWidth: 50 },
   eslogan: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },
   esloganInput: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 },
   seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
+  seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
+  excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
   // 1 columna en móvil; en pantallas anchas (operador en web/tablet) las
   // tarjetas se acomodan solas en 2-3 columnas gracias al flexWrap.

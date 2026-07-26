@@ -7,7 +7,7 @@ import { construirEnlaceWhatsApp } from '../lib/whatsapp';
 import { extensionDeImagen } from '../lib/imagenUtil';
 import { colors, radius, cardShadow } from '../constants/theme';
 
-const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
+export const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
   day: '2-digit',
   month: '2-digit',
   hour: '2-digit',
@@ -23,6 +23,41 @@ const FORMATTER_HORA_VE = new Intl.DateTimeFormat('es-VE', {
 export interface OperationRowData extends Solicitud {
   cliente_nombre: string;
   cliente_telefono: string | null;
+  cliente_email: string | null;
+}
+
+const ETIQUETA_METODO_PAGO: Record<OperationRowData['metodo_pago'], string> = {
+  yape: 'Yape',
+  plin: 'Plin',
+  banco: 'Transferencia bancaria',
+};
+
+const ETIQUETA_TIPO_TRANSFERENCIA: Record<OperationRowData['tipo_transferencia'], string> = {
+  transferencia_bancaria: 'Transferencia bancaria',
+  pago_movil: 'Pago móvil',
+};
+
+// "Tiempo de respuesta" = diferencia entre el check de Perú y el de
+// Venezuela. Si cae en el mismo día solo se muestra horas/minutos; si cruza
+// de día se agrega la cantidad de días de diferencia.
+export function formatearTiempoRespuesta(peruAt: string, veAt: string): string {
+  const a = new Date(peruAt).getTime();
+  const b = new Date(veAt).getTime();
+  const diffMs = Math.abs(b - a);
+  const mismoDia = peruAt.slice(0, 10) === veAt.slice(0, 10);
+  const totalMin = Math.round(diffMs / 60000);
+
+  if (mismoDia) {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h} h ${m} min` : `${m} min`;
+  }
+
+  const dias = Math.floor(diffMs / 86400000);
+  const remMin = totalMin - dias * 24 * 60;
+  const h = Math.floor(remMin / 60);
+  const m = remMin % 60;
+  return `${dias} d ${h} h ${m} min`;
 }
 
 // Fila de "Operaciones en curso" / "Operaciones realizadas": resumen
@@ -30,6 +65,7 @@ export interface OperationRowData extends Solicitud {
 // las imágenes de depósito, con los dos checks verdes de validación.
 export function OperationRow({
   op,
+  numero,
   puedeValidarPeru,
   puedeValidarVe,
   onValidarPeru,
@@ -39,6 +75,8 @@ export function OperationRow({
   style,
 }: {
   op: OperationRowData;
+  /** Numeración estable (p.ej. en "Operaciones realizadas"), independiente del orden/filtro visible. */
+  numero?: number;
   puedeValidarPeru: boolean;
   puedeValidarVe: boolean;
   onValidarPeru: () => void;
@@ -77,7 +115,10 @@ export function OperationRow({
     <View style={[styles.card, cardShadow, style]}>
       <Pressable style={styles.header} onPress={() => setAbierto((v) => !v)}>
         <View style={styles.headerTextos}>
-          <Text style={styles.fecha}>{FORMATTER_FECHA_HORA.format(new Date(op.created_at))}</Text>
+          <Text style={styles.fecha}>
+            {numero ? `#${numero} · ` : ''}
+            {FORMATTER_FECHA_HORA.format(new Date(op.created_at))}
+          </Text>
           <Text style={styles.cliente} numberOfLines={1}>
             {op.cliente_nombre}
           </Text>
@@ -93,12 +134,19 @@ export function OperationRow({
       {abierto && (
         <View style={styles.detalle}>
           <Row label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
+          <Row label="Correo cliente" value={op.cliente_email ?? '—'} />
           <Row label="Beneficiario (VE)" value={op.beneficiario_nombre} />
           <Row label="C.I." value={op.beneficiario_ci ?? '—'} />
           <Row label="Teléfono beneficiario" value={op.beneficiario_telefono ?? '—'} />
+          <Row label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]} />
           <Row label="Entidad bancaria" value={op.beneficiario_banco} />
           <Row label="N° cuenta" value={op.beneficiario_cuenta} />
+          <Row label="Monto depositado" value={`S/ ${op.monto_pen.toFixed(2)}`} />
+          <Row label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
           <Row label="Recibe" value={`Bs ${op.monto_ves.toFixed(2)}`} />
+          {op.check_deposito_peru_at && op.check_deposito_ve_at && (
+            <Row label="Tiempo de respuesta" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
+          )}
 
           {op.comprobante_pago_url && (
             <ImagenDesplegable titulo="Comprobante de pago en Perú (cliente)" uri={op.comprobante_pago_url} />

@@ -27,8 +27,29 @@ export async function crearInvitacion(tipo: TipoInvitacion, negocioOperadorPeruI
   return data;
 }
 
+// El enlace de clientes es único y reutilizable por operador: si ya existe
+// uno (nunca se marca `usado_por` para tipo 'cliente', ver canjear_invitacion),
+// se reutiliza en vez de generar uno nuevo cada vez que se abre la pantalla.
+export async function obtenerOCrearInvitacionCliente(operadorPeruId: string) {
+  const { data: existente } = await supabase
+    .from('invitaciones')
+    .select('*')
+    .eq('tipo', 'cliente')
+    .eq('creado_por', operadorPeruId)
+    .maybeSingle();
+  if (existente) return existente;
+  return crearInvitacion('cliente', operadorPeruId);
+}
+
 export function construirEnlaceInvitacion(token: string) {
   return `${BASE_URL}/invitacion/${token}`;
+}
+
+// El Operador Venezuela no canjea un token: su cuenta se vincula sola por
+// email (ver trigger `handle_new_user`) apenas inicia sesión con Google
+// por primera vez. Este enlace es solo la puerta de entrada a la app.
+export function construirEnlaceEntrada() {
+  return BASE_URL;
 }
 
 export async function guardarTokenPendiente(token: string) {

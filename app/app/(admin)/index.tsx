@@ -108,7 +108,7 @@ export default function PanelAdmin() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol="administrador" />
-      <Text style={styles.titulo}>Panel de Administrador</Text>
+      <Text style={styles.titulo}>Bienvenido a Remesas Perú-Venezuela, {usuario?.nombre}</Text>
       <Text style={styles.subtitulo}>{usuario?.email}</Text>
 
       <Pressable style={styles.panelControlBtn} onPress={() => router.push('/(admin)/panel-control')}>

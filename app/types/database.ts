@@ -10,7 +10,8 @@ export type EstadoSolicitud =
   | 'RECHAZADA'
   | 'CANCELADA';
 
-export type MetodoPago = 'yape' | 'banco';
+export type MetodoPago = 'yape' | 'plin' | 'banco';
+export type TipoTransferencia = 'transferencia_bancaria' | 'pago_movil';
 
 export interface Usuario {
   id: string;
@@ -56,6 +57,7 @@ export interface Solicitud {
   beneficiario_cuenta: string;
   beneficiario_ci: string | null;
   beneficiario_telefono: string | null;
+  tipo_transferencia: TipoTransferencia;
   metodo_pago: MetodoPago;
   comprobante_pago_url: string | null;
   motivo_rechazo: string | null;
@@ -81,6 +83,8 @@ export interface PerfilNegocio {
   yape_qr_url: string | null;
   plin_qr_url: string | null;
   es_operador_venezuela_mismo: boolean;
+  horario_inicio: string;
+  horario_fin: string;
   created_at: string;
   updated_at: string;
 }
@@ -89,7 +93,9 @@ export interface CuentaBancariaOperador {
   id: string;
   operador_peru_id: string;
   entidad: string;
+  titular: string;
   numero_cuenta: string;
+  cci: string;
   created_at: string;
 }
 

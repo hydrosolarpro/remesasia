@@ -73,7 +73,10 @@ export default function DetalleSolicitud() {
         <Row label="Cuenta / teléfono" value={solicitud.beneficiario_cuenta} />
         <Row label="Envías" value={`S/ ${solicitud.monto_pen.toFixed(2)}`} />
         <Row label="Recibe" value={`Bs ${solicitud.monto_ves.toFixed(2)}`} />
-        <Row label="Método de pago" value={solicitud.metodo_pago === 'yape' ? 'Yape' : 'Transferencia bancaria'} />
+        <Row
+          label="Método de pago"
+          value={solicitud.metodo_pago === 'yape' ? 'Yape' : solicitud.metodo_pago === 'plin' ? 'Plin' : 'Transferencia bancaria'}
+        />
       </View>
 
       {solicitud.comprobante_pago_url && (

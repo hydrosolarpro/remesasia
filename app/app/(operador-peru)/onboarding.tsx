@@ -13,16 +13,20 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
 import { extensionDeImagen } from '../../lib/imagenUtil';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
+import { construirEnlaceEntrada } from '../../lib/invitaciones';
 import { colors, radius, cardShadow } from '../../constants/theme';
 import { RoleTag } from '../../components/RoleTag';
 
 interface CuentaForm {
   id?: string;
   entidad: string;
+  titular: string;
   numero_cuenta: string;
+  cci: string;
 }
 
 // Onboarding del Operador Perú: primera vez que entra, y también editable
@@ -40,12 +44,15 @@ export default function OnboardingNegocio() {
   const [telefono, setTelefono] = useState('');
   const [yapeQrUrl, setYapeQrUrl] = useState<string | null>(null);
   const [plinQrUrl, setPlinQrUrl] = useState<string | null>(null);
-  const [cuentas, setCuentas] = useState<CuentaForm[]>([{ entidad: '', numero_cuenta: '' }]);
+  const [cuentas, setCuentas] = useState<CuentaForm[]>([{ entidad: '', titular: '', numero_cuenta: '', cci: '' }]);
   const [esMismoOperadorVe, setEsMismoOperadorVe] = useState(false);
   const [veNombre, setVeNombre] = useState('');
   const [veTelefono, setVeTelefono] = useState('');
   const [veEmail, setVeEmail] = useState('');
+  const [horarioInicio, setHorarioInicio] = useState('');
+  const [horarioFin, setHorarioFin] = useState('');
   const [subiendoImagen, setSubiendoImagen] = useState<null | 'logo' | 'yape' | 'plin'>(null);
+  const [copiadoEnlaceVe, setCopiadoEnlaceVe] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -65,9 +72,13 @@ export default function OnboardingNegocio() {
       setYapeQrUrl(perfil.yape_qr_url);
       setPlinQrUrl(perfil.plin_qr_url);
       setEsMismoOperadorVe(perfil.es_operador_venezuela_mismo);
+      setHorarioInicio(perfil.horario_inicio ?? '');
+      setHorarioFin(perfil.horario_fin ?? '');
     }
     if (cuentasBd && cuentasBd.length > 0) {
-      setCuentas(cuentasBd.map((c) => ({ id: c.id, entidad: c.entidad, numero_cuenta: c.numero_cuenta })));
+      setCuentas(
+        cuentasBd.map((c) => ({ id: c.id, entidad: c.entidad, titular: c.titular ?? '', numero_cuenta: c.numero_cuenta, cci: c.cci ?? '' }))
+      );
     }
     if (vePerfil) {
       setVeNombre(vePerfil.nombre ?? '');
@@ -110,7 +121,7 @@ export default function OnboardingNegocio() {
     if (tipo === 'plin') setPlinQrUrl(urlConCacheBust);
   };
 
-  const agregarCuenta = () => setCuentas((prev) => [...prev, { entidad: '', numero_cuenta: '' }]);
+  const agregarCuenta = () => setCuentas((prev) => [...prev, { entidad: '', titular: '', numero_cuenta: '', cci: '' }]);
   const quitarCuenta = (idx: number) => setCuentas((prev) => prev.filter((_, i) => i !== idx));
   const editarCuenta = (idx: number, campo: keyof CuentaForm, valor: string) =>
     setCuentas((prev) => prev.map((c, i) => (i === idx ? { ...c, [campo]: valor } : c)));
@@ -145,6 +156,8 @@ export default function OnboardingNegocio() {
           yape_qr_url: yapeQrUrl,
           plin_qr_url: plinQrUrl,
           es_operador_venezuela_mismo: esMismoOperadorVe,
+          horario_inicio: horarioInicio.trim(),
+          horario_fin: horarioFin.trim(),
         },
         { onConflict: 'operador_peru_id' }
       );
@@ -155,7 +168,9 @@ export default function OnboardingNegocio() {
         cuentasValidas.map((c) => ({
           operador_peru_id: usuario.id,
           entidad: c.entidad.trim(),
+          titular: c.titular.trim(),
           numero_cuenta: c.numero_cuenta.trim(),
+          cci: c.cci.trim(),
         }))
       );
       if (cuentasError) throw cuentasError;
@@ -234,32 +249,76 @@ export default function OnboardingNegocio() {
 
       <Section titulo="Cuentas bancarias">
         {cuentas.map((cuenta, idx) => (
-          <View key={cuenta.id ?? idx} style={styles.cuentaRow}>
+          <View key={cuenta.id ?? idx} style={styles.cuentaBloque}>
+            <View style={styles.cuentaRow}>
+              <TextInput
+                style={[styles.input, styles.cuentaEntidad]}
+                value={cuenta.entidad}
+                onChangeText={(v) => editarCuenta(idx, 'entidad', v)}
+                placeholder="Entidad (BCP, Interbank...)"
+                placeholderTextColor={colors.textMuted}
+              />
+              {cuentas.length > 1 && (
+                <Pressable onPress={() => quitarCuenta(idx)} style={styles.quitarBtn}>
+                  <Text style={styles.quitarBtnTexto}>✕</Text>
+                </Pressable>
+              )}
+            </View>
             <TextInput
-              style={[styles.input, styles.cuentaEntidad]}
-              value={cuenta.entidad}
-              onChangeText={(v) => editarCuenta(idx, 'entidad', v)}
-              placeholder="Entidad (BCP, Interbank...)"
+              style={styles.input}
+              value={cuenta.titular}
+              onChangeText={(v) => editarCuenta(idx, 'titular', v)}
+              placeholder="Titular de la cuenta"
               placeholderTextColor={colors.textMuted}
             />
-            <TextInput
-              style={[styles.input, styles.cuentaNumero]}
-              value={cuenta.numero_cuenta}
-              onChangeText={(v) => editarCuenta(idx, 'numero_cuenta', v)}
-              placeholder="N° de cuenta"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="number-pad"
-            />
-            {cuentas.length > 1 && (
-              <Pressable onPress={() => quitarCuenta(idx)} style={styles.quitarBtn}>
-                <Text style={styles.quitarBtnTexto}>✕</Text>
-              </Pressable>
-            )}
+            <View style={styles.cuentaRow}>
+              <TextInput
+                style={[styles.input, styles.cuentaNumero]}
+                value={cuenta.numero_cuenta}
+                onChangeText={(v) => editarCuenta(idx, 'numero_cuenta', v)}
+                placeholder="N° de cuenta"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+              />
+              <TextInput
+                style={[styles.input, styles.cuentaNumero]}
+                value={cuenta.cci}
+                onChangeText={(v) => editarCuenta(idx, 'cci', v)}
+                placeholder="CCI"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+              />
+            </View>
           </View>
         ))}
         <Pressable style={styles.agregarBtn} onPress={agregarCuenta}>
           <Text style={styles.agregarBtnTexto}>+ Agregar cuenta</Text>
         </Pressable>
+      </Section>
+
+      <Section titulo="Horario de atención">
+        <View style={styles.horarioRow}>
+          <View style={{ flex: 1 }}>
+            <Label texto="Hora de inicio" />
+            <TextInput
+              style={styles.input}
+              value={horarioInicio}
+              onChangeText={setHorarioInicio}
+              placeholder="08:00"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Label texto="Hora final" />
+            <TextInput
+              style={styles.input}
+              value={horarioFin}
+              onChangeText={setHorarioFin}
+              placeholder="20:00"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+        </View>
       </Section>
 
       <Section titulo="Operador Venezuela">
@@ -289,6 +348,20 @@ export default function OnboardingNegocio() {
               placeholder="operador.venezuela@gmail.com"
               placeholderTextColor={colors.textMuted}
             />
+            <Text style={styles.ayuda}>
+              Apenas esa persona entre con ese correo de Gmail, el sistema la reconoce sola como Operador Venezuela — no
+              necesita un enlace especial, solo la puerta de entrada de la app:
+            </Text>
+            <Pressable
+              style={styles.copiarEnlaceBtn}
+              onPress={async () => {
+                await Clipboard.setStringAsync(construirEnlaceEntrada());
+                setCopiadoEnlaceVe(true);
+                setTimeout(() => setCopiadoEnlaceVe(false), 1500);
+              }}
+            >
+              <Text style={styles.copiarEnlaceBtnTexto}>{copiadoEnlaceVe ? '✓ Copiado' : 'Copiar enlace de acceso'}</Text>
+            </Pressable>
           </>
         )}
       </Section>
@@ -395,8 +468,9 @@ const styles = StyleSheet.create({
   },
   qrImg: { width: '100%', height: '100%' },
   qrPlaceholder: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
-  cuentaRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 8 },
-  cuentaEntidad: { flex: 1.2, marginTop: 0 },
+  cuentaBloque: { gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  cuentaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  cuentaEntidad: { flex: 1, marginTop: 0 },
   cuentaNumero: { flex: 1, marginTop: 0 },
   quitarBtn: { padding: 8 },
   quitarBtnTexto: { color: colors.danger, fontSize: 16, fontWeight: '800' },
@@ -404,6 +478,10 @@ const styles = StyleSheet.create({
   agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   switchLabel: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
+  horarioRow: { flexDirection: 'row', gap: 12 },
+  ayuda: { color: colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 12 },
+  copiarEnlaceBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 8 },
+  copiarEnlaceBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   error: { color: colors.danger, fontSize: 13 },
   guardarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center', marginTop: 4 },
   guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },

@@ -4,30 +4,27 @@ import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
-import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function Perfil() {
   const { usuario, signOut } = useAuth();
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
-  const [generando, setGenerando] = useState(false);
+  const [generando, setGenerando] = useState(true);
   const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
   }, [usuario]);
 
-  const invitarCliente = async () => {
+  // El enlace es único por operador y reutilizable: se busca (o se crea la
+  // primera vez) apenas entra a esta pantalla, sin necesidad de un botón.
+  useEffect(() => {
     if (!usuario) return;
-    setGenerando(true);
-    setCopiado(false);
-    try {
-      const inv = await crearInvitacion('cliente', usuario.id);
-      setEnlaceCliente(construirEnlaceInvitacion(inv.token));
-    } finally {
-      setGenerando(false);
-    }
-  };
+    obtenerOCrearInvitacionCliente(usuario.id)
+      .then((inv) => setEnlaceCliente(construirEnlaceInvitacion(inv.token)))
+      .finally(() => setGenerando(false));
+  }, [usuario]);
 
   const copiarEnlace = async () => {
     if (!enlaceCliente) return;
@@ -44,19 +41,22 @@ export default function Perfil() {
 
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.cardTitulo}>Invitar clientes</Text>
-        <Text style={styles.cardTexto}>Genera un enlace y compártelo por WhatsApp. Quien lo abra entra directo como tu cliente.</Text>
-        <Pressable style={styles.boton} onPress={invitarCliente} disabled={generando}>
-          {generando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.botonTexto}>Generar enlace para clientes</Text>}
-        </Pressable>
-        {enlaceCliente && (
-          <View style={styles.enlaceRow}>
-            <Text style={styles.enlaceTexto} numberOfLines={1}>
-              {enlaceCliente}
-            </Text>
-            <Pressable style={styles.copiarBtn} onPress={copiarEnlace}>
-              <Text style={styles.copiarBtnTexto}>{copiado ? '✓ Copiado' : 'Copiar'}</Text>
-            </Pressable>
-          </View>
+        <Text style={styles.cardTexto}>
+          Un solo enlace para todos tus clientes — compártelo por WhatsApp. Quien lo abra entra directo como tu cliente.
+        </Text>
+        {generando ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
+        ) : (
+          enlaceCliente && (
+            <View style={styles.enlaceRow}>
+              <Text style={styles.enlaceTexto} numberOfLines={1}>
+                {enlaceCliente}
+              </Text>
+              <Pressable style={styles.copiarBtn} onPress={copiarEnlace}>
+                <Text style={styles.copiarBtnTexto}>{copiado ? '✓ Copiado' : 'Copiar'}</Text>
+              </Pressable>
+            </View>
+          )
         )}
       </View>
 
