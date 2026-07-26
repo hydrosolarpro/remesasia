@@ -3,7 +3,7 @@ import { Text, ColorValue } from 'react-native';
 import { colors } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 
-const ICONO = { index: '📋', perfil: '👤' };
+const ICONO = { index: '📋', estadisticas: '📊', perfil: '👤' };
 
 function TabIcon({ nombre, color }: { nombre: keyof typeof ICONO; color: ColorValue }) {
   return <Text style={{ fontSize: 18, color }}>{ICONO[nombre]}</Text>;
@@ -31,6 +31,10 @@ export default function OperadorVenezuelaLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Panel', tabBarIcon: ({ color }) => <TabIcon nombre="index" color={color} /> }} />
+      <Tabs.Screen
+        name="estadisticas"
+        options={{ title: 'Estadísticas', tabBarIcon: ({ color }) => <TabIcon nombre="estadisticas" color={color} /> }}
+      />
       <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <TabIcon nombre="perfil" color={color} /> }} />
     </Tabs>
   );
