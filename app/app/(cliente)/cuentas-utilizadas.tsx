@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -85,16 +85,26 @@ export default function CuentasUtilizadas() {
   };
 
   const eliminar = (c: CuentaUtilizadaCliente) => {
+    const borrar = async () => {
+      const { error } = await supabase.from('cuentas_utilizadas_cliente').delete().eq('id', c.id);
+      if (error) {
+        if (Platform.OS === 'web') window.alert(`No se pudo eliminar: ${error.message}`);
+        else Alert.alert('No se pudo eliminar', error.message);
+        return;
+      }
+      cargar();
+    };
+
+    // Alert.alert con varios botones no siempre dispara el onPress en web
+    // (react-native-web lo reduce a un solo confirm); en web se usa
+    // window.confirm directamente para que el botón funcione siempre.
+    if (Platform.OS === 'web') {
+      if (window.confirm(`¿Eliminar los datos de ${c.nombre_beneficiario}?`)) borrar();
+      return;
+    }
     Alert.alert('Eliminar cuenta', `¿Eliminar los datos de ${c.nombre_beneficiario}?`, [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          await supabase.from('cuentas_utilizadas_cliente').delete().eq('id', c.id);
-          cargar();
-        },
-      },
+      { text: 'Eliminar', style: 'destructive', onPress: borrar },
     ]);
   };
 
