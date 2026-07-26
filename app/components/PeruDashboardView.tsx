@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { router } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../lib/supabase';
-import { PerfilNegocio, Tasa } from '../types/database';
+import { construirEnlaceEntrada } from '../lib/invitaciones';
+import { PerfilNegocio, Tasa, OperadorVenezuelaPerfil } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { LiveClock } from './LiveClock';
@@ -37,9 +39,14 @@ export function PeruDashboardView({
   const [esloganBorrador, setEsloganBorrador] = useState('');
   const [editandoRentabilidad, setEditandoRentabilidad] = useState(false);
   const [rentabilidadBorrador, setRentabilidadBorrador] = useState('');
+  const [veNombre, setVeNombre] = useState('');
+  const [veTelefono, setVeTelefono] = useState('');
+  const [veEmail, setVeEmail] = useState('');
+  const [guardandoVe, setGuardandoVe] = useState(false);
+  const [enlaceVeCopiado, setEnlaceVeCopiado] = useState(false);
 
   const cargar = useCallback(async () => {
-    const [{ data: perfilData }, { data: tasaData }, { data: opsData }] = await Promise.all([
+    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: vePerfilData }] = await Promise.all([
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
       supabase
         .from('tasas')
@@ -55,10 +62,15 @@ export function PeruDashboardView({
         .eq('negocio_operador_peru_id', operadorPeruId)
         .order('created_at', { ascending: false })
         .limit(200),
+      supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
     ]);
 
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
+    const vePerfil = vePerfilData as OperadorVenezuelaPerfil | null;
+    setVeNombre(vePerfil?.nombre ?? '');
+    setVeTelefono(vePerfil?.telefono ?? '');
+    setVeEmail(vePerfil?.email ?? '');
     if (opsData) {
       setOperaciones(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -203,6 +215,34 @@ export function PeruDashboardView({
     cargar();
   };
 
+  // Guarda los datos de contacto del Operador Venezuela y copia el enlace
+  // de invitación — al abrirlo e iniciar sesión con Google usando ese
+  // mismo correo, su cuenta se vincula sola como Operador Venezuela de
+  // este negocio (ver trigger handle_new_user).
+  const guardarDatosVeYCopiarEnlace = async () => {
+    if (!veNombre.trim() || !veEmail.trim()) return;
+    setGuardandoVe(true);
+    setEnlaceVeCopiado(false);
+    try {
+      const { error } = await supabase.from('operador_venezuela_perfil').upsert(
+        {
+          operador_peru_id: operadorPeruId,
+          nombre: veNombre.trim(),
+          telefono: veTelefono.trim() || null,
+          email: veEmail.trim().toLowerCase(),
+        },
+        { onConflict: 'operador_peru_id' }
+      );
+      if (error) throw error;
+      await Clipboard.setStringAsync(construirEnlaceEntrada());
+      setEnlaceVeCopiado(true);
+      setTimeout(() => setEnlaceVeCopiado(false), 2000);
+      cargar();
+    } finally {
+      setGuardandoVe(false);
+    }
+  };
+
   const guardarCompartirRentabilidad = async (valor: boolean) => {
     await supabase.from('perfil_negocio').update({ compartir_rentabilidad_ve: valor }).eq('operador_peru_id', operadorPeruId);
     cargar();
@@ -270,6 +310,47 @@ export function PeruDashboardView({
           <Text style={styles.miniValor}>{resumenHoy.nOps}</Text>
         </View>
       </View>
+
+      {!restringido && (
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.miniLabel}>Datos del Operador Venezuela</Text>
+          <TextInput
+            style={styles.veInput}
+            value={veNombre}
+            onChangeText={setVeNombre}
+            placeholder="Nombre completo"
+            placeholderTextColor={colors.textMuted}
+          />
+          <TextInput
+            style={styles.veInput}
+            value={veTelefono}
+            onChangeText={setVeTelefono}
+            placeholder="Teléfono"
+            keyboardType="phone-pad"
+            placeholderTextColor={colors.textMuted}
+          />
+          <TextInput
+            style={styles.veInput}
+            value={veEmail}
+            onChangeText={setVeEmail}
+            placeholder="Correo electrónico"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholderTextColor={colors.textMuted}
+          />
+          <Pressable
+            style={styles.veBtn}
+            onPress={guardarDatosVeYCopiarEnlace}
+            disabled={guardandoVe || !veNombre.trim() || !veEmail.trim()}
+          >
+            {guardandoVe ? (
+              <ActivityIndicator color={colors.text} />
+            ) : (
+              <Text style={styles.veBtnTexto}>{enlaceVeCopiado ? '✓ Enlace copiado' : 'Guardar y copiar enlace de invitación'}</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       {!restringido && (
         <View style={[styles.card, cardShadow, styles.horarioCard]}>
@@ -410,6 +491,18 @@ const styles = StyleSheet.create({
   horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   horarioValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
   switchLabelCompartir: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 8 },
+  veInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    color: colors.text,
+    fontSize: 14,
+    marginTop: 8,
+    backgroundColor: colors.cardAlt,
+  },
+  veBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 10 },
+  veBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
   editRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   editInput: { color: colors.text, fontSize: 20, fontWeight: '800', borderBottomWidth: 1, borderBottomColor: colors.primary, minWidth: 50 },
   eslogan: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },
