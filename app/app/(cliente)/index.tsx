@@ -172,6 +172,8 @@ export default function InicioCliente() {
           tasa_usdt_ves: conversion.tasaUsdtVes,
           monto_usdt: conversion.montoUsdt,
           monto_ves: conversion.montoVes,
+          monto_usd_bcv: equivalenteUsd,
+          monto_eur_bcv: equivalenteEur,
           beneficiario_nombre: beneficiarioNombre.trim(),
           beneficiario_banco: beneficiarioBanco.trim(),
           beneficiario_cuenta: beneficiarioCuenta.trim(),

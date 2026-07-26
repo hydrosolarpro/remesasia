@@ -52,6 +52,8 @@ export interface Solicitud {
   tasa_usdt_ves: number;
   monto_usdt: number;
   monto_ves: number;
+  monto_usd_bcv: number | null;
+  monto_eur_bcv: number | null;
   beneficiario_nombre: string;
   beneficiario_banco: string;
   beneficiario_cuenta: string;

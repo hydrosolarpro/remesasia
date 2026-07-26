@@ -6,6 +6,7 @@ import { NarrowShell } from '../../components/NarrowShell';
 
 const ICONO = {
   index: '🏠',
+  solicitudes: '📋',
   'cuentas-utilizadas': '💳',
   estadisticas: '📊',
   perfil: '👤',
@@ -38,6 +39,10 @@ export default function ClienteLayout() {
         }}
       >
         <Tabs.Screen name="index" options={{ title: 'Inicio', tabBarIcon: ({ color }) => <TabIcon nombre="index" color={color} /> }} />
+        <Tabs.Screen
+          name="solicitudes"
+          options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <TabIcon nombre="solicitudes" color={color} /> }}
+        />
         <Tabs.Screen
           name="cuentas-utilizadas"
           options={{ title: 'Mis cuentas', tabBarIcon: ({ color }) => <TabIcon nombre="cuentas-utilizadas" color={color} /> }}
