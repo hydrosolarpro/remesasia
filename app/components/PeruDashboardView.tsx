@@ -226,8 +226,8 @@ export function PeruDashboardView({
       <LiveClock />
 
       <View style={[styles.card, cardShadow, styles.tasaCard]}>
-        <Text style={styles.tasaLabel}>Tasa del día (PEN → USDT)</Text>
-        <Text style={styles.tasaValor}>{tasa ? `S/ ${tasa.tasa_pen_usdt}` : 'Sin publicar'}</Text>
+        <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
+        <Text style={styles.tasaValor}>{tasa ? `Bs ${tasa.tasa_pen_ves}` : 'Sin publicar'}</Text>
         {!restringido && (
           <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
             <Text style={styles.tasaEditar}>Actualizar tasa →</Text>

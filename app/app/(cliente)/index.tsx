@@ -107,7 +107,7 @@ export default function InicioCliente() {
   const conversion = useMemo(() => {
     const monto = Number(montoPen.replace(',', '.'));
     if (!tasa || !Number.isFinite(monto) || monto <= 0) return null;
-    return calcularConversion(monto, tasa.tasa_pen_usdt, tasa.tasa_usdt_ves);
+    return calcularConversion(monto, tasa.tasa_pen_ves);
   }, [montoPen, tasa]);
 
   const equivalenteUsd = conversion && bcv ? conversion.montoVes / bcv.usd_ves : null;
@@ -168,9 +168,7 @@ export default function InicioCliente() {
           negocio_operador_peru_id: negocioId,
           estado: 'EN_VERIFICACION',
           monto_pen: conversion.montoPen,
-          tasa_pen_usdt: conversion.tasaPenUsdt,
-          tasa_usdt_ves: conversion.tasaUsdtVes,
-          monto_usdt: conversion.montoUsdt,
+          tasa_pen_ves: conversion.tasaPenVes,
           monto_ves: conversion.montoVes,
           monto_usd_bcv: equivalenteUsd,
           monto_eur_bcv: equivalenteEur,
@@ -256,8 +254,8 @@ export default function InicioCliente() {
 
       <View style={styles.filaTasas}>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
-          <Text style={styles.tasaLabel}>Tasa del día</Text>
-          <Text style={styles.tasaValor}>{tasa ? `S/ ${tasa.tasa_pen_usdt}` : '—'}</Text>
+          <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
+          <Text style={styles.tasaValor}>{tasa ? `Bs ${tasa.tasa_pen_ves}` : '—'}</Text>
         </View>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
           <Text style={styles.tasaLabel}>BCV — USD / EUR</Text>

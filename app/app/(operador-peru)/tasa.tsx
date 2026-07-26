@@ -7,12 +7,11 @@ import { colors } from '../../constants/theme';
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-/** F1 — Publicación de la tasa del día. Base de todos los cálculos de la calculadora del cliente. */
+/** F1 — Publicación de la tasa del día (Soles -> Bolívares Soberanos). Base de la calculadora del cliente. */
 export default function TasaDelDia() {
   const { usuario } = useAuth();
   const [tasaActual, setTasaActual] = useState<Tasa | null>(null);
-  const [penUsdt, setPenUsdt] = useState('');
-  const [usdtVes, setUsdtVes] = useState('');
+  const [penVes, setPenVes] = useState('');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
@@ -28,8 +27,7 @@ export default function TasaDelDia() {
       .maybeSingle();
     setTasaActual(data as Tasa | null);
     if (data) {
-      setPenUsdt(String(data.tasa_pen_usdt));
-      setUsdtVes(String(data.tasa_usdt_ves));
+      setPenVes(String(data.tasa_pen_ves));
     }
   };
 
@@ -41,15 +39,14 @@ export default function TasaDelDia() {
   const publicar = async () => {
     if (!usuario) return;
     setMensaje(null);
-    if (!penUsdt || !usdtVes) {
-      setMensaje('Completa las dos tasas antes de publicar.');
+    if (!penVes) {
+      setMensaje('Ingresa la tasa antes de publicar.');
       return;
     }
     setLoading(true);
     const { error } = await supabase.from('tasas').insert({
       fecha: HOY(),
-      tasa_pen_usdt: Number(penUsdt),
-      tasa_usdt_ves: Number(usdtVes),
+      tasa_pen_ves: Number(penVes),
       publicada_por: usuario.id,
     });
     setLoading(false);
@@ -64,29 +61,15 @@ export default function TasaDelDia() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Tasa del día — {HOY()}</Text>
-      {tasaActual && (
-        <Text style={styles.hint}>
-          Última publicada: S/{tasaActual.tasa_pen_usdt} / USDT · Bs{tasaActual.tasa_usdt_ves} / USDT
-        </Text>
-      )}
+      {tasaActual && <Text style={styles.hint}>Última publicada: S/1 = Bs {tasaActual.tasa_pen_ves}</Text>}
 
-      <Text style={styles.label}>Tasa PEN → USDT (soles por 1 USDT)</Text>
+      <Text style={styles.label}>Tasa Soles → Bolívares Soberanos (Bs por S/1)</Text>
       <TextInput
         style={styles.input}
-        value={penUsdt}
-        onChangeText={setPenUsdt}
+        value={penVes}
+        onChangeText={setPenVes}
         keyboardType="decimal-pad"
-        placeholder="3.80"
-        placeholderTextColor={colors.textMuted}
-      />
-
-      <Text style={styles.label}>Tasa USDT → VES (bolívares por 1 USDT)</Text>
-      <TextInput
-        style={styles.input}
-        value={usdtVes}
-        onChangeText={setUsdtVes}
-        keyboardType="decimal-pad"
-        placeholder="130.00"
+        placeholder="34.20"
         placeholderTextColor={colors.textMuted}
       />
 

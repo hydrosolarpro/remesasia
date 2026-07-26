@@ -23,7 +23,7 @@ export default function Login() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Remesas PERU-VENEZUELA</Text>
-      <Text style={styles.subtitle}>PEN → USDT → VES</Text>
+      <Text style={styles.subtitle}>Soles → Bolívares Soberanos</Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 

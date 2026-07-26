@@ -29,8 +29,7 @@ export interface Usuario {
 export interface Tasa {
   id: string;
   fecha: string; // YYYY-MM-DD
-  tasa_pen_usdt: number;
-  tasa_usdt_ves: number;
+  tasa_pen_ves: number;
   publicada_por: string;
   created_at: string;
 }
@@ -48,9 +47,7 @@ export interface Solicitud {
   operador_venezuela_id: string | null;
   estado: EstadoSolicitud;
   monto_pen: number;
-  tasa_pen_usdt: number;
-  tasa_usdt_ves: number;
-  monto_usdt: number;
+  tasa_pen_ves: number;
   monto_ves: number;
   monto_usd_bcv: number | null;
   monto_eur_bcv: number | null;
@@ -179,12 +176,4 @@ export interface ConfiguracionPagosAdmin {
   plin_qr_url: string | null;
   monto_suscripcion: number;
   updated_at: string;
-}
-
-export interface OperacionesDashboardRow {
-  fecha: string;
-  n_ops: number;
-  vol_pen: number;
-  vol_usdt: number;
-  ganancia_neta: number;
 }
