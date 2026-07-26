@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
+import { BarChart } from 'react-native-gifted-charts';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
@@ -8,6 +9,11 @@ import { SolicitudCard } from '../../components/SolicitudCard';
 import { RangoFecha } from '../../lib/dateRange';
 import { Solicitud } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
+
+interface Punto {
+  etiqueta: string;
+  monto: number;
+}
 
 // Estadística de depósitos realizados por el cliente, filtrable por fecha
 // específica, rango de fechas, mes, rango de meses, año o rango de años.
@@ -36,6 +42,22 @@ export default function EstadisticasCliente() {
 
   const montoTotal = depositos.reduce((acc, d) => acc + d.monto_pen, 0);
 
+  const puntos = useMemo<Punto[]>(() => {
+    if (!rango) return [];
+    const diasSpan = (new Date(rango.hasta).getTime() - new Date(rango.desde).getTime()) / 86400000;
+    const granularidad: 'dia' | 'mes' | 'anio' = diasSpan <= 31 ? 'dia' : diasSpan <= 730 ? 'mes' : 'anio';
+
+    const grupos = new Map<string, number>();
+    for (const d of depositos) {
+      const clave =
+        granularidad === 'dia' ? d.created_at.slice(0, 10) : granularidad === 'mes' ? d.created_at.slice(0, 7) : d.created_at.slice(0, 4);
+      grupos.set(clave, (grupos.get(clave) ?? 0) + d.monto_pen);
+    }
+    return [...grupos.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([clave, monto]) => ({ etiqueta: granularidad === 'dia' ? clave.slice(5) : clave, monto }));
+  }, [depositos, rango]);
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.titulo}>Estadística de depósitos realizados</Text>
@@ -56,6 +78,23 @@ export default function EstadisticasCliente() {
               <Text style={styles.resumenValor}>S/ {montoTotal.toFixed(2)}</Text>
             </View>
           </View>
+        </View>
+      )}
+
+      {!cargando && puntos.length > 1 && (
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.chartTitulo}>Monto solicitado vs. período (S/)</Text>
+          <BarChart
+            data={puntos.map((p) => ({ value: Math.round(p.monto), label: p.etiqueta }))}
+            barWidth={22}
+            spacing={16}
+            roundedTop
+            frontColor={colors.primary}
+            yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
+            xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+            noOfSections={4}
+            hideRules
+          />
         </View>
       )}
 
@@ -80,5 +119,7 @@ const styles = StyleSheet.create({
   resumenItem: { alignItems: 'center' },
   resumenLabel: { color: colors.textMuted, fontSize: 11 },
   resumenValor: { color: colors.text, fontSize: 20, fontWeight: '800', marginTop: 2 },
+  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
+  chartTitulo: { color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic', textAlign: 'center', marginTop: 8 },
 });

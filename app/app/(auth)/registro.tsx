@@ -10,6 +10,7 @@ import { colors, radius } from '../../constants/theme';
 export default function Registro() {
   const { usuario, refreshUsuario } = useAuth();
   const [nombre, setNombre] = useState(usuario?.nombre ?? '');
+  const [apellido, setApellido] = useState('');
   const [telefono, setTelefono] = useState(usuario?.telefono ?? '');
   const [pais, setPais] = useState(usuario?.pais ?? 'Perú');
   const [loading, setLoading] = useState(false);
@@ -17,14 +18,14 @@ export default function Registro() {
 
   const guardar = async () => {
     setError(null);
-    if (!nombre.trim() || !telefono.trim() || !pais.trim()) {
+    if (!nombre.trim() || !apellido.trim() || !telefono.trim() || !pais.trim()) {
       setError('Completa todos los campos.');
       return;
     }
     setLoading(true);
     const { error: updateError } = await supabase
       .from('usuarios')
-      .update({ nombre: nombre.trim(), telefono: telefono.trim(), pais: pais.trim() })
+      .update({ nombre: `${nombre.trim()} ${apellido.trim()}`, telefono: telefono.trim(), pais: pais.trim() })
       .eq('id', usuario!.id);
     setLoading(false);
     if (updateError) {
@@ -40,12 +41,21 @@ export default function Registro() {
       <Text style={styles.title}>Completa tu registro</Text>
       <Text style={styles.subtitle}>Solo lo pedimos una vez.</Text>
 
-      <Text style={styles.label}>Nombre completo</Text>
+      <Text style={styles.label}>Nombre</Text>
       <TextInput
         style={styles.input}
         value={nombre}
         onChangeText={setNombre}
-        placeholder="Tu nombre completo"
+        placeholder="Tu nombre"
+        placeholderTextColor={colors.textMuted}
+      />
+
+      <Text style={styles.label}>Apellido</Text>
+      <TextInput
+        style={styles.input}
+        value={apellido}
+        onChangeText={setApellido}
+        placeholder="Tu apellido"
         placeholderTextColor={colors.textMuted}
       />
 

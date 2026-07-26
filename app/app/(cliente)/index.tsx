@@ -208,7 +208,11 @@ export default function InicioCliente() {
       setMontoPen('');
       limpiarBeneficiario();
       setComprobanteUri(null);
-      router.push({ pathname: '/(cliente)/solicitud/[id]', params: { id: solicitud.id } });
+      Alert.alert(
+        '¡Gracias por preferirnos!',
+        'Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar tu solicitud revisa tu lista de "Solicitudes realizadas".',
+        [{ text: 'Entendido', onPress: () => router.push({ pathname: '/(cliente)/solicitud/[id]', params: { id: solicitud.id } }) }]
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.');
     } finally {
@@ -239,9 +243,14 @@ export default function InicioCliente() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol="cliente" />
-      <Text style={styles.bienvenida}>Hola, {usuario?.nombre}</Text>
+      <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {usuario?.nombre}</Text>
       <LiveClock />
       {!!perfil?.eslogan && <Text style={styles.eslogan}>&quot;{perfil.eslogan}&quot;</Text>}
+      {!!perfil?.horario_inicio && !!perfil?.horario_fin && (
+        <Text style={styles.horario}>
+          Horario de atención: {perfil.horario_inicio} – {perfil.horario_fin}
+        </Text>
+      )}
 
       <View style={styles.filaTasas}>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
@@ -440,6 +449,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
   bienvenida: { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: -4 },
   eslogan: { color: colors.accent, fontSize: 13, fontStyle: 'italic', fontWeight: '600' },
+  horario: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   filaTasas: { flexDirection: 'row', gap: 12 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
   tasaCard: { flex: 1, gap: 4 },
