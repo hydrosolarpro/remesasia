@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
-import { BarChart } from 'react-native-gifted-charts';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { DateRangeFilter } from './DateRangeFilter';
+import { EstadisticaGraficos } from './EstadisticaGraficos';
 import { generarYCompartirPdf } from '../lib/pdfReporte';
+import { generarYCompartirExcel } from '../lib/excelReporte';
 import { RangoFecha, calcularRango } from '../lib/dateRange';
 import { PerfilNegocio, Solicitud } from '../types/database';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const HOY = () => new Date().toISOString().slice(0, 10);
+
+// Ver DateRangeFilter.tsx: evita que un swipe vertical (p.ej. "pull to
+// refresh") se confunda con un gesto del navegador y saque al usuario de
+// la app mientras interactúa con el buscador.
+const SIN_OVERSCROLL_Y = Platform.OS === 'web' ? ({ overscrollBehaviorY: 'contain' } as object) : null;
 
 interface Punto {
   etiqueta: string;
@@ -59,6 +65,8 @@ export function EstadisticasView({
   const scrollRef = useRef<ScrollView>(null);
   const [cargando, setCargando] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [rango, setRango] = useState<RangoFecha | null>(null);
   const [operaciones, setOperaciones] = useState<SolicitudConValidadores[]>([]);
   const [rentabilidadPct, setRentabilidadPct] = useState(0);
@@ -194,8 +202,32 @@ export function EstadisticasView({
     }
   };
 
+  // Listado completo del detalle -- fecha/hora en que se generó la
+  // solicitud y fecha/hora en que se le dio atención (se completó el
+  // depósito en Venezuela), además de todos los demás datos.
+  const exportarExcelDetalle = async () => {
+    setExportandoExcel(true);
+    try {
+      const filas = operaciones.map((o) => ({
+        'Fecha y hora generada': new Date(o.created_at).toLocaleString('es-PE'),
+        'Fecha y hora atendida': o.check_deposito_ve_at ? new Date(o.check_deposito_ve_at).toLocaleString('es-PE') : '',
+        Beneficiario: o.beneficiario_nombre,
+        'C.I.': o.beneficiario_ci ?? '',
+        'Entidad bancaria': o.beneficiario_banco,
+        'N° cuenta': o.beneficiario_cuenta,
+        'Monto (S/)': o.monto_pen,
+        'Recibe (Bs)': o.monto_ves,
+        'Validó en Perú': o.validador_peru_nombre ?? '',
+        'Validó en Venezuela': o.validador_ve_nombre ?? '',
+      }));
+      await generarYCompartirExcel('detalle-operaciones', 'Operaciones', filas);
+    } finally {
+      setExportandoExcel(false);
+    }
+  };
+
   return (
-    <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
+    <ScrollView ref={scrollRef} contentContainerStyle={styles.container} style={SIN_OVERSCROLL_Y}>
       <Text style={styles.titulo}>Estadísticas de operaciones</Text>
       <DateRangeFilter onCambio={buscar} />
 
@@ -216,20 +248,39 @@ export function EstadisticasView({
             </View>
           </View>
 
-          {puntos.length > 1 && (
+          {puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto vs. período (S/)" />}
+
+          {operaciones.length > 0 && (
             <View style={[styles.card, cardShadow]}>
-              <Text style={styles.chartTitulo}>Monto vs. período (S/)</Text>
-              <BarChart
-                data={puntos.map((p) => ({ value: Math.round(p.monto), label: p.etiqueta }))}
-                barWidth={22}
-                spacing={16}
-                roundedTop
-                frontColor={colors.primary}
-                yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
-                xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
-                noOfSections={4}
-                hideRules
-              />
+              <Pressable style={styles.detalleHeader} onPress={() => setDetalleAbierto((v) => !v)}>
+                <Text style={styles.chartTitulo}>Detalle de operaciones ({operaciones.length})</Text>
+                <Text style={styles.detalleChevron}>{detalleAbierto ? '▲' : '▼'}</Text>
+              </Pressable>
+              {detalleAbierto && (
+                <>
+                  {operaciones.map((o) => (
+                    <View key={o.id} style={styles.detalleFila}>
+                      <Text style={styles.detalleBeneficiario} numberOfLines={1}>
+                        {o.beneficiario_nombre}
+                      </Text>
+                      <Text style={styles.detalleDato}>Generada: {new Date(o.created_at).toLocaleString('es-PE')}</Text>
+                      <Text style={styles.detalleDato}>
+                        Atendida: {o.check_deposito_ve_at ? new Date(o.check_deposito_ve_at).toLocaleString('es-PE') : '—'}
+                      </Text>
+                      <Text style={styles.detalleDato}>
+                        S/ {o.monto_pen.toFixed(2)} · Bs {o.monto_ves.toFixed(2)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
+                      </Text>
+                    </View>
+                  ))}
+                  <Pressable style={styles.excelDetalleBtn} onPress={exportarExcelDetalle} disabled={exportandoExcel}>
+                    {exportandoExcel ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.excelDetalleBtnTexto}>Descargar detalle (Excel)</Text>
+                    )}
+                  </Pressable>
+                </>
+              )}
             </View>
           )}
 
@@ -291,6 +342,13 @@ const styles = StyleSheet.create({
   resumenValor: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
   chartTitulo: { color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  detalleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  detalleChevron: { color: colors.textMuted, fontSize: 11 },
+  detalleFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 8, gap: 2 },
+  detalleBeneficiario: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  detalleDato: { color: colors.textMuted, fontSize: 11 },
+  excelDetalleBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
+  excelDetalleBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   desgloseSubtitulo: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 10, marginBottom: 4 },
   desgloseSubtituloVe: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
   desgloseFila: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 3 },

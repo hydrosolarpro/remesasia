@@ -1,7 +1,15 @@
 import { useMemo, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Platform } from 'react-native';
 import { ModoFiltroFecha, ETIQUETAS_MODO, calcularRango, RangoFecha } from '../lib/dateRange';
 import { colors, radius } from '../constants/theme';
+
+// En Chrome/Safari móvil, arrastrar horizontalmente cerca del borde de la
+// pantalla (p.ej. al deslizar entre los chips de modo) puede confundirse
+// con el gesto nativo de "volver atrás" del navegador y sacar al usuario
+// de la app. `overscrollBehaviorX: 'contain'` evita que el gesto se
+// propague fuera de este scroll. Es una propiedad CSS web-only, por eso
+// el cast: React Native no la tipa.
+const SIN_OVERSCROLL_X = Platform.OS === 'web' ? ({ overscrollBehaviorX: 'contain' } as object) : null;
 
 const MODOS: ModoFiltroFecha[] = ['dia', 'rango_dias', 'mes', 'rango_meses', 'anio', 'rango_anios'];
 
@@ -30,7 +38,7 @@ export function DateRangeFilter({ onCambio }: { onCambio: (rango: RangoFecha | n
 
   return (
     <View style={styles.wrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={SIN_OVERSCROLL_X}>
         {MODOS.map((m) => (
           <Pressable
             key={m}

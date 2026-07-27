@@ -1,15 +1,19 @@
 import { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { BarChart } from 'react-native-gifted-charts';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { DateRangeFilter } from '../../components/DateRangeFilter';
+import { EstadisticaGraficos } from '../../components/EstadisticaGraficos';
 import { SolicitudCard } from '../../components/SolicitudCard';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { RangoFecha } from '../../lib/dateRange';
 import { Solicitud } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
+
+// Ver DateRangeFilter.tsx / EstadisticasView.tsx: evita que un swipe se
+// confunda con un gesto del navegador y saque al usuario de la app.
+const SIN_OVERSCROLL_Y = Platform.OS === 'web' ? ({ overscrollBehaviorY: 'contain' } as object) : null;
 
 const ETIQUETA_METODO_PAGO: Record<Solicitud['metodo_pago'], string> = { yape: 'Yape', plin: 'Plin', banco: 'Transferencia bancaria' };
 
@@ -28,6 +32,7 @@ export default function EstadisticasCliente() {
   const [rango, setRango] = useState<RangoFecha | null>(null);
   const [depositos, setDepositos] = useState<Solicitud[]>([]);
   const [buscado, setBuscado] = useState(false);
+  const [listaAbierta, setListaAbierta] = useState(false);
 
   const buscar = async (nuevoRango: RangoFecha | null) => {
     setRango(nuevoRango);
@@ -92,7 +97,7 @@ export default function EstadisticasCliente() {
   }, [depositos, rango]);
 
   return (
-    <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
+    <ScrollView ref={scrollRef} contentContainerStyle={styles.container} style={SIN_OVERSCROLL_Y}>
       <Text style={styles.titulo}>Estadística de depósitos realizados</Text>
       <DateRangeFilter onCambio={buscar} />
 
@@ -100,12 +105,7 @@ export default function EstadisticasCliente() {
 
       {!cargando && buscado && rango && (
         <View style={[styles.resumen, cardShadow]}>
-          <View style={styles.resumenHeaderRow}>
-            <Text style={styles.resumenPeriodo}>{rango.etiqueta}</Text>
-            <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando || depositos.length === 0}>
-              {exportando ? <ActivityIndicator color="#fff" /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
-            </Pressable>
-          </View>
+          <Text style={styles.resumenPeriodo}>{rango.etiqueta}</Text>
           <View style={styles.resumenFila}>
             <View style={styles.resumenItem}>
               <Text style={styles.resumenLabel}>Depósitos</Text>
@@ -119,31 +119,30 @@ export default function EstadisticasCliente() {
         </View>
       )}
 
-      {!cargando && puntos.length > 1 && (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.chartTitulo}>Monto solicitado vs. período (S/)</Text>
-          <BarChart
-            data={puntos.map((p) => ({ value: Math.round(p.monto), label: p.etiqueta }))}
-            barWidth={22}
-            spacing={16}
-            roundedTop
-            frontColor={colors.primary}
-            yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
-            noOfSections={4}
-            hideRules
-          />
-        </View>
-      )}
+      {!cargando && puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto solicitado vs. período (S/)" />}
 
       {!cargando && buscado && depositos.length === 0 && <Text style={styles.vacio}>No hay depósitos en ese período.</Text>}
 
-      {!cargando &&
-        depositos.map((d) => (
-          <View key={d.id} style={{ marginTop: 8 }}>
-            <SolicitudCard solicitud={d} onPress={() => router.push({ pathname: '/(cliente)/solicitud/[id]', params: { id: d.id } })} />
-          </View>
-        ))}
+      {!cargando && depositos.length > 0 && (
+        <View style={[styles.card, cardShadow]}>
+          <Pressable style={styles.resumenHeaderRow} onPress={() => setListaAbierta((v) => !v)}>
+            <Text style={styles.chartTitulo}>Detalle de depósitos ({depositos.length})</Text>
+            <Text style={styles.detalleChevron}>{listaAbierta ? '▲' : '▼'}</Text>
+          </Pressable>
+          {listaAbierta && (
+            <>
+              {depositos.map((d) => (
+                <View key={d.id} style={{ marginTop: 8 }}>
+                  <SolicitudCard solicitud={d} onPress={() => router.push({ pathname: '/(cliente)/solicitud/[id]', params: { id: d.id } })} />
+                </View>
+              ))}
+              <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando}>
+                {exportando ? <ActivityIndicator color="#fff" /> : <Text style={styles.excelBtnTexto}>Descargar detalle (Excel)</Text>}
+              </Pressable>
+            </>
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -154,7 +153,8 @@ const styles = StyleSheet.create({
   resumen: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 10 },
   resumenHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resumenPeriodo: { color: colors.textMuted, fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
-  excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
+  detalleChevron: { color: colors.textMuted, fontSize: 11 },
+  excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
   excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   resumenFila: { flexDirection: 'row', justifyContent: 'space-around' },
   resumenItem: { alignItems: 'center' },
