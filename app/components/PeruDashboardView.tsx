@@ -55,6 +55,8 @@ export function PeruDashboardView({
   const [guardandoPe, setGuardandoPe] = useState(false);
   const [enlacePeCopiado, setEnlacePeCopiado] = useState(false);
   const [errorPe, setErrorPe] = useState<string | null>(null);
+  const [veAbierto, setVeAbierto] = useState(false);
+  const [peAbierto, setPeAbierto] = useState(false);
 
   const cargar = useCallback(async () => {
     const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: veListData }, { data: peListData }] = await Promise.all([
@@ -384,57 +386,64 @@ export function PeruDashboardView({
 
       {puedeGestionar && (
         <View style={[styles.card, cardShadow]}>
-          <Text style={styles.miniLabel}>Operadores Venezuela ({veList.length})</Text>
-          {veList.map((v) => (
-            <MiembroEditable
-              key={v.id}
-              nombre={v.nombre}
-              telefono={v.telefono ?? ''}
-              email={v.email ?? ''}
-              onCambiarNombre={(t) => editarVe(v.id, 'nombre', t)}
-              onCambiarTelefono={(t) => editarVe(v.id, 'telefono', t)}
-              onCambiarEmail={(t) => editarVe(v.id, 'email', t)}
-              onEliminar={() => eliminarVe(v.id)}
-            />
-          ))}
-
-          <Text style={[styles.miniLabel, styles.nuevoMiembroLabel]}>Agregar nuevo</Text>
-          <TextInput
-            style={styles.veInput}
-            value={nuevoVe.nombre}
-            onChangeText={(t) => setNuevoVe((v) => ({ ...v, nombre: t }))}
-            placeholder="Nombre completo"
-            placeholderTextColor={colors.textMuted}
-          />
-          <TextInput
-            style={styles.veInput}
-            value={nuevoVe.telefono}
-            onChangeText={(t) => setNuevoVe((v) => ({ ...v, telefono: t }))}
-            placeholder="Teléfono"
-            keyboardType="phone-pad"
-            placeholderTextColor={colors.textMuted}
-          />
-          <TextInput
-            style={styles.veInput}
-            value={nuevoVe.email}
-            onChangeText={(t) => setNuevoVe((v) => ({ ...v, email: t }))}
-            placeholder="Correo electrónico"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor={colors.textMuted}
-          />
-          {errorVe && <Text style={styles.errorTexto}>{errorVe}</Text>}
-          <Pressable
-            style={styles.veBtn}
-            onPress={agregarVeYCopiarEnlace}
-            disabled={guardandoVe || !nuevoVe.nombre.trim() || !nuevoVe.email.trim()}
-          >
-            {guardandoVe ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <Text style={styles.veBtnTexto}>{enlaceVeCopiado ? '✓ Enlace copiado' : 'Agregar y copiar enlace de invitación'}</Text>
-            )}
+          <Pressable style={styles.equipoHeader} onPress={() => setVeAbierto((v) => !v)}>
+            <Text style={styles.miniLabel}>Operadores Venezuela ({veList.length})</Text>
+            <Text style={styles.equipoChevron}>{veAbierto ? '▲' : '▼'}</Text>
           </Pressable>
+          {veAbierto && (
+            <>
+              {veList.map((v) => (
+                <MiembroEditable
+                  key={v.id}
+                  nombre={v.nombre}
+                  telefono={v.telefono ?? ''}
+                  email={v.email ?? ''}
+                  onCambiarNombre={(t) => editarVe(v.id, 'nombre', t)}
+                  onCambiarTelefono={(t) => editarVe(v.id, 'telefono', t)}
+                  onCambiarEmail={(t) => editarVe(v.id, 'email', t)}
+                  onEliminar={() => eliminarVe(v.id)}
+                />
+              ))}
+
+              <Text style={[styles.miniLabel, styles.nuevoMiembroLabel]}>Agregar nuevo</Text>
+              <TextInput
+                style={styles.veInput}
+                value={nuevoVe.nombre}
+                onChangeText={(t) => setNuevoVe((v) => ({ ...v, nombre: t }))}
+                placeholder="Nombre completo"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TextInput
+                style={styles.veInput}
+                value={nuevoVe.telefono}
+                onChangeText={(t) => setNuevoVe((v) => ({ ...v, telefono: t }))}
+                placeholder="Teléfono"
+                keyboardType="phone-pad"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TextInput
+                style={styles.veInput}
+                value={nuevoVe.email}
+                onChangeText={(t) => setNuevoVe((v) => ({ ...v, email: t }))}
+                placeholder="Correo electrónico"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor={colors.textMuted}
+              />
+              {errorVe && <Text style={styles.errorTexto}>{errorVe}</Text>}
+              <Pressable
+                style={styles.veBtn}
+                onPress={agregarVeYCopiarEnlace}
+                disabled={guardandoVe || !nuevoVe.nombre.trim() || !nuevoVe.email.trim()}
+              >
+                {guardandoVe ? (
+                  <ActivityIndicator color={colors.text} />
+                ) : (
+                  <Text style={styles.veBtnTexto}>{enlaceVeCopiado ? '✓ Enlace copiado' : 'Agregar y copiar enlace de invitación'}</Text>
+                )}
+              </Pressable>
+            </>
+          )}
         </View>
       )}
 
@@ -452,61 +461,68 @@ export function PeruDashboardView({
 
       {puedeGestionar && (
         <View style={[styles.card, cardShadow]}>
-          <Text style={styles.miniLabel}>Operadores Perú — equipo ({peList.length})</Text>
-          <Text style={styles.cardTextoChico}>
-            Miembros que acompañan a la cuenta principal: pueden validar depósitos y publicar la tasa, sin gestionar el equipo ni la
-            suscripción.
-          </Text>
-          {peList.map((p) => (
-            <MiembroEditable
-              key={p.id}
-              nombre={p.nombre}
-              telefono={p.telefono ?? ''}
-              email={p.email}
-              onCambiarNombre={(t) => editarPe(p.id, 'nombre', t)}
-              onCambiarTelefono={(t) => editarPe(p.id, 'telefono', t)}
-              onCambiarEmail={(t) => editarPe(p.id, 'email', t)}
-              onEliminar={() => eliminarPe(p.id)}
-            />
-          ))}
-
-          <Text style={[styles.miniLabel, styles.nuevoMiembroLabel]}>Agregar nuevo</Text>
-          <TextInput
-            style={styles.veInput}
-            value={nuevoPe.nombre}
-            onChangeText={(t) => setNuevoPe((v) => ({ ...v, nombre: t }))}
-            placeholder="Nombre completo"
-            placeholderTextColor={colors.textMuted}
-          />
-          <TextInput
-            style={styles.veInput}
-            value={nuevoPe.telefono}
-            onChangeText={(t) => setNuevoPe((v) => ({ ...v, telefono: t }))}
-            placeholder="Teléfono"
-            keyboardType="phone-pad"
-            placeholderTextColor={colors.textMuted}
-          />
-          <TextInput
-            style={styles.veInput}
-            value={nuevoPe.email}
-            onChangeText={(t) => setNuevoPe((v) => ({ ...v, email: t }))}
-            placeholder="Correo electrónico"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor={colors.textMuted}
-          />
-          {errorPe && <Text style={styles.errorTexto}>{errorPe}</Text>}
-          <Pressable
-            style={styles.veBtn}
-            onPress={agregarPeYCopiarEnlace}
-            disabled={guardandoPe || !nuevoPe.nombre.trim() || !nuevoPe.email.trim()}
-          >
-            {guardandoPe ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <Text style={styles.veBtnTexto}>{enlacePeCopiado ? '✓ Enlace copiado' : 'Agregar y copiar enlace de invitación'}</Text>
-            )}
+          <Pressable style={styles.equipoHeader} onPress={() => setPeAbierto((v) => !v)}>
+            <Text style={styles.miniLabel}>Operadores Perú — equipo ({peList.length})</Text>
+            <Text style={styles.equipoChevron}>{peAbierto ? '▲' : '▼'}</Text>
           </Pressable>
+          {peAbierto && (
+            <>
+              <Text style={styles.cardTextoChico}>
+                Miembros que acompañan a la cuenta principal: pueden validar depósitos y publicar la tasa, sin gestionar el equipo ni la
+                suscripción.
+              </Text>
+              {peList.map((p) => (
+                <MiembroEditable
+                  key={p.id}
+                  nombre={p.nombre}
+                  telefono={p.telefono ?? ''}
+                  email={p.email}
+                  onCambiarNombre={(t) => editarPe(p.id, 'nombre', t)}
+                  onCambiarTelefono={(t) => editarPe(p.id, 'telefono', t)}
+                  onCambiarEmail={(t) => editarPe(p.id, 'email', t)}
+                  onEliminar={() => eliminarPe(p.id)}
+                />
+              ))}
+
+              <Text style={[styles.miniLabel, styles.nuevoMiembroLabel]}>Agregar nuevo</Text>
+              <TextInput
+                style={styles.veInput}
+                value={nuevoPe.nombre}
+                onChangeText={(t) => setNuevoPe((v) => ({ ...v, nombre: t }))}
+                placeholder="Nombre completo"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TextInput
+                style={styles.veInput}
+                value={nuevoPe.telefono}
+                onChangeText={(t) => setNuevoPe((v) => ({ ...v, telefono: t }))}
+                placeholder="Teléfono"
+                keyboardType="phone-pad"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TextInput
+                style={styles.veInput}
+                value={nuevoPe.email}
+                onChangeText={(t) => setNuevoPe((v) => ({ ...v, email: t }))}
+                placeholder="Correo electrónico"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor={colors.textMuted}
+              />
+              {errorPe && <Text style={styles.errorTexto}>{errorPe}</Text>}
+              <Pressable
+                style={styles.veBtn}
+                onPress={agregarPeYCopiarEnlace}
+                disabled={guardandoPe || !nuevoPe.nombre.trim() || !nuevoPe.email.trim()}
+              >
+                {guardandoPe ? (
+                  <ActivityIndicator color={colors.text} />
+                ) : (
+                  <Text style={styles.veBtnTexto}>{enlacePeCopiado ? '✓ Enlace copiado' : 'Agregar y copiar enlace de invitación'}</Text>
+                )}
+              </Pressable>
+            </>
+          )}
         </View>
       )}
 
@@ -705,6 +721,8 @@ const styles = StyleSheet.create({
   miniCard: { flex: 1, gap: 4 },
   miniLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   miniValor: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  equipoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  equipoChevron: { color: colors.textMuted, fontSize: 11 },
   horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   horarioValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
   switchLabelCompartir: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 8 },
