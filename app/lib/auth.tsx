@@ -1,5 +1,6 @@
 import { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState, PropsWithChildren } from 'react';
+import { router } from 'expo-router';
 import { supabase } from './supabase';
 import { Usuario } from '../types/database';
 
@@ -49,8 +50,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const refreshUsuario = async () => loadUsuario(session?.user.id);
+  // Al cerrar sesión el usuario debe salir por completo: no basta con
+  // borrar la sesión de Supabase, hay que sacarlo de la pantalla protegida
+  // en la que estaba (si no, queda viendo un panel roto con `usuario` en
+  // null) y llevarlo de vuelta al login, reemplazando el historial para
+  // que "atrás" no regrese a una sesión que ya no existe.
   const signOut = async () => {
     await supabase.auth.signOut();
+    setSession(null);
+    setUsuario(null);
+    router.replace('/(auth)/login');
   };
 
   return (
