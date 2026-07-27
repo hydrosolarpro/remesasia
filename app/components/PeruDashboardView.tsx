@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import { useAudioPlayer } from 'expo-audio';
 import { supabase } from '../lib/supabase';
 import { construirEnlaceEntrada } from '../lib/invitaciones';
 import { PerfilNegocio, Tasa, OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../types/database';
@@ -57,6 +58,7 @@ export function PeruDashboardView({
   const [errorPe, setErrorPe] = useState<string | null>(null);
   const [veAbierto, setVeAbierto] = useState(false);
   const [peAbierto, setPeAbierto] = useState(false);
+  const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas'>('en_curso');
 
   const cargar = useCallback(async () => {
     const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: veListData }, { data: peListData }] = await Promise.all([
@@ -122,6 +124,41 @@ export function PeruDashboardView({
     () => operaciones.filter((o) => o.check_deposito_ve && (o.check_deposito_ve_at ?? '').slice(0, 10) === HOY()),
     [operaciones]
   );
+
+  // Alerta sonora para el Operador Venezuela: suena apenas Perú valida un
+  // depósito nuevo (queda lista para que VE la cargue) y se repite cada 3
+  // minutos mientras siga pendiente, hasta que se cargue el depósito de esa
+  // operación. Los navegadores bloquean el audio si la página no tuvo
+  // ninguna interacción todavía -- por eso el catch silencioso; en cuanto
+  // el operador toque algo en la pantalla, las siguientes alertas suenan
+  // normal.
+  const alertaPlayer = useAudioPlayer(require('../assets/sounds/alerta.wav'));
+  const pendientesVe = useMemo(() => operaciones.filter((o) => o.check_deposito_peru && !o.check_deposito_ve), [operaciones]);
+  const pendientesVeRef = useRef(0);
+
+  const reproducirAlerta = useCallback(() => {
+    try {
+      alertaPlayer.seekTo(0);
+      alertaPlayer.play();
+    } catch {
+      // Bloqueado por política de autoplay del navegador; se reintentará
+      // en la próxima alerta (cada 3 min) o apenas el usuario interactúe.
+    }
+  }, [alertaPlayer]);
+
+  useEffect(() => {
+    if (!restringido) return;
+    if (pendientesVe.length > pendientesVeRef.current) reproducirAlerta();
+    pendientesVeRef.current = pendientesVe.length;
+  }, [restringido, pendientesVe.length, reproducirAlerta]);
+
+  useEffect(() => {
+    if (!restringido) return;
+    const id = setInterval(() => {
+      if (pendientesVeRef.current > 0) reproducirAlerta();
+    }, 3 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [restringido, reproducirAlerta]);
 
   // Buscador único (nombre, teléfono, fecha, monto en soles o año) — un solo
   // campo de texto en vez de varios filtros separados, para no sobrecargar
@@ -586,62 +623,89 @@ export function PeruDashboardView({
         )}
       </View>
 
-      <Text style={styles.seccionTitulo}>Operaciones en curso ({enCurso.length})</Text>
-      {enCurso.length === 0 && <Text style={styles.vacio}>No hay operaciones en curso.</Text>}
-      <View style={styles.grid}>
-        {enCurso.map((op) => (
-          <OperationRow
-            key={op.id}
-            style={styles.gridItem}
-            op={op}
-            numero={numeracion.get(op.id)}
-            puedeValidarPeru={!restringido}
-            puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
-            onValidarPeru={() => validarPeru(op.id)}
-            onValidarVe={(comprobanteUri, comprobanteExt) => validarVe(op.id, comprobanteUri, comprobanteExt)}
-            validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
-            validandoVe={validando?.id === op.id && validando.tipo === 've'}
-          />
-        ))}
-      </View>
-
-      <View style={styles.seccionHeaderRow}>
-        <Text style={styles.seccionTitulo}>Operaciones realizadas hoy ({realizadas.length})</Text>
-        <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando || realizadasFiltradas.length === 0}>
-          {exportando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
+      {/* "En curso" y "Realizadas hoy" comparten una fila de pestañas: solo
+          una lista está desplegada a la vez (una debajo de la otra),
+          ahorrando espacio en vez de mostrar las dos siempre abiertas. */}
+      <View style={styles.opsToggleRow}>
+        <Pressable
+          style={[styles.opsToggleBtn, vistaOperaciones === 'en_curso' && styles.opsToggleBtnActivo]}
+          onPress={() => setVistaOperaciones('en_curso')}
+        >
+          <Text style={[styles.opsToggleTexto, vistaOperaciones === 'en_curso' && styles.opsToggleTextoActivo]}>
+            En curso ({enCurso.length})
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.opsToggleBtn, vistaOperaciones === 'realizadas' && styles.opsToggleBtnActivo]}
+          onPress={() => setVistaOperaciones('realizadas')}
+        >
+          <Text style={[styles.opsToggleTexto, vistaOperaciones === 'realizadas' && styles.opsToggleTextoActivo]}>
+            Realizadas hoy ({realizadas.length})
+          </Text>
         </Pressable>
       </View>
-      <TextInput
-        style={styles.buscador}
-        value={busqueda}
-        onChangeText={setBusqueda}
-        placeholder="Buscar por nombre, teléfono, fecha, monto o año..."
-        placeholderTextColor={colors.textMuted}
-      />
-      {realizadasFiltradas.length === 0 && <Text style={styles.vacio}>Sin resultados.</Text>}
-      <View style={styles.grid}>
-        {realizadasFiltradas.map((op) => (
-          <OperationRow
-            key={op.id}
-            style={styles.gridItem}
-            op={op}
-            numero={numeracion.get(op.id)}
-            puedeValidarPeru={false}
-            puedeValidarVe={false}
-            onValidarPeru={() => {}}
-            onValidarVe={() => {}}
-            validandoPeru={false}
-            validandoVe={false}
+
+      {vistaOperaciones === 'en_curso' ? (
+        <>
+          {enCurso.length === 0 && <Text style={styles.vacio}>No hay operaciones en curso.</Text>}
+          <View style={styles.grid}>
+            {enCurso.map((op) => (
+              <OperationRow
+                key={op.id}
+                style={styles.gridItem}
+                op={op}
+                numero={numeracion.get(op.id)}
+                puedeValidarPeru={!restringido}
+                puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
+                onValidarPeru={() => validarPeru(op.id)}
+                onValidarVe={(comprobanteUri, comprobanteExt) => validarVe(op.id, comprobanteUri, comprobanteExt)}
+                validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
+                validandoVe={validando?.id === op.id && validando.tipo === 've'}
+              />
+            ))}
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={styles.seccionHeaderRow}>
+            <Text style={styles.miniLabel}>Buscar en realizadas de hoy</Text>
+            <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando || realizadasFiltradas.length === 0}>
+              {exportando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
+            </Pressable>
+          </View>
+          <TextInput
+            style={styles.buscador}
+            value={busqueda}
+            onChangeText={setBusqueda}
+            placeholder="Buscar por nombre, teléfono, fecha, monto o año..."
+            placeholderTextColor={colors.textMuted}
           />
-        ))}
-      </View>
+          {realizadasFiltradas.length === 0 && <Text style={styles.vacio}>Sin resultados.</Text>}
+          <View style={styles.grid}>
+            {realizadasFiltradas.map((op) => (
+              <OperationRow
+                key={op.id}
+                style={styles.gridItem}
+                op={op}
+                numero={numeracion.get(op.id)}
+                puedeValidarPeru={false}
+                puedeValidarVe={false}
+                onValidarPeru={() => {}}
+                onValidarVe={() => {}}
+                validandoPeru={false}
+                validandoVe={false}
+              />
+            ))}
+          </View>
+        </>
+      )}
 
       <View style={[styles.card, cardShadow, styles.resumenCard]}>
         <Text style={styles.seccionTitulo}>Resumen de hoy</Text>
         <View style={styles.resumenRow}>
           <ResumenItem label="Operaciones" valor={String(resumenHoy.nOps)} />
           <ResumenItem label="Monto recibido" valor={`S/ ${resumenHoy.montoTotal.toFixed(2)}`} />
-          <ResumenItem label="Ganancia" valor={`S/ ${resumenHoy.ganancia.toFixed(2)}`} destacado />
+          {puedeVerRentabilidad && <ResumenItem label="Ganancia" valor={`S/ ${resumenHoy.ganancia.toFixed(2)}`} destacado />}
         </View>
       </View>
     </ScrollView>
@@ -767,7 +831,20 @@ const styles = StyleSheet.create({
   eslogan: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },
   esloganInput: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 },
   seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
-  seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  opsToggleRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  opsToggleBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: colors.card,
+  },
+  opsToggleBtnActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  opsToggleTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
+  opsToggleTextoActivo: { color: colors.text },
   excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
   excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },

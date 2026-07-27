@@ -40,7 +40,8 @@
           "color": "#0F62FE"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-audio"
     ],
     "extra": {
       "router": {}

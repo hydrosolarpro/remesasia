@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking
 import * as ImagePicker from 'expo-image-picker';
 import { Solicitud } from '../types/database';
 import { RoundCheck } from './RoundCheck';
+import { CopyField } from './CopyField';
 import { construirEnlaceWhatsApp } from '../lib/whatsapp';
 import { extensionDeImagen } from '../lib/imagenUtil';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -135,19 +136,21 @@ export function OperationRow({
 
       {abierto && (
         <View style={styles.detalle}>
-          <Row label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
-          <Row label="Correo cliente" value={op.cliente_email ?? '—'} />
-          <Row label="Beneficiario (VE)" value={op.beneficiario_nombre} />
-          <Row label="C.I." value={op.beneficiario_ci ?? '—'} />
-          <Row label="Teléfono beneficiario" value={op.beneficiario_telefono ?? '—'} />
-          <Row label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]} />
-          <Row label="Entidad bancaria" value={op.beneficiario_banco} />
-          <Row label="N° cuenta" value={op.beneficiario_cuenta} />
-          <Row label="Monto depositado" value={`S/ ${op.monto_pen.toFixed(2)}`} />
-          <Row label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
-          <Row label="Recibe" value={`Bs ${op.monto_ves.toFixed(2)}`} />
+          {/* Todos los campos son copiables (CopyField): el operador los
+              necesita para pegarlos al hacer la transferencia. */}
+          <CopyField label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
+          <CopyField label="Correo cliente" value={op.cliente_email ?? '—'} />
+          <CopyField label="Beneficiario (VE)" value={op.beneficiario_nombre} />
+          <CopyField label="C.I." value={op.beneficiario_ci ?? '—'} />
+          <CopyField label="Teléfono beneficiario" value={op.beneficiario_telefono ?? '—'} />
+          <CopyField label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]} />
+          <CopyField label="Entidad bancaria" value={op.beneficiario_banco} />
+          <CopyField label="N° cuenta" value={op.beneficiario_cuenta} />
+          <CopyField label="Monto depositado" value={`S/ ${op.monto_pen.toFixed(2)}`} />
+          <CopyField label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
+          <CopyField label="Recibe" value={`Bs ${op.monto_ves.toFixed(2)}`} />
           {op.check_deposito_peru_at && op.check_deposito_ve_at && (
-            <Row label="Tiempo de respuesta" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
+            <CopyField label="Tiempo de respuesta" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
           )}
 
           {op.comprobante_pago_url && (
@@ -172,7 +175,7 @@ export function OperationRow({
               {op.validador_peru_nombre && <Text style={styles.checkValidador}>Validó: {op.validador_peru_nombre}</Text>}
             </View>
             <View style={styles.checkCol}>
-              <Text style={styles.checkLabel}>Depósito transferido en Venezuela</Text>
+              <Text style={styles.checkLabel}>Cargar depósito transferido en Venezuela</Text>
               <RoundCheck
                 checked={op.check_deposito_ve}
                 disabled={!puedeValidarVe}
@@ -222,20 +225,12 @@ function MiniCheck({ label, checked }: { label: string; checked: boolean }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
   headerTextos: { flex: 1, marginRight: 8 },
-  fecha: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  // Número y fecha/hora más grandes y visibles (antes 11px, apenas legible).
+  fecha: { color: colors.text, fontSize: 15, fontWeight: '800' },
   cliente: { color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 2 },
   monto: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 2 },
   headerChecks: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -253,9 +248,6 @@ const styles = StyleSheet.create({
   miniTexto: { color: colors.textMuted, fontSize: 9, fontWeight: '800' },
   miniTextoChecked: { color: '#fff' },
   detalle: { borderTopWidth: 1, borderTopColor: colors.border, padding: 14, gap: 8 },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
-  rowLabel: { color: colors.textMuted, fontSize: 12 },
-  rowValue: { color: colors.text, fontSize: 12, fontWeight: '700' },
   imagenToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -265,14 +257,15 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 4,
   },
-  imagenToggleTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  imagenToggleTexto: { color: colors.accent, fontSize: 14, fontWeight: '700' },
   imagenToggleChevron: { color: colors.textMuted, fontSize: 10 },
   comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 },
   checkCol: { alignItems: 'center', gap: 6, flex: 1 },
-  checkLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
-  checkHora: { color: colors.textMuted, fontSize: 10 },
-  checkValidador: { color: colors.accent, fontSize: 9, fontWeight: '700', marginTop: 1 },
+  // Etiquetas de los botones de check más grandes (antes 11px).
+  checkLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  checkHora: { color: colors.textMuted, fontSize: 11 },
+  checkValidador: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 1 },
   whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
-  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
