@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
-import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
-import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from '../../components/OperationRow';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -23,12 +21,6 @@ export default function ClientesRegistrados() {
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
   const [copiado, setCopiado] = useState(false);
-
-  const [operaciones, setOperaciones] = useState<OperationRowData[]>([]);
-  const [cargandoOps, setCargandoOps] = useState(true);
-  const [validando, setValidando] = useState<{ id: string; tipo: 'peru' | 've' } | null>(null);
-  const [busqueda, setBusqueda] = useState('');
-  const [exportando, setExportando] = useState(false);
 
   useEffect(() => {
     if (!usuario) return;
@@ -75,119 +67,6 @@ export default function ClientesRegistrados() {
     await Clipboard.setStringAsync(enlaceCliente);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 1500);
-  };
-
-  const cargarOperaciones = useCallback(async () => {
-    if (!negocioId) return;
-    setCargandoOps(true);
-    const { data } = await supabase
-      .from('solicitudes')
-      .select(
-        '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre)'
-      )
-      .eq('negocio_operador_peru_id', negocioId)
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (data) {
-      setOperaciones(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (data as any[]).map((row) => ({
-          ...row,
-          cliente_nombre: row.cliente?.nombre ?? 'Cliente',
-          cliente_telefono: row.cliente?.telefono ?? null,
-          cliente_email: row.cliente?.email ?? null,
-          validador_peru_nombre: row.validador_peru?.nombre ?? null,
-          validador_ve_nombre: row.validador_ve?.nombre ?? null,
-        }))
-      );
-    }
-    setCargandoOps(false);
-  }, [negocioId]);
-
-  useEffect(() => {
-    if (!negocioId) return;
-    cargarOperaciones();
-    const channel = supabase
-      .channel(`clientes-ops-${negocioId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => cargarOperaciones())
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [negocioId, cargarOperaciones]);
-
-  const enCurso = useMemo(() => operaciones.filter((o) => !o.check_deposito_ve), [operaciones]);
-  const realizadas = useMemo(() => operaciones.filter((o) => o.check_deposito_ve), [operaciones]);
-
-  const realizadasFiltradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return realizadas;
-    return realizadas.filter((o) => {
-      const fecha = new Date(o.created_at);
-      return (
-        o.cliente_nombre.toLowerCase().includes(q) ||
-        (o.cliente_telefono ?? '').toLowerCase().includes(q) ||
-        o.monto_pen.toFixed(2).includes(q) ||
-        String(fecha.getFullYear()).includes(q) ||
-        fecha.toLocaleDateString('es-PE').includes(q)
-      );
-    });
-  }, [realizadas, busqueda]);
-
-  const numeracion = useMemo(() => {
-    const ordenadas = [...operaciones].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    const mapa = new Map<string, number>();
-    ordenadas.forEach((op, i) => mapa.set(op.id, i + 1));
-    return mapa;
-  }, [operaciones]);
-
-  const validarPeru = async (id: string) => {
-    setValidando({ id, tipo: 'peru' });
-    await supabase.rpc('validar_deposito_peru', { p_solicitud_id: id });
-    setValidando(null);
-  };
-
-  const validarVe = async (id: string, comprobanteUri: string, comprobanteExt: string) => {
-    setValidando({ id, tipo: 've' });
-    try {
-      const path = `${id}/comprobante-vz.${comprobanteExt}`;
-      const blob = await (await fetch(comprobanteUri)).blob();
-      const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
-      if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
-      const { error } = await supabase.rpc('validar_deposito_venezuela', {
-        p_solicitud_id: id,
-        p_comprobante_url: publicUrl.publicUrl,
-      });
-      if (error) throw error;
-    } finally {
-      setValidando(null);
-    }
-  };
-
-  const exportarExcel = async () => {
-    setExportando(true);
-    try {
-      const filas = realizadasFiltradas.map((op) => ({
-        '#': numeracion.get(op.id) ?? '',
-        Cliente: op.cliente_nombre,
-        Teléfono: op.cliente_telefono ?? '',
-        Correo: op.cliente_email ?? '',
-        'Beneficiario (VE)': op.beneficiario_nombre,
-        'C.I.': op.beneficiario_ci ?? '',
-        'Monto (S/)': op.monto_pen,
-        'Recibe (Bs)': op.monto_ves,
-        'Validado en Perú': op.check_deposito_peru_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_peru_at)) : '',
-        'Validado en Venezuela': op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '',
-        'Tiempo de respuesta':
-          op.check_deposito_peru_at && op.check_deposito_ve_at
-            ? formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)
-            : '',
-      }));
-      await generarYCompartirExcel('operaciones-realizadas', 'Operaciones', filas);
-    } finally {
-      setExportando(false);
-    }
   };
 
   const exportarPdfClientes = async () => {
@@ -264,60 +143,6 @@ export default function ClientesRegistrados() {
           ))}
         </View>
       )}
-
-      {cargandoOps ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
-      ) : (
-        <>
-          <Text style={styles.titulo}>Operaciones en curso ({enCurso.length})</Text>
-          {enCurso.length === 0 && <Text style={styles.vacio}>No hay operaciones en curso.</Text>}
-          <View style={styles.lista}>
-            {enCurso.map((op) => (
-              <OperationRow
-                key={op.id}
-                op={op}
-                numero={numeracion.get(op.id)}
-                puedeValidarPeru
-                puedeValidarVe
-                onValidarPeru={() => validarPeru(op.id)}
-                onValidarVe={(uri, ext) => validarVe(op.id, uri, ext)}
-                validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
-                validandoVe={validando?.id === op.id && validando.tipo === 've'}
-              />
-            ))}
-          </View>
-
-          <View style={styles.header}>
-            <Text style={styles.titulo}>Operaciones realizadas ({realizadas.length})</Text>
-            <Pressable style={styles.pdfBtn} onPress={exportarExcel} disabled={exportando || realizadasFiltradas.length === 0}>
-              {exportando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>Excel</Text>}
-            </Pressable>
-          </View>
-          <TextInput
-            style={styles.buscador}
-            value={busqueda}
-            onChangeText={setBusqueda}
-            placeholder="Buscar por nombre, teléfono, fecha, monto o año..."
-            placeholderTextColor={colors.textMuted}
-          />
-          {realizadasFiltradas.length === 0 && <Text style={styles.vacio}>Sin resultados.</Text>}
-          <View style={styles.lista}>
-            {realizadasFiltradas.map((op) => (
-              <OperationRow
-                key={op.id}
-                op={op}
-                numero={numeracion.get(op.id)}
-                puedeValidarPeru={false}
-                puedeValidarVe={false}
-                onValidarPeru={() => {}}
-                onValidarVe={() => {}}
-                validandoPeru={false}
-                validandoVe={false}
-              />
-            ))}
-          </View>
-        </>
-      )}
     </ScrollView>
   );
 }
@@ -340,13 +165,4 @@ const styles = StyleSheet.create({
   dato: { color: colors.textMuted, fontSize: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
   lista: { gap: 10 },
-  buscador: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: 12,
-    color: colors.text,
-    fontSize: 14,
-    backgroundColor: colors.cardAlt,
-  },
 });

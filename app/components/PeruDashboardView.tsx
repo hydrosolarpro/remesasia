@@ -125,16 +125,21 @@ export function PeruDashboardView({
     [operaciones]
   );
 
-  // Alerta sonora para el Operador Venezuela: suena apenas Perú valida un
-  // depósito nuevo (queda lista para que VE la cargue) y se repite cada 3
-  // minutos mientras siga pendiente, hasta que se cargue el depósito de esa
-  // operación. Los navegadores bloquean el audio si la página no tuvo
-  // ninguna interacción todavía -- por eso el catch silencioso; en cuanto
-  // el operador toque algo en la pantalla, las siguientes alertas suenan
+  // Alerta sonora: suena apenas aparece una operación que necesita la
+  // acción de ESTA sesión -- para Venezuela, un depósito que Perú ya
+  // validó y espera que VE la cargue; para Perú, una solicitud nueva del
+  // cliente que todavía no valida. Se repite cada 3 minutos mientras siga
+  // pendiente, hasta que se cargue el depósito de esa operación. Los
+  // navegadores bloquean el audio si la página no tuvo ninguna
+  // interacción todavía -- por eso el catch silencioso; en cuanto el
+  // operador toque algo en la pantalla, las siguientes alertas suenan
   // normal.
   const alertaPlayer = useAudioPlayer(require('../assets/sounds/alerta.wav'));
-  const pendientesVe = useMemo(() => operaciones.filter((o) => o.check_deposito_peru && !o.check_deposito_ve), [operaciones]);
-  const pendientesVeRef = useRef(0);
+  const pendientesAccion = useMemo(
+    () => operaciones.filter((o) => (restringido ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru)),
+    [operaciones, restringido]
+  );
+  const pendientesAccionRef = useRef(0);
 
   const reproducirAlerta = useCallback(() => {
     try {
@@ -147,18 +152,16 @@ export function PeruDashboardView({
   }, [alertaPlayer]);
 
   useEffect(() => {
-    if (!restringido) return;
-    if (pendientesVe.length > pendientesVeRef.current) reproducirAlerta();
-    pendientesVeRef.current = pendientesVe.length;
-  }, [restringido, pendientesVe.length, reproducirAlerta]);
+    if (pendientesAccion.length > pendientesAccionRef.current) reproducirAlerta();
+    pendientesAccionRef.current = pendientesAccion.length;
+  }, [pendientesAccion.length, reproducirAlerta]);
 
   useEffect(() => {
-    if (!restringido) return;
     const id = setInterval(() => {
-      if (pendientesVeRef.current > 0) reproducirAlerta();
+      if (pendientesAccionRef.current > 0) reproducirAlerta();
     }, 3 * 60 * 1000);
     return () => clearInterval(id);
-  }, [restringido, reproducirAlerta]);
+  }, [reproducirAlerta]);
 
   // Buscador único (nombre, teléfono, fecha, monto en soles o año) — un solo
   // campo de texto en vez de varios filtros separados, para no sobrecargar
@@ -843,7 +846,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   opsToggleBtnActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
-  opsToggleTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
+  opsToggleTexto: { color: colors.textMuted, fontWeight: '800', fontSize: 16, textTransform: 'uppercase' },
   opsToggleTextoActivo: { color: colors.text },
   excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
   excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },

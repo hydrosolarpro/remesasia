@@ -68,17 +68,11 @@ export function EstadisticasView({
   const puedeVerGanancia = !restringido || compartirRentabilidad;
   const esHoy = rango !== null && rango.desde === HOY();
 
-  const buscar = async (nuevoRango: RangoFecha | null) => {
-    setRango(nuevoRango);
-    if (!nuevoRango) return;
-    // Antes de recargar, sube al inicio: si había resultados de una
-    // búsqueda anterior visibles más abajo, al desaparecer mientras carga
-    // la página "saltaba" porque el scroll se quedaba apuntando a un
-    // espacio que ya no existía.
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-    setCargando(true);
-    setBuscado(true);
-
+  // Trae los datos del rango sin tocar scroll ni el spinner de carga --
+  // se usa tanto desde `buscar` (con esos efectos) como desde el refresco
+  // silencioso por Realtime, que NO debe interrumpir al usuario si en ese
+  // momento está escribiendo en el buscador o leyendo resultados.
+  const cargarDatos = async (rangoConsulta: RangoFecha) => {
     const [{ data: ops }, { data: perfil }] = await Promise.all([
       supabase
         .from('solicitudes')
@@ -87,8 +81,8 @@ export function EstadisticasView({
         )
         .eq('check_deposito_ve', true)
         .eq('negocio_operador_peru_id', operadorPeruId)
-        .gte('created_at', nuevoRango.desde)
-        .lt('created_at', nuevoRango.hasta)
+        .gte('created_at', rangoConsulta.desde)
+        .lt('created_at', rangoConsulta.hasta)
         .order('created_at', { ascending: true }),
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
     ]);
@@ -104,6 +98,22 @@ export function EstadisticasView({
     const p = perfil as PerfilNegocio | null;
     setRentabilidadPct(p?.rentabilidad_pct ?? 0);
     setCompartirRentabilidad(p?.compartir_rentabilidad_ve ?? false);
+  };
+
+  // Búsqueda iniciada por el usuario (chips + botón "Buscar"): esta sí
+  // sube el scroll al inicio y muestra el spinner, porque reemplaza lo
+  // que el usuario está viendo a propósito.
+  const buscar = async (nuevoRango: RangoFecha | null) => {
+    setRango(nuevoRango);
+    if (!nuevoRango) return;
+    // Antes de recargar, sube al inicio: si había resultados de una
+    // búsqueda anterior visibles más abajo, al desaparecer mientras carga
+    // la página "saltaba" porque el scroll se quedaba apuntando a un
+    // espacio que ya no existía.
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    setCargando(true);
+    setBuscado(true);
+    await cargarDatos(nuevoRango);
     setCargando(false);
   };
 
@@ -116,14 +126,16 @@ export function EstadisticasView({
 
   // Mientras se está viendo el día de hoy, refresca solo cuando cambia
   // alguna solicitud (nuevo depósito validado) para que el total y la
-  // ganancia se mantengan al día sin recargar la pantalla a mano.
+  // ganancia se mantengan al día -- en silencio, sin mover el scroll ni
+  // volver a mostrar el spinner, para no interrumpir al usuario si justo
+  // en ese momento está escribiendo en el buscador.
   const rangoRef = useRef(rango);
   rangoRef.current = rango;
   useEffect(() => {
     const channel = supabase
       .channel(`estadisticas-${operadorPeruId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => {
-        if (rangoRef.current) buscar(rangoRef.current);
+        if (rangoRef.current) cargarDatos(rangoRef.current);
       })
       .subscribe();
     return () => {
