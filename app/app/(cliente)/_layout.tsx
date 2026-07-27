@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text, ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, APP_MAX_WIDTH_MEDIUM } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 import { NarrowShell } from '../../components/NarrowShell';
@@ -17,6 +18,11 @@ function TabIcon({ nombre, color }: { nombre: keyof typeof ICONO; color: ColorVa
 }
 
 export default function ClienteLayout() {
+  // Sin esto, en celulares con indicador de inicio (iPhone) o barra de
+  // gestos (Android) la altura fija de 62 no alcanza y el sistema tapa la
+  // fila de tabs, dejando el último botón de cada pantalla (p.ej. "Enviar
+  // solicitud") cortado justo encima.
+  const insets = useSafeAreaInsets();
   return (
     <NarrowShell maxWidth={APP_MAX_WIDTH_MEDIUM}>
       <Tabs
@@ -29,9 +35,9 @@ export default function ClienteLayout() {
           tabBarStyle: {
             backgroundColor: colors.card,
             borderTopColor: colors.border,
-            height: 62,
+            height: 62 + insets.bottom,
             paddingTop: 8,
-            paddingBottom: 10,
+            paddingBottom: 10 + insets.bottom,
           },
           tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
           tabBarActiveTintColor: colors.primary,
