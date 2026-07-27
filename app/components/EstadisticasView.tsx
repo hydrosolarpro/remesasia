@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import { supabase } from '../lib/supabase';
 import { DateRangeFilter } from './DateRangeFilter';
 import { generarYCompartirPdf } from '../lib/pdfReporte';
-import { RangoFecha } from '../lib/dateRange';
+import { RangoFecha, calcularRango } from '../lib/dateRange';
 import { PerfilNegocio, Solicitud } from '../types/database';
 import { colors, radius, cardShadow } from '../constants/theme';
+
+const HOY = () => new Date().toISOString().slice(0, 10);
 
 interface Punto {
   etiqueta: string;
@@ -54,6 +56,7 @@ export function EstadisticasView({
   /** Solo el dueño del negocio ve el desglose por miembro de equipo (Perú y Venezuela). */
   esDuenio?: boolean;
 }) {
+  const scrollRef = useRef<ScrollView>(null);
   const [cargando, setCargando] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [rango, setRango] = useState<RangoFecha | null>(null);
@@ -63,10 +66,16 @@ export function EstadisticasView({
   const [buscado, setBuscado] = useState(false);
 
   const puedeVerGanancia = !restringido || compartirRentabilidad;
+  const esHoy = rango !== null && rango.desde === HOY();
 
   const buscar = async (nuevoRango: RangoFecha | null) => {
     setRango(nuevoRango);
     if (!nuevoRango) return;
+    // Antes de recargar, sube al inicio: si había resultados de una
+    // búsqueda anterior visibles más abajo, al desaparecer mientras carga
+    // la página "saltaba" porque el scroll se quedaba apuntando a un
+    // espacio que ya no existía.
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
     setCargando(true);
     setBuscado(true);
 
@@ -97,6 +106,31 @@ export function EstadisticasView({
     setCompartirRentabilidad(p?.compartir_rentabilidad_ve ?? false);
     setCargando(false);
   };
+
+  // Al entrar a la pantalla, carga el día de hoy solo (en vivo) sin que el
+  // usuario tenga que buscar manualmente.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    buscar(calcularRango('dia', HOY(), HOY()));
+  }, [operadorPeruId]);
+
+  // Mientras se está viendo el día de hoy, refresca solo cuando cambia
+  // alguna solicitud (nuevo depósito validado) para que el total y la
+  // ganancia se mantengan al día sin recargar la pantalla a mano.
+  const rangoRef = useRef(rango);
+  rangoRef.current = rango;
+  useEffect(() => {
+    const channel = supabase
+      .channel(`estadisticas-${operadorPeruId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => {
+        if (rangoRef.current) buscar(rangoRef.current);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operadorPeruId]);
 
   // Desglose de operaciones y montos por cada persona que validó — tanto
   // del lado Perú (dueño o miembros de equipo) como del lado Venezuela.
@@ -165,7 +199,7 @@ export function EstadisticasView({
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
       <Text style={styles.titulo}>Estadísticas de operaciones</Text>
       <DateRangeFilter onCambio={buscar} />
 
@@ -174,10 +208,14 @@ export function EstadisticasView({
       {!cargando && buscado && rango && (
         <>
           <View style={[styles.resumen, cardShadow]}>
-            <Text style={styles.resumenPeriodo}>{rango.etiqueta}</Text>
+            <Text style={styles.resumenPeriodo}>
+              {rango.etiqueta}
+              {esHoy ? ' (hoy, en vivo)' : ''}
+            </Text>
             <View style={styles.resumenFila}>
               <ResumenItem label="Operaciones" valor={String(totales.nOps)} />
               <ResumenItem label="Monto" valor={`S/ ${totales.montoTotal.toFixed(2)}`} />
+              {puedeVerGanancia && <ResumenItem label="% Rentabilidad" valor={`${rentabilidadPct}%`} />}
               {puedeVerGanancia && <ResumenItem label="Ganancia" valor={`S/ ${totales.ganancia.toFixed(2)}`} destacado />}
             </View>
           </View>

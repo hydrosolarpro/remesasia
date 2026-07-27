@@ -112,8 +112,16 @@ export function PeruDashboardView({
     };
   }, [cargar, operadorPeruId]);
 
+  // "En curso" no tiene fecha límite: una operación pendiente sigue
+  // apareciendo aquí sin importar cuántos días pasen, hasta que se
+  // complete. "Realizadas" en cambio se reinicia cada día -- solo muestra
+  // las completadas HOY; las de días anteriores quedan disponibles en
+  // Estadísticas, no aquí.
   const enCurso = useMemo(() => operaciones.filter((o) => !o.check_deposito_ve), [operaciones]);
-  const realizadas = useMemo(() => operaciones.filter((o) => o.check_deposito_ve), [operaciones]);
+  const realizadas = useMemo(
+    () => operaciones.filter((o) => o.check_deposito_ve && (o.check_deposito_ve_at ?? '').slice(0, 10) === HOY()),
+    [operaciones]
+  );
 
   // Buscador único (nombre, teléfono, fecha, monto en soles o año) — un solo
   // campo de texto en vez de varios filtros separados, para no sobrecargar
@@ -175,13 +183,13 @@ export function PeruDashboardView({
     }
   };
 
+  // `realizadas` ya está acotado a hoy (ver arriba), así que el resumen es
+  // directamente sobre esa lista.
   const resumenHoy = useMemo(() => {
-    const hoy = HOY();
-    const deHoy = realizadas.filter((o) => (o.check_deposito_ve_at ?? '').slice(0, 10) === hoy);
-    const montoTotal = deHoy.reduce((acc, o) => acc + o.monto_pen, 0);
+    const montoTotal = realizadas.reduce((acc, o) => acc + o.monto_pen, 0);
     const rentabilidadPct = perfil?.rentabilidad_pct ?? 0;
     return {
-      nOps: deHoy.length,
+      nOps: realizadas.length,
       montoTotal,
       ganancia: montoTotal * (rentabilidadPct / 100),
     };
@@ -598,7 +606,7 @@ export function PeruDashboardView({
       </View>
 
       <View style={styles.seccionHeaderRow}>
-        <Text style={styles.seccionTitulo}>Operaciones realizadas ({realizadas.length})</Text>
+        <Text style={styles.seccionTitulo}>Operaciones realizadas hoy ({realizadas.length})</Text>
         <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando || realizadasFiltradas.length === 0}>
           {exportando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
         </Pressable>
