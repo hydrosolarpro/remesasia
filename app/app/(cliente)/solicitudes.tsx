@@ -1,20 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { ClienteSolicitudRow } from '../../components/ClientSolicitudRow';
-import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { Solicitud } from '../../types/database';
-import { colors, radius } from '../../constants/theme';
-
-const ETIQUETA_METODO_PAGO: Record<Solicitud['metodo_pago'], string> = { yape: 'Yape', plin: 'Plin', banco: 'Transferencia bancaria' };
+import { colors } from '../../constants/theme';
 
 export default function SolicitudesCliente() {
   const { usuario } = useAuth();
   const [cargando, setCargando] = useState(true);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
-  const [exportando, setExportando] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -48,29 +44,6 @@ export default function SolicitudesCliente() {
     return mapa;
   }, [solicitudes]);
 
-  const exportarExcel = async () => {
-    setExportando(true);
-    try {
-      const filas = realizadas.map((s) => ({
-        '#': numeracion.get(s.id) ?? '',
-        'Fecha de envío': new Date(s.created_at).toLocaleString('es-PE'),
-        Beneficiario: s.beneficiario_nombre,
-        'C.I.': s.beneficiario_ci ?? '',
-        'Entidad bancaria': s.beneficiario_banco,
-        'N° cuenta': s.beneficiario_cuenta,
-        'Monto (S/)': s.monto_pen,
-        'Recibe (Bs)': s.monto_ves,
-        'USD (BCV)': s.monto_usd_bcv ?? '',
-        'EUR (BCV)': s.monto_eur_bcv ?? '',
-        'Forma de pago': ETIQUETA_METODO_PAGO[s.metodo_pago],
-        'Depósito en Venezuela': s.check_deposito_ve_at ? new Date(s.check_deposito_ve_at).toLocaleString('es-PE') : '',
-      }));
-      await generarYCompartirExcel('mis-solicitudes-realizadas', 'Solicitudes', filas);
-    } finally {
-      setExportando(false);
-    }
-  };
-
   if (cargando) {
     return (
       <View style={styles.center}>
@@ -89,12 +62,7 @@ export default function SolicitudesCliente() {
         ))}
       </View>
 
-      <View style={styles.seccionHeaderRow}>
-        <Text style={styles.seccionTitulo}>Solicitudes realizadas ({realizadas.length})</Text>
-        <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando || realizadas.length === 0}>
-          {exportando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
-        </Pressable>
-      </View>
+      <Text style={styles.seccionTitulo}>Solicitudes realizadas ({realizadas.length})</Text>
       {realizadas.length === 0 && <Text style={styles.vacio}>Todavía no tienes solicitudes completadas.</Text>}
       <View style={styles.lista}>
         {realizadas.map((s) => (
@@ -109,9 +77,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 10, paddingBottom: 48 },
   seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
-  seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
-  excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
   lista: { gap: 10 },
 });

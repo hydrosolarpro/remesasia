@@ -7,9 +7,7 @@ const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 /**
  * Genera un archivo .xlsx a partir de filas planas (una hoja) y lo descarga
- * (web) o lo comparte con el selector del sistema (nativo). Solo se importa
- * desde pantallas de operador/admin — nunca desde la sesión del cliente,
- * para no cargar esta librería en dispositivos de gama baja.
+ * (web) o lo comparte con el selector del sistema (nativo).
  */
 export async function generarYCompartirExcel(
   nombreArchivo: string,
