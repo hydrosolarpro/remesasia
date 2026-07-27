@@ -6,7 +6,7 @@ import { registrarPushToken } from '../../lib/notifications';
 import { colors, radius } from '../../constants/theme';
 
 export default function Perfil() {
-  const { usuario, signOut } = useAuth();
+  const { usuario } = useAuth();
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -22,10 +22,6 @@ export default function Perfil() {
       <Pressable style={styles.buttonOutline} onPress={() => router.push('/(auth)/registro')}>
         <Text style={styles.buttonOutlineText}>Editar mis datos</Text>
       </Pressable>
-
-      <Pressable style={styles.button} onPress={signOut}>
-        <Text style={styles.buttonText}>Cerrar sesión</Text>
-      </Pressable>
     </View>
   );
 }
@@ -37,6 +33,4 @@ const styles = StyleSheet.create({
   datoUltimo: { color: colors.textMuted, fontSize: 14, marginTop: -8, marginBottom: 12 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
-  button: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, alignItems: 'center' },
-  buttonText: { color: colors.danger, fontWeight: '700' },
 });

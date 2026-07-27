@@ -1,18 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
-import { colors, radius } from '../constants/theme';
+import { View, Text, StyleSheet } from 'react-native';
+import { colors } from '../constants/theme';
 import { FlagPeru, FlagVenezuela } from './FlagIcon';
-import { useAuth } from '../lib/auth';
-import { Rol } from '../types/database';
-
-const HOME_POR_ROL: Record<Rol, string> = {
-  administrador: '/(admin)',
-  operador_peru: '/(operador-peru)',
-  operador_peru_miembro: '/(operador-peru)',
-  operador_venezuela: '/(operador-venezuela)',
-  cliente: '/(cliente)',
-};
 
 const FORMATTER_COMPACTO = new Intl.DateTimeFormat('es-PE', {
   day: '2-digit',
@@ -44,25 +33,13 @@ export function BannerTitle() {
   );
 }
 
-// Botón "Inicio" + banderas PE/VE — se usa como `headerRight`. El botón
-// vuelve al dashboard inicial de la sesión que corresponda según el rol
-// del usuario logueado, disponible desde cualquier pantalla. Las
-// banderas están dibujadas en SVG (no emoji): los emoji de bandera no se
-// renderizan en Windows/Chrome.
+// Banderas PE/VE — se usa como `headerRight`. Dibujadas en SVG (no
+// emoji): los emoji de bandera no se renderizan en Windows/Chrome. El
+// botón "Inicio" que vivía aquí se quitó: cada sesión ya tiene su propia
+// barra de pestañas para volver al panel principal.
 export function BannerFlags() {
-  const { usuario } = useAuth();
-
   return (
     <View style={styles.flagsWrap}>
-      {usuario && (
-        <Pressable
-          style={styles.inicioBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          onPress={() => router.replace(HOME_POR_ROL[usuario.rol] as never)}
-        >
-          <Text style={styles.inicioBtnTexto}>Inicio</Text>
-        </Pressable>
-      )}
       <FlagPeru width={22} height={15} />
       <FlagVenezuela width={22} height={15} />
     </View>
@@ -83,13 +60,4 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   flagsWrap: { flexDirection: 'row', gap: 10, paddingRight: 16, alignItems: 'center' },
-  inicioBtn: {
-    backgroundColor: colors.cardAlt,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  inicioBtnTexto: { color: colors.accent, fontSize: 11, fontWeight: '700' },
 });

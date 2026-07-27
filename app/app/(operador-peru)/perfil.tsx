@@ -10,7 +10,7 @@ import { OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../../types/databa
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function Perfil() {
-  const { usuario, signOut } = useAuth();
+  const { usuario } = useAuth();
   const [negocioId, setNegocioId] = useState<string | null | undefined>(undefined);
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [generando, setGenerando] = useState(true);
@@ -125,10 +125,6 @@ export default function Perfil() {
           <Text style={styles.buttonOutlineText}>Editar datos del negocio</Text>
         </Pressable>
       )}
-
-      <Pressable style={styles.button} onPress={signOut}>
-        <Text style={styles.buttonText}>Cerrar sesión</Text>
-      </Pressable>
     </ScrollView>
   );
 }
@@ -153,6 +149,4 @@ const styles = StyleSheet.create({
   miembroDato: { color: colors.textMuted, fontSize: 12 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
-  button: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, alignItems: 'center' },
-  buttonText: { color: colors.danger, fontWeight: '700' },
 });

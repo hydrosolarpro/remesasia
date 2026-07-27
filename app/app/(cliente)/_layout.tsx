@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
-import { Text, ColorValue } from 'react-native';
+import { ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../../lib/auth';
 import { colors, APP_MAX_WIDTH_MEDIUM } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 import { NarrowShell } from '../../components/NarrowShell';
+import { TabBarIcon } from '../../components/TabBarIcon';
 
 const ICONO = {
   index: '🏠',
@@ -13,8 +15,8 @@ const ICONO = {
   perfil: '👤',
 };
 
-function TabIcon({ nombre, color }: { nombre: keyof typeof ICONO; color: ColorValue }) {
-  return <Text style={{ fontSize: 18, color }}>{ICONO[nombre]}</Text>;
+function TabIcon({ nombre, color, focused }: { nombre: keyof typeof ICONO; color: ColorValue; focused: boolean }) {
+  return <TabBarIcon emoji={ICONO[nombre]} color={color} focused={focused} />;
 }
 
 export default function ClienteLayout() {
@@ -25,6 +27,7 @@ export default function ClienteLayout() {
   // aire de sobra. El inset se suma aparte para el indicador de inicio
   // (iPhone) o la barra de gestos (Android).
   const insets = useSafeAreaInsets();
+  const { signOut } = useAuth();
   return (
     <NarrowShell maxWidth={APP_MAX_WIDTH_MEDIUM}>
       <Tabs
@@ -46,20 +49,51 @@ export default function ClienteLayout() {
           tabBarInactiveTintColor: colors.textMuted,
         }}
       >
-        <Tabs.Screen name="index" options={{ title: 'Inicio', tabBarIcon: ({ color }) => <TabIcon nombre="index" color={color} /> }} />
+        <Tabs.Screen
+          name="index"
+          options={{ title: 'Inicio', tabBarIcon: ({ color, focused }) => <TabIcon nombre="index" color={color} focused={focused} /> }}
+        />
         <Tabs.Screen
           name="solicitudes"
-          options={{ title: 'Solicitudes', tabBarIcon: ({ color }) => <TabIcon nombre="solicitudes" color={color} /> }}
+          options={{
+            title: 'Solicitudes',
+            tabBarIcon: ({ color, focused }) => <TabIcon nombre="solicitudes" color={color} focused={focused} />,
+          }}
         />
         <Tabs.Screen
           name="cuentas-utilizadas"
-          options={{ title: 'Mis cuentas', tabBarIcon: ({ color }) => <TabIcon nombre="cuentas-utilizadas" color={color} /> }}
+          options={{
+            title: 'Mis cuentas',
+            tabBarIcon: ({ color, focused }) => <TabIcon nombre="cuentas-utilizadas" color={color} focused={focused} />,
+          }}
         />
         <Tabs.Screen
           name="estadisticas"
-          options={{ title: 'Estadísticas', tabBarIcon: ({ color }) => <TabIcon nombre="estadisticas" color={color} /> }}
+          options={{
+            title: 'Estadísticas',
+            tabBarIcon: ({ color, focused }) => <TabIcon nombre="estadisticas" color={color} focused={focused} />,
+          }}
         />
-        <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <TabIcon nombre="perfil" color={color} /> }} />
+        <Tabs.Screen
+          name="perfil"
+          options={{ title: 'Perfil', tabBarIcon: ({ color, focused }) => <TabIcon nombre="perfil" color={color} focused={focused} /> }}
+        />
+        {/* Cerrar sesión vive en la propia barra de tabs para que sea más
+            visible. No navega: intercepta el toque y cierra sesión ahí
+            mismo (ver cerrar-sesion.tsx, que solo es un respaldo). */}
+        <Tabs.Screen
+          name="cerrar-sesion"
+          options={{
+            title: 'Salir',
+            tabBarIcon: ({ focused }) => <TabBarIcon emoji="🚪" color={colors.danger} focused={focused} peligro />,
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              signOut();
+            },
+          }}
+        />
         <Tabs.Screen name="solicitud/[id]" options={{ title: 'Detalle de solicitud', href: null }} />
       </Tabs>
     </NarrowShell>

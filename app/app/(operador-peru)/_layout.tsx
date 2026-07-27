@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
-import { Text, View, ColorValue, StyleSheet } from 'react-native';
+import { View, ColorValue, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../../lib/auth';
 import { colors } from '../../constants/theme';
 import { GroupHeader } from '../../components/GroupHeader';
 import { SuscripcionGate } from '../../components/SuscripcionGate';
+import { TabBarIcon } from '../../components/TabBarIcon';
 
 const ICONO = {
   index: '📋',
@@ -13,8 +15,8 @@ const ICONO = {
   perfil: '👤',
 };
 
-function TabIcon({ nombre, color }: { nombre: keyof typeof ICONO; color: ColorValue }) {
-  return <Text style={{ fontSize: 18, color }}>{ICONO[nombre]}</Text>;
+function TabIcon({ nombre, color, focused }: { nombre: keyof typeof ICONO; color: ColorValue; focused: boolean }) {
+  return <TabBarIcon emoji={ICONO[nombre]} color={color} focused={focused} />;
 }
 
 // El banner vive un nivel arriba de <Tabs> (ver GroupHeader) porque el
@@ -28,6 +30,7 @@ export default function OperadorPeruLayout() {
   // aire de sobra. El inset se suma aparte para el indicador de inicio
   // (iPhone) o la barra de gestos (Android).
   const insets = useSafeAreaInsets();
+  const { signOut } = useAuth();
   return (
     <View style={styles.container}>
       <GroupHeader />
@@ -47,16 +50,44 @@ export default function OperadorPeruLayout() {
             tabBarInactiveTintColor: colors.textMuted,
           }}
         >
-          <Tabs.Screen name="index" options={{ title: 'Panel', tabBarIcon: ({ color }) => <TabIcon nombre="index" color={color} /> }} />
+          <Tabs.Screen
+            name="index"
+            options={{ title: 'Panel', tabBarIcon: ({ color, focused }) => <TabIcon nombre="index" color={color} focused={focused} /> }}
+          />
           {/* Ya no va en la barra de tabs: se sigue accediendo desde el
               enlace "Actualizar tasa →" del Panel (PeruDashboardView). */}
           <Tabs.Screen name="tasa" options={{ title: 'Tasa del día', href: null }} />
           <Tabs.Screen
             name="estadisticas"
-            options={{ title: 'Estadísticas', tabBarIcon: ({ color }) => <TabIcon nombre="estadisticas" color={color} /> }}
+            options={{
+              title: 'Estadísticas',
+              tabBarIcon: ({ color, focused }) => <TabIcon nombre="estadisticas" color={color} focused={focused} />,
+            }}
           />
-          <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: ({ color }) => <TabIcon nombre="clientes" color={color} /> }} />
-          <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <TabIcon nombre="perfil" color={color} /> }} />
+          <Tabs.Screen
+            name="clientes"
+            options={{ title: 'Clientes', tabBarIcon: ({ color, focused }) => <TabIcon nombre="clientes" color={color} focused={focused} /> }}
+          />
+          <Tabs.Screen
+            name="perfil"
+            options={{ title: 'Perfil', tabBarIcon: ({ color, focused }) => <TabIcon nombre="perfil" color={color} focused={focused} /> }}
+          />
+          {/* Cerrar sesión vive en la propia barra de tabs para que sea más
+              visible. No navega: intercepta el toque y cierra sesión ahí
+              mismo (ver cerrar-sesion.tsx, que solo es un respaldo). */}
+          <Tabs.Screen
+            name="cerrar-sesion"
+            options={{
+              title: 'Salir',
+              tabBarIcon: ({ focused }) => <TabBarIcon emoji="🚪" color={colors.danger} focused={focused} peligro />,
+            }}
+            listeners={{
+              tabPress: (e) => {
+                e.preventDefault();
+                signOut();
+              },
+            }}
+          />
           <Tabs.Screen name="onboarding" options={{ title: 'Datos del negocio', href: null }} />
         </Tabs>
       </SuscripcionGate>
