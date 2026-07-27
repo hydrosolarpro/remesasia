@@ -8,11 +8,10 @@ import { construirEnlaceEntrada } from '../lib/invitaciones';
 import { PerfilNegocio, Tasa, OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
+import { hoyLocal, fechaLocalDe } from '../lib/fechaLocal';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { colors, radius, cardShadow } from '../constants/theme';
-
-const HOY = () => new Date().toISOString().slice(0, 10);
 
 // Panel del Operador Perú: bienvenida + tasa + rentabilidad + eslogan,
 // "Operaciones en curso", "Operaciones realizadas" (con búsqueda) y resumen
@@ -121,7 +120,7 @@ export function PeruDashboardView({
   // Estadísticas, no aquí.
   const enCurso = useMemo(() => operaciones.filter((o) => !o.check_deposito_ve), [operaciones]);
   const realizadas = useMemo(
-    () => operaciones.filter((o) => o.check_deposito_ve && (o.check_deposito_ve_at ?? '').slice(0, 10) === HOY()),
+    () => operaciones.filter((o) => o.check_deposito_ve && o.check_deposito_ve_at && fechaLocalDe(o.check_deposito_ve_at) === hoyLocal()),
     [operaciones]
   );
 

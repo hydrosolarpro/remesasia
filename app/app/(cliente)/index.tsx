@@ -273,7 +273,8 @@ export default function InicioCliente() {
       </View>
 
       <View style={[styles.card, cardShadow]}>
-        <Text style={styles.seccionTitulo}>Calculadora</Text>
+        <Text style={styles.nuevaSolicitudTitulo}>Nueva solicitud</Text>
+        <Text style={styles.nuevaSolicitudTexto}>Ingrese el monto solicitado en la calculadora.</Text>
         <TextInput
           style={styles.montoInput}
           value={montoPen}
@@ -457,6 +458,8 @@ const styles = StyleSheet.create({
   tasaValor: { color: colors.text, fontSize: 22, fontWeight: '900' },
   bcvValor: { color: colors.text, fontSize: 15, fontWeight: '700' },
   seccionTitulo: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 8 },
+  nuevaSolicitudTitulo: { color: colors.text, fontSize: 18, fontWeight: '900', textTransform: 'uppercase' },
+  nuevaSolicitudTexto: { color: colors.textMuted, fontSize: 13, marginTop: 2, marginBottom: 10 },
   montoInput: { color: colors.text, fontSize: 36, fontWeight: '900' },
   montoLabel: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   resultado: { marginTop: 14, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
