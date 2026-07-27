@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
+import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -17,6 +18,8 @@ export default function ClientesRegistrados() {
   const [clientes, setClientes] = useState<Usuario[]>([]);
   const [cargandoClientes, setCargandoClientes] = useState(true);
   const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
 
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
@@ -67,6 +70,31 @@ export default function ClientesRegistrados() {
     await Clipboard.setStringAsync(enlaceCliente);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 1500);
+  };
+
+  // El buscador solo filtra lo que se ve en pantalla (nombre o teléfono);
+  // la descarga en Excel siempre lleva a TODOS los clientes, sin importar
+  // si hay algo escrito en el buscador.
+  const clientesFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return clientes;
+    return clientes.filter((c) => c.nombre.toLowerCase().includes(q) || (c.telefono ?? '').toLowerCase().includes(q));
+  }, [clientes, busqueda]);
+
+  const exportarExcelClientes = async () => {
+    setExportandoExcel(true);
+    try {
+      const filas = clientes.map((c) => ({
+        Nombre: c.nombre,
+        Correo: c.email ?? '',
+        Teléfono: c.telefono ?? '',
+        País: c.pais ?? '',
+        'Fecha de registro': new Date(c.created_at).toLocaleString('es-PE'),
+      }));
+      await generarYCompartirExcel('clientes-registrados', 'Clientes', filas);
+    } finally {
+      setExportandoExcel(false);
+    }
   };
 
   const exportarPdfClientes = async () => {
@@ -122,17 +150,31 @@ export default function ClientesRegistrados() {
 
       <View style={styles.header}>
         <Text style={styles.titulo}>Clientes registrados ({clientes.length})</Text>
-        <Pressable style={styles.pdfBtn} onPress={exportarPdfClientes} disabled={generandoPdf || clientes.length === 0}>
-          {generandoPdf ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>PDF</Text>}
-        </Pressable>
+        <View style={styles.headerBotones}>
+          <Pressable style={styles.excelBtn} onPress={exportarExcelClientes} disabled={exportandoExcel || clientes.length === 0}>
+            {exportandoExcel ? <ActivityIndicator color="#fff" /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
+          </Pressable>
+          <Pressable style={styles.pdfBtn} onPress={exportarPdfClientes} disabled={generandoPdf || clientes.length === 0}>
+            {generandoPdf ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>PDF</Text>}
+          </Pressable>
+        </View>
       </View>
+      <TextInput
+        style={styles.buscador}
+        value={busqueda}
+        onChangeText={setBusqueda}
+        placeholder="Buscar por nombre o teléfono..."
+        placeholderTextColor={colors.textMuted}
+      />
       {cargandoClientes ? (
         <ActivityIndicator color={colors.primary} />
       ) : clientes.length === 0 ? (
         <Text style={styles.vacio}>Todavía no tienes clientes registrados.</Text>
+      ) : clientesFiltrados.length === 0 ? (
+        <Text style={styles.vacio}>Sin resultados.</Text>
       ) : (
         <View style={styles.lista}>
-          {clientes.map((item) => (
+          {clientesFiltrados.map((item) => (
             <View key={item.id} style={[styles.card, cardShadow]}>
               <Text style={styles.nombre}>{item.nombre}</Text>
               <Text style={styles.dato}>{item.email}</Text>
@@ -158,9 +200,21 @@ const styles = StyleSheet.create({
   copiarBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
   copiarBtnTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  headerBotones: { flexDirection: 'row', gap: 8 },
   titulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
   pdfBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 16, paddingVertical: 8 },
   pdfBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 16, paddingVertical: 8 },
+  excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  buscador: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    color: colors.text,
+    fontSize: 14,
+    backgroundColor: colors.cardAlt,
+  },
   nombre: { color: colors.text, fontSize: 15, fontWeight: '700' },
   dato: { color: colors.textMuted, fontSize: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },

@@ -46,15 +46,20 @@ export function DateRangeFilter({ onCambio }: { onCambio: (rango: RangoFecha | n
         ))}
       </ScrollView>
 
+      {/* Los inputs van en su propia fila (que puede envolver a 2 líneas
+          en pantallas angostas) y el botón "Buscar" siempre abajo, a todo
+          el ancho -- antes compartían una sola fila y en celulares el
+          botón podía quedar apretado o directamente fuera de la vista
+          cuando el modo tenía 2 campos (rango de fechas/meses/años). */}
       <View style={styles.inputsRow}>
         <TextInput style={styles.input} value={valorA} onChangeText={setValorA} placeholder={placeholderA} placeholderTextColor={colors.textMuted} />
         {placeholderB && (
           <TextInput style={styles.input} value={valorB} onChangeText={setValorB} placeholder={placeholderB} placeholderTextColor={colors.textMuted} />
         )}
-        <Pressable style={[styles.boton, !rango && styles.botonDeshabilitado]} onPress={aplicar} disabled={!rango}>
-          <Text style={styles.botonTexto}>Buscar</Text>
-        </Pressable>
       </View>
+      <Pressable style={[styles.boton, !rango && styles.botonDeshabilitado]} onPress={aplicar} disabled={!rango}>
+        <Text style={styles.botonTexto}>Buscar</Text>
+      </Pressable>
     </View>
   );
 }
@@ -72,9 +77,10 @@ const styles = StyleSheet.create({
   chipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
   chipTexto: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
   chipTextoActivo: { color: colors.text },
-  inputsRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  inputsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   input: {
     flex: 1,
+    minWidth: 140,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
@@ -83,7 +89,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     backgroundColor: colors.cardAlt,
   },
-  boton: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 11 },
+  boton: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
-  botonTexto: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  botonTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
 });

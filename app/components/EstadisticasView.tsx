@@ -117,31 +117,15 @@ export function EstadisticasView({
     setCargando(false);
   };
 
-  // Al entrar a la pantalla, carga el día de hoy solo (en vivo) sin que el
-  // usuario tenga que buscar manualmente.
+  // Al entrar a la pantalla, carga el día de hoy solo, sin que el usuario
+  // tenga que buscar manualmente. A propósito NO se refresca sola en
+  // segundo plano (se probó con Realtime y, aunque en silencio no movía
+  // el scroll, igual reordenaba/cambiaba números mientras el usuario
+  // escribía en el buscador y se sentía como un salto) -- para ver datos
+  // más recientes, el usuario vuelve a tocar "Buscar".
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     buscar(calcularRango('dia', HOY(), HOY()));
-  }, [operadorPeruId]);
-
-  // Mientras se está viendo el día de hoy, refresca solo cuando cambia
-  // alguna solicitud (nuevo depósito validado) para que el total y la
-  // ganancia se mantengan al día -- en silencio, sin mover el scroll ni
-  // volver a mostrar el spinner, para no interrumpir al usuario si justo
-  // en ese momento está escribiendo en el buscador.
-  const rangoRef = useRef(rango);
-  rangoRef.current = rango;
-  useEffect(() => {
-    const channel = supabase
-      .channel(`estadisticas-${operadorPeruId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => {
-        if (rangoRef.current) cargarDatos(rangoRef.current);
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operadorPeruId]);
 
   // Desglose de operaciones y montos por cada persona que validó — tanto
@@ -222,7 +206,7 @@ export function EstadisticasView({
           <View style={[styles.resumen, cardShadow]}>
             <Text style={styles.resumenPeriodo}>
               {rango.etiqueta}
-              {esHoy ? ' (hoy, en vivo)' : ''}
+              {esHoy ? ' (hoy)' : ''}
             </Text>
             <View style={styles.resumenFila}>
               <ResumenItem label="Operaciones" valor={String(totales.nOps)} />

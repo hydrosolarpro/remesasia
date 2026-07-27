@@ -635,7 +635,7 @@ export function PeruDashboardView({
           onPress={() => setVistaOperaciones('en_curso')}
         >
           <Text style={[styles.opsToggleTexto, vistaOperaciones === 'en_curso' && styles.opsToggleTextoActivo]}>
-            En curso ({enCurso.length})
+            Operaciones en curso ({enCurso.length})
           </Text>
         </Pressable>
         <Pressable
@@ -643,7 +643,7 @@ export function PeruDashboardView({
           onPress={() => setVistaOperaciones('realizadas')}
         >
           <Text style={[styles.opsToggleTexto, vistaOperaciones === 'realizadas' && styles.opsToggleTextoActivo]}>
-            Realizadas hoy ({realizadas.length})
+            Operaciones realizadas (Hoy) ({realizadas.length})
           </Text>
         </Pressable>
       </View>
