@@ -48,7 +48,9 @@ export default function OperadorPeruLayout() {
           }}
         >
           <Tabs.Screen name="index" options={{ title: 'Panel', tabBarIcon: ({ color }) => <TabIcon nombre="index" color={color} /> }} />
-          <Tabs.Screen name="tasa" options={{ title: 'Tasa del día', tabBarIcon: ({ color }) => <TabIcon nombre="tasa" color={color} /> }} />
+          {/* Ya no va en la barra de tabs: se sigue accediendo desde el
+              enlace "Actualizar tasa →" del Panel (PeruDashboardView). */}
+          <Tabs.Screen name="tasa" options={{ title: 'Tasa del día', href: null }} />
           <Tabs.Screen
             name="estadisticas"
             options={{ title: 'Estadísticas', tabBarIcon: ({ color }) => <TabIcon nombre="estadisticas" color={color} /> }}
