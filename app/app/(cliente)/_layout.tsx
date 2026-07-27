@@ -18,10 +18,12 @@ function TabIcon({ nombre, color }: { nombre: keyof typeof ICONO; color: ColorVa
 }
 
 export default function ClienteLayout() {
-  // Sin esto, en celulares con indicador de inicio (iPhone) o barra de
-  // gestos (Android) la altura fija de 62 no alcanza y el sistema tapa la
-  // fila de tabs, dejando el último botón de cada pantalla (p.ej. "Enviar
-  // solicitud") cortado justo encima.
+  // React Navigation reserva ~28px fijos para el ícono de cada tab más su
+  // propio padding interno (5px arriba/abajo, aparte del padding del
+  // tabBarStyle) — con 62px de alto casi no quedaba espacio y el navegador
+  // comprimía la etiqueta de texto a ~5px (se veía cortada). 84px le da
+  // aire de sobra. El inset se suma aparte para el indicador de inicio
+  // (iPhone) o la barra de gestos (Android).
   const insets = useSafeAreaInsets();
   return (
     <NarrowShell maxWidth={APP_MAX_WIDTH_MEDIUM}>
@@ -35,7 +37,7 @@ export default function ClienteLayout() {
           tabBarStyle: {
             backgroundColor: colors.card,
             borderTopColor: colors.border,
-            height: 62 + insets.bottom,
+            height: 84 + insets.bottom,
             paddingTop: 8,
             paddingBottom: 10 + insets.bottom,
           },
