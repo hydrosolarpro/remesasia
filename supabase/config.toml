@@ -25,3 +25,9 @@ enabled = true
 
 [storage]
 enabled = true
+
+# Telegram llama a este webhook directamente (no puede mandar un JWT de
+# Supabase) -- la seguridad la da la validación del secret_token propio de
+# Telegram dentro de la función (ver supabase/functions/telegram-webhook).
+[functions.telegram-webhook]
+verify_jwt = false

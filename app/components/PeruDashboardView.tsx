@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch, Platform, Linking, Image } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch, Image } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { PerfilNegocio, Tasa } from '../types/database';
@@ -7,31 +7,9 @@ import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FEC
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../lib/fechaLocal';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
-import { formatearBs } from '../lib/formato';
-import { construirEnlaceWhatsApp, construirEnlaceWhatsAppGenerico, mensajeConfirmacionDeposito } from '../lib/whatsapp';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { colors, radius, cardShadow } from '../constants/theme';
-
-// Abre un enlace de wa.me apenas está listo. En web hay un `await` (llamada
-// a Supabase) entre el tap del botón y la apertura del enlace -- eso rompe
-// el "gesto de usuario" y el navegador bloquea el popup si recién ahí se
-// llama a `window.open`. Por eso, en web, se reserva la pestaña en blanco
-// de forma síncrona ANTES del await, y se le asigna la URL cuando ya está
-// lista (o se cierra si al final no hay a quién escribirle).
-function reservarPestanaWhatsApp(): { asignar: (url: string | null) => void } {
-  if (Platform.OS !== 'web') {
-    return { asignar: (url) => { if (url) Linking.openURL(url); } };
-  }
-  const tab = window.open('', '_blank');
-  return {
-    asignar: (url) => {
-      if (!tab) return;
-      if (url) tab.location.href = url;
-      else tab.close();
-    },
-  };
-}
 
 // Panel del Operador Perú: bienvenida + tasa + rentabilidad + eslogan,
 // "Operaciones en curso", "Operaciones realizadas" (con búsqueda) y resumen
@@ -257,23 +235,20 @@ export function PeruDashboardView({
     };
   }, [realizadas, perfil]);
 
+  // El aviso al cliente/beneficiario ya no se abre acá manualmente: al
+  // marcar cada check, un trigger en la base de datos dispara el envío
+  // automático por Telegram (ver supabase/migrations/0040_telegram_notificaciones.sql
+  // y supabase/functions/telegram-notificar-deposito).
   const validarPeru = async (op: OperationRowData) => {
     setValidando({ id: op.id, tipo: 'peru' });
-    const pestana = reservarPestanaWhatsApp();
     const { error } = await supabase.rpc('validar_deposito_peru', { p_solicitud_id: op.id });
     setValidando(null);
-    if (error) {
-      pestana.asignar(null);
-      return;
-    }
-    const mensaje = mensajeConfirmacionDeposito(perfil?.nombre_negocio || 'Remesas Perú-Venezuela', op.beneficiario_banco, formatearBs(op.monto_ves));
-    pestana.asignar(construirEnlaceWhatsAppGenerico(op.cliente_telefono, mensaje));
+    if (error) return;
     cargar();
   };
 
   const validarVe = async (op: OperationRowData, comprobanteUri: string, comprobanteExt: string) => {
     setValidando({ id: op.id, tipo: 've' });
-    const pestana = reservarPestanaWhatsApp();
     try {
       const path = `${op.id}/comprobante-vz.${comprobanteExt}`;
       const blob = await (await fetch(comprobanteUri)).blob();
@@ -287,12 +262,7 @@ export function PeruDashboardView({
       });
       if (error) throw error;
 
-      const mensaje = mensajeConfirmacionDeposito(perfil?.nombre_negocio || 'Remesas Perú-Venezuela', op.beneficiario_banco, formatearBs(op.monto_ves));
-      pestana.asignar(construirEnlaceWhatsApp(op.beneficiario_telefono, mensaje));
       cargar();
-    } catch (err) {
-      pestana.asignar(null);
-      throw err;
     } finally {
       setValidando(null);
     }

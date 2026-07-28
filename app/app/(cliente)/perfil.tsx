@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { registrarPushToken } from '../../lib/notifications';
+import { reservarPestanaExterna } from '../../lib/pestanaExterna';
 import { colors, radius } from '../../constants/theme';
+
+const BOT_TELEGRAM = 'Remesaspv_bot';
 
 // Edición de datos en la misma pantalla (sin navegar a otra ruta): antes
 // "Editar mis datos" llevaba a /(auth)/registro (una pantalla ajena a este
@@ -19,10 +23,33 @@ export default function Perfil() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
+  const [conectandoTelegram, setConectandoTelegram] = useState(false);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
   }, [usuario]);
+
+  // Al volver a esta pantalla (p.ej. tras vincular Telegram y regresar del
+  // navegador/app de Telegram) se refresca el usuario para reflejar el
+  // nuevo estado de conexión sin que el cliente tenga que hacer nada más.
+  useFocusEffect(
+    useCallback(() => {
+      refreshUsuario();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
+
+  const conectarTelegram = async () => {
+    setConectandoTelegram(true);
+    const pestana = reservarPestanaExterna();
+    const { data: token, error: tokenError } = await supabase.rpc('generar_token_telegram_propio');
+    setConectandoTelegram(false);
+    if (tokenError || !token) {
+      pestana.asignar(null);
+      return;
+    }
+    pestana.asignar(`https://t.me/${BOT_TELEGRAM}?start=${token}`);
+  };
 
   const empezarEdicion = () => {
     setNombre(usuario?.nombre ?? '');
@@ -106,6 +133,20 @@ export default function Perfil() {
       <Pressable style={styles.buttonOutline} onPress={empezarEdicion}>
         <Text style={styles.buttonOutlineText}>Editar mis datos</Text>
       </Pressable>
+
+      <View style={styles.telegramCard}>
+        <Text style={styles.telegramTitulo}>Notificaciones por Telegram</Text>
+        {usuario?.telegram_connected ? (
+          <Text style={styles.exito}>✓ Telegram conectado{usuario.telegram_username ? ` (@${usuario.telegram_username})` : ''}</Text>
+        ) : (
+          <>
+            <Text style={styles.telegramDato}>Conecta tu Telegram para recibir el aviso apenas se valide tu depósito en Perú.</Text>
+            <Pressable style={styles.buttonOutline} onPress={conectarTelegram} disabled={conectandoTelegram}>
+              {conectandoTelegram ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.buttonOutlineText}>Conectar Telegram</Text>}
+            </Pressable>
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -132,4 +173,7 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.text, fontWeight: '700', fontSize: 16 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
+  telegramCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 10, marginTop: 8 },
+  telegramTitulo: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  telegramDato: { color: colors.textMuted, fontSize: 13 },
 });

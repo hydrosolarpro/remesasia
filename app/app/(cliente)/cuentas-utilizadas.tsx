@@ -1,13 +1,24 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, Platform, Linking } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { CuentaUtilizadaCliente } from '../../types/database';
+import { construirEnlaceWhatsApp } from '../../lib/whatsapp';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
-type Form = Omit<CuentaUtilizadaCliente, 'id' | 'cliente_id' | 'created_at'>;
+type Form = Omit<
+  CuentaUtilizadaCliente,
+  'id' | 'cliente_id' | 'created_at' | 'telegram_chat_id' | 'telegram_username' | 'telegram_connected' | 'telegram_connected_at'
+>;
 const FORM_VACIO: Form = { nombre_beneficiario: '', telefono: '', ci: '', entidad_bancaria: '', numero_cuenta: '' };
+
+const BOT_TELEGRAM = 'Remesaspv_bot';
+
+const mensajeInvitacionTelegram = (nombreBeneficiario: string, enlace: string) =>
+  `Hola ${nombreBeneficiario}. Te envío este enlace seguro para que puedas recibir las notificaciones de las transferencia que te envié, ` +
+  `por favor vincula tu Telegram mediante este enlace: ${enlace} Pulsa Start para hacer efectiva la vinculación de notificaciones.`;
 
 // CRUD de "Datos de cuentas utilizados": beneficiarios guardados por el
 // cliente para no volver a llenarlos cada vez (se usan como autocompletado
@@ -20,6 +31,9 @@ export default function CuentasUtilizadas() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generandoTelegramId, setGenerandoTelegramId] = useState<string | null>(null);
+  const [enlacesTelegram, setEnlacesTelegram] = useState<Record<string, string>>({});
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -108,6 +122,36 @@ export default function CuentasUtilizadas() {
     ]);
   };
 
+  const generarEnlaceTelegram = async (c: CuentaUtilizadaCliente) => {
+    setGenerandoTelegramId(c.id);
+    const { data: token, error: tokenError } = await supabase.rpc('generar_token_telegram_beneficiario', { p_beneficiario_id: c.id });
+    setGenerandoTelegramId(null);
+    if (tokenError || !token) {
+      const msg = tokenError?.message ?? 'No se pudo generar el enlace.';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('No se pudo generar el enlace', msg);
+      return;
+    }
+    setEnlacesTelegram((prev) => ({ ...prev, [c.id]: `https://t.me/${BOT_TELEGRAM}?start=${token}` }));
+  };
+
+  const copiarEnlace = async (id: string, enlace: string) => {
+    await Clipboard.setStringAsync(enlace);
+    setCopiadoId(id);
+    setTimeout(() => setCopiadoId((actual) => (actual === id ? null : actual)), 2500);
+  };
+
+  const enviarEnlacePorWhatsApp = (c: CuentaUtilizadaCliente, enlace: string) => {
+    const wa = construirEnlaceWhatsApp(c.telefono, mensajeInvitacionTelegram(c.nombre_beneficiario, enlace));
+    if (!wa) {
+      const msg = 'Agrega el teléfono del beneficiario (con código de país) para poder enviarle el enlace por WhatsApp.';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Falta el teléfono', msg);
+      return;
+    }
+    Linking.openURL(wa);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.titulo}>Cuentas de beneficiarios guardadas</Text>
@@ -128,6 +172,28 @@ export default function CuentasUtilizadas() {
           </View>
           <Text style={styles.dato}>C.I. {c.ci} · {c.telefono ?? 'sin teléfono'}</Text>
           <Text style={styles.dato}>{c.entidad_bancaria} · {c.numero_cuenta}</Text>
+
+          <View style={styles.telegramBloque}>
+            <Text style={styles.telegramTitulo}>Configuración de notificaciones del beneficiario</Text>
+            {c.telegram_connected ? (
+              <Text style={styles.telegramConectado}>✓ Telegram vinculado{c.telegram_username ? ` (@${c.telegram_username})` : ''}</Text>
+            ) : enlacesTelegram[c.id] ? (
+              <View style={styles.telegramAcciones}>
+                <Pressable style={styles.telegramBoton} onPress={() => copiarEnlace(c.id, enlacesTelegram[c.id])}>
+                  <Text style={styles.telegramBotonTexto}>{copiadoId === c.id ? '✓ Copiado' : 'Copiar enlace'}</Text>
+                </Pressable>
+                <Pressable style={styles.telegramBotonWhatsapp} onPress={() => enviarEnlacePorWhatsApp(c, enlacesTelegram[c.id])}>
+                  <Text style={styles.telegramBotonWhatsappTexto}>Enviar por WhatsApp</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.telegramBoton} onPress={() => generarEnlaceTelegram(c)} disabled={generandoTelegramId === c.id}>
+                <Text style={styles.telegramBotonTexto}>
+                  {generandoTelegramId === c.id ? 'Generando…' : 'Vincular Telegram del beneficiario'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       ))}
 
@@ -202,4 +268,12 @@ const styles = StyleSheet.create({
   botonGuardarTexto: { color: colors.text, fontWeight: '700' },
   agregarBtn: { borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', borderRadius: radius.md, padding: 16, alignItems: 'center' },
   agregarBtnTexto: { color: colors.accent, fontWeight: '700' },
+  telegramBloque: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 10, gap: 8 },
+  telegramTitulo: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  telegramConectado: { color: colors.success, fontSize: 12, fontWeight: '700' },
+  telegramAcciones: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  telegramBoton: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
+  telegramBotonTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  telegramBotonWhatsapp: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
+  telegramBotonWhatsappTexto: { color: colors.text, fontSize: 12, fontWeight: '700' },
 });

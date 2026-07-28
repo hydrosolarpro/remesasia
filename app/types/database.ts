@@ -28,6 +28,10 @@ export interface Usuario {
   plan: PlanOperador;
   demo_inicio: string | null;
   created_at: string;
+  /** Notificaciones automáticas por Telegram (rol 'cliente'): ver perfil del cliente. */
+  telegram_chat_id: string | null;
+  telegram_username: string | null;
+  telegram_connected: boolean;
 }
 
 export interface Tasa {
@@ -141,6 +145,11 @@ export interface CuentaUtilizadaCliente {
   entidad_bancaria: string;
   numero_cuenta: string;
   created_at: string;
+  /** Notificaciones automáticas por Telegram al beneficiario (sin cuenta en la app). */
+  telegram_chat_id: string | null;
+  telegram_username: string | null;
+  telegram_connected: boolean;
+  telegram_connected_at: string | null;
 }
 
 export interface TasaBcv {
