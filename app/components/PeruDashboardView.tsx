@@ -1,10 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { router } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../lib/supabase';
-import { construirEnlaceEntrada } from '../lib/invitaciones';
-import { PerfilNegocio, Tasa, OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../types/database';
+import { PerfilNegocio, Tasa } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe } from '../lib/fechaLocal';
@@ -45,22 +43,10 @@ export function PeruDashboardView({
   const [esloganBorrador, setEsloganBorrador] = useState('');
   const [editandoRentabilidad, setEditandoRentabilidad] = useState(false);
   const [rentabilidadBorrador, setRentabilidadBorrador] = useState('');
-  const [veList, setVeList] = useState<OperadorVenezuelaPerfil[]>([]);
-  const [nuevoVe, setNuevoVe] = useState({ nombre: '', telefono: '', email: '' });
-  const [guardandoVe, setGuardandoVe] = useState(false);
-  const [enlaceVeCopiado, setEnlaceVeCopiado] = useState(false);
-  const [errorVe, setErrorVe] = useState<string | null>(null);
-  const [peList, setPeList] = useState<OperadorPeruMiembro[]>([]);
-  const [nuevoPe, setNuevoPe] = useState({ nombre: '', telefono: '', email: '' });
-  const [guardandoPe, setGuardandoPe] = useState(false);
-  const [enlacePeCopiado, setEnlacePeCopiado] = useState(false);
-  const [errorPe, setErrorPe] = useState<string | null>(null);
-  const [veAbierto, setVeAbierto] = useState(false);
-  const [peAbierto, setPeAbierto] = useState(false);
   const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas'>('en_curso');
 
   const cargar = useCallback(async () => {
-    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: veListData }, { data: peListData }] = await Promise.all([
+    const [{ data: perfilData }, { data: tasaData }, { data: opsData }] = await Promise.all([
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
       supabase
         .from('tasas')
@@ -78,14 +64,10 @@ export function PeruDashboardView({
         .eq('negocio_operador_peru_id', operadorPeruId)
         .order('created_at', { ascending: false })
         .limit(200),
-      supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId).order('created_at', { ascending: true }),
-      supabase.from('operador_peru_miembro').select('*').eq('operador_peru_id', operadorPeruId).order('created_at', { ascending: true }),
     ]);
 
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
-    setVeList((veListData as OperadorVenezuelaPerfil[] | null) ?? []);
-    setPeList((peListData as OperadorPeruMiembro[] | null) ?? []);
     if (opsData) {
       setOperaciones(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -283,88 +265,6 @@ export function PeruDashboardView({
     cargar();
   };
 
-  // Agrega un nuevo miembro de Operador Venezuela y copia el enlace de
-  // entrada — al abrirlo e iniciar sesión con Google usando ese mismo
-  // correo, su cuenta se vincula sola como Operador Venezuela de este
-  // negocio (ver trigger handle_new_user). Ahora se permiten varios.
-  const agregarVeYCopiarEnlace = async () => {
-    if (!nuevoVe.nombre.trim() || !nuevoVe.email.trim()) return;
-    setGuardandoVe(true);
-    setErrorVe(null);
-    setEnlaceVeCopiado(false);
-    try {
-      const { error } = await supabase.from('operador_venezuela_perfil').insert({
-        operador_peru_id: operadorPeruId,
-        nombre: nuevoVe.nombre.trim(),
-        telefono: nuevoVe.telefono.trim() || null,
-        email: nuevoVe.email.trim().toLowerCase(),
-      });
-      if (error) throw error;
-      await Clipboard.setStringAsync(construirEnlaceEntrada());
-      setEnlaceVeCopiado(true);
-      setTimeout(() => setEnlaceVeCopiado(false), 2000);
-      setNuevoVe({ nombre: '', telefono: '', email: '' });
-      cargar();
-    } catch (err) {
-      setErrorVe(err instanceof Error ? err.message : 'No se pudo agregar.');
-    } finally {
-      setGuardandoVe(false);
-    }
-  };
-
-  const editarVe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
-    setVeList((prev) => prev.map((v) => (v.id === id ? { ...v, [campo]: valor } : v)));
-    await supabase
-      .from('operador_venezuela_perfil')
-      .update({ [campo]: campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null })
-      .eq('id', id);
-  };
-
-  const eliminarVe = async (id: string) => {
-    await supabase.from('operador_venezuela_perfil').delete().eq('id', id);
-    cargar();
-  };
-
-  // Igual que arriba, pero para miembros de equipo del Operador Perú
-  // (validan ambos checks y publican tasa, no gestionan el negocio).
-  const agregarPeYCopiarEnlace = async () => {
-    if (!nuevoPe.nombre.trim() || !nuevoPe.email.trim()) return;
-    setGuardandoPe(true);
-    setErrorPe(null);
-    setEnlacePeCopiado(false);
-    try {
-      const { error } = await supabase.from('operador_peru_miembro').insert({
-        operador_peru_id: operadorPeruId,
-        nombre: nuevoPe.nombre.trim(),
-        telefono: nuevoPe.telefono.trim() || null,
-        email: nuevoPe.email.trim().toLowerCase(),
-      });
-      if (error) throw error;
-      await Clipboard.setStringAsync(construirEnlaceEntrada());
-      setEnlacePeCopiado(true);
-      setTimeout(() => setEnlacePeCopiado(false), 2000);
-      setNuevoPe({ nombre: '', telefono: '', email: '' });
-      cargar();
-    } catch (err) {
-      setErrorPe(err instanceof Error ? err.message : 'No se pudo agregar.');
-    } finally {
-      setGuardandoPe(false);
-    }
-  };
-
-  const editarPe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
-    setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, [campo]: valor } : p)));
-    await supabase
-      .from('operador_peru_miembro')
-      .update({ [campo]: campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null })
-      .eq('id', id);
-  };
-
-  const eliminarPe = async (id: string) => {
-    await supabase.from('operador_peru_miembro').delete().eq('id', id);
-    cargar();
-  };
-
   const guardarCompartirRentabilidad = async (campo: 'compartir_rentabilidad_ve' | 'compartir_rentabilidad_pe_miembros', valor: boolean) => {
     await supabase.from('perfil_negocio').update({ [campo]: valor }).eq('operador_peru_id', operadorPeruId);
     cargar();
@@ -437,69 +337,6 @@ export function PeruDashboardView({
       </View>
 
       {puedeGestionar && (
-        <View style={[styles.card, cardShadow]}>
-          <Pressable style={styles.equipoHeader} onPress={() => setVeAbierto((v) => !v)}>
-            <Text style={styles.miniLabel}>Operadores Venezuela ({veList.length})</Text>
-            <Text style={styles.equipoChevron}>{veAbierto ? '▲' : '▼'}</Text>
-          </Pressable>
-          {veAbierto && (
-            <>
-              {veList.map((v) => (
-                <MiembroEditable
-                  key={v.id}
-                  nombre={v.nombre}
-                  telefono={v.telefono ?? ''}
-                  email={v.email ?? ''}
-                  onCambiarNombre={(t) => editarVe(v.id, 'nombre', t)}
-                  onCambiarTelefono={(t) => editarVe(v.id, 'telefono', t)}
-                  onCambiarEmail={(t) => editarVe(v.id, 'email', t)}
-                  onEliminar={() => eliminarVe(v.id)}
-                />
-              ))}
-
-              <Text style={[styles.miniLabel, styles.nuevoMiembroLabel]}>Agregar nuevo</Text>
-              <TextInput
-                style={styles.veInput}
-                value={nuevoVe.nombre}
-                onChangeText={(t) => setNuevoVe((v) => ({ ...v, nombre: t }))}
-                placeholder="Nombre completo"
-                placeholderTextColor={colors.textMuted}
-              />
-              <TextInput
-                style={styles.veInput}
-                value={nuevoVe.telefono}
-                onChangeText={(t) => setNuevoVe((v) => ({ ...v, telefono: t }))}
-                placeholder="Teléfono"
-                keyboardType="phone-pad"
-                placeholderTextColor={colors.textMuted}
-              />
-              <TextInput
-                style={styles.veInput}
-                value={nuevoVe.email}
-                onChangeText={(t) => setNuevoVe((v) => ({ ...v, email: t }))}
-                placeholder="Correo electrónico"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor={colors.textMuted}
-              />
-              {errorVe && <Text style={styles.errorTexto}>{errorVe}</Text>}
-              <Pressable
-                style={styles.veBtn}
-                onPress={agregarVeYCopiarEnlace}
-                disabled={guardandoVe || !nuevoVe.nombre.trim() || !nuevoVe.email.trim()}
-              >
-                {guardandoVe ? (
-                  <ActivityIndicator color={colors.text} />
-                ) : (
-                  <Text style={styles.veBtnTexto}>{enlaceVeCopiado ? '✓ Enlace copiado' : 'Agregar y copiar enlace de invitación'}</Text>
-                )}
-              </Pressable>
-            </>
-          )}
-        </View>
-      )}
-
-      {puedeGestionar && (
         <View style={[styles.card, cardShadow, styles.horarioCard]}>
           <Text style={styles.switchLabelCompartir}>Compartir rentabilidad con el Operador Venezuela</Text>
           <Switch
@@ -508,73 +345,6 @@ export function PeruDashboardView({
             trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor={colors.text}
           />
-        </View>
-      )}
-
-      {puedeGestionar && (
-        <View style={[styles.card, cardShadow]}>
-          <Pressable style={styles.equipoHeader} onPress={() => setPeAbierto((v) => !v)}>
-            <Text style={styles.miniLabel}>Operadores Perú — equipo ({peList.length})</Text>
-            <Text style={styles.equipoChevron}>{peAbierto ? '▲' : '▼'}</Text>
-          </Pressable>
-          {peAbierto && (
-            <>
-              <Text style={styles.cardTextoChico}>
-                Miembros que acompañan a la cuenta principal: pueden validar depósitos y publicar la tasa, sin gestionar el equipo ni la
-                suscripción.
-              </Text>
-              {peList.map((p) => (
-                <MiembroEditable
-                  key={p.id}
-                  nombre={p.nombre}
-                  telefono={p.telefono ?? ''}
-                  email={p.email}
-                  onCambiarNombre={(t) => editarPe(p.id, 'nombre', t)}
-                  onCambiarTelefono={(t) => editarPe(p.id, 'telefono', t)}
-                  onCambiarEmail={(t) => editarPe(p.id, 'email', t)}
-                  onEliminar={() => eliminarPe(p.id)}
-                />
-              ))}
-
-              <Text style={[styles.miniLabel, styles.nuevoMiembroLabel]}>Agregar nuevo</Text>
-              <TextInput
-                style={styles.veInput}
-                value={nuevoPe.nombre}
-                onChangeText={(t) => setNuevoPe((v) => ({ ...v, nombre: t }))}
-                placeholder="Nombre completo"
-                placeholderTextColor={colors.textMuted}
-              />
-              <TextInput
-                style={styles.veInput}
-                value={nuevoPe.telefono}
-                onChangeText={(t) => setNuevoPe((v) => ({ ...v, telefono: t }))}
-                placeholder="Teléfono"
-                keyboardType="phone-pad"
-                placeholderTextColor={colors.textMuted}
-              />
-              <TextInput
-                style={styles.veInput}
-                value={nuevoPe.email}
-                onChangeText={(t) => setNuevoPe((v) => ({ ...v, email: t }))}
-                placeholder="Correo electrónico"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor={colors.textMuted}
-              />
-              {errorPe && <Text style={styles.errorTexto}>{errorPe}</Text>}
-              <Pressable
-                style={styles.veBtn}
-                onPress={agregarPeYCopiarEnlace}
-                disabled={guardandoPe || !nuevoPe.nombre.trim() || !nuevoPe.email.trim()}
-              >
-                {guardandoPe ? (
-                  <ActivityIndicator color={colors.text} />
-                ) : (
-                  <Text style={styles.veBtnTexto}>{enlacePeCopiado ? '✓ Enlace copiado' : 'Agregar y copiar enlace de invitación'}</Text>
-                )}
-              </Pressable>
-            </>
-          )}
         </View>
       )}
 
@@ -728,65 +498,6 @@ function ResumenItem({ label, valor, destacado }: { label: string; valor: string
   );
 }
 
-// Fila editable para un miembro de equipo (VE o Perú): nombre/teléfono/
-// correo editables in-line (se guardan al perder el foco) + eliminar.
-function MiembroEditable({
-  nombre,
-  telefono,
-  email,
-  onCambiarNombre,
-  onCambiarTelefono,
-  onCambiarEmail,
-  onEliminar,
-}: {
-  nombre: string;
-  telefono: string;
-  email: string;
-  onCambiarNombre: (v: string) => void;
-  onCambiarTelefono: (v: string) => void;
-  onCambiarEmail: (v: string) => void;
-  onEliminar: () => void;
-}) {
-  const [nombreLocal, setNombreLocal] = useState(nombre);
-  const [telefonoLocal, setTelefonoLocal] = useState(telefono);
-  const [emailLocal, setEmailLocal] = useState(email);
-
-  return (
-    <View style={styles.miembroBloque}>
-      <View style={styles.miembroHeaderRow}>
-        <TextInput
-          style={[styles.veInput, styles.miembroInputNombre]}
-          value={nombreLocal}
-          onChangeText={setNombreLocal}
-          onBlur={() => nombreLocal.trim() && onCambiarNombre(nombreLocal)}
-          placeholderTextColor={colors.textMuted}
-        />
-        <Pressable onPress={onEliminar} style={styles.miembroEliminarBtn}>
-          <Text style={styles.miembroEliminarTexto}>✕</Text>
-        </Pressable>
-      </View>
-      <TextInput
-        style={styles.veInput}
-        value={telefonoLocal}
-        onChangeText={setTelefonoLocal}
-        onBlur={() => onCambiarTelefono(telefonoLocal)}
-        keyboardType="phone-pad"
-        placeholder="Teléfono"
-        placeholderTextColor={colors.textMuted}
-      />
-      <TextInput
-        style={styles.veInput}
-        value={emailLocal}
-        onChangeText={setEmailLocal}
-        onBlur={() => emailLocal.trim() && onCambiarEmail(emailLocal)}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        placeholderTextColor={colors.textMuted}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
@@ -800,39 +511,9 @@ const styles = StyleSheet.create({
   miniCard: { flex: 1, gap: 4 },
   miniLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   miniValor: { color: colors.text, fontSize: 20, fontWeight: '800' },
-  equipoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  equipoChevron: { color: colors.textMuted, fontSize: 11 },
   horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   horarioValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
   switchLabelCompartir: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 8 },
-  veInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: 12,
-    color: colors.text,
-    fontSize: 14,
-    marginTop: 8,
-    backgroundColor: colors.cardAlt,
-  },
-  veBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 10 },
-  veBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
-  cardTextoChico: { color: colors.textMuted, fontSize: 12, lineHeight: 16, marginTop: 2 },
-  nuevoMiembroLabel: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  errorTexto: { color: colors.danger, fontSize: 12, marginTop: 6 },
-  miembroBloque: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
-  miembroHeaderRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  miembroInputNombre: { flex: 1, marginTop: 0 },
-  miembroEliminarBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miembroEliminarTexto: { color: colors.danger, fontWeight: '800', fontSize: 14 },
   editRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   editInput: { color: colors.text, fontSize: 20, fontWeight: '800', borderBottomWidth: 1, borderBottomColor: colors.primary, minWidth: 50 },
   eslogan: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },

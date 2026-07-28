@@ -112,6 +112,32 @@ export default function Perfil() {
     setTimeout(() => setEnviados((prev) => ({ ...prev, [id]: false })), 3000);
   };
 
+  const editarVe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
+    setVeList((prev) => prev.map((v) => (v.id === id ? { ...v, [campo]: valor } : v)));
+    await supabase
+      .from('operador_venezuela_perfil')
+      .update({ [campo]: campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null })
+      .eq('id', id);
+  };
+
+  const eliminarVe = async (id: string) => {
+    await supabase.from('operador_venezuela_perfil').delete().eq('id', id);
+    cargarEquipos();
+  };
+
+  const editarPe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
+    setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, [campo]: valor } : p)));
+    await supabase
+      .from('operador_peru_miembro')
+      .update({ [campo]: campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null })
+      .eq('id', id);
+  };
+
+  const eliminarPe = async (id: string) => {
+    await supabase.from('operador_peru_miembro').delete().eq('id', id);
+    cargarEquipos();
+  };
+
   const agregarVe = async () => {
     if (!negocioId) return;
     setErrorVe(null);
@@ -199,9 +225,14 @@ export default function Perfil() {
             <OperadorFila
               key={v.id}
               nombre={v.nombre}
-              email={v.email}
-              telefono={v.telefono}
+              email={v.email ?? ''}
+              telefono={v.telefono ?? ''}
+              editable={esDueno}
               enviado={!!enviados[v.id]}
+              onCambiarNombre={(t) => editarVe(v.id, 'nombre', t)}
+              onCambiarTelefono={(t) => editarVe(v.id, 'telefono', t)}
+              onCambiarEmail={(t) => editarVe(v.id, 'email', t)}
+              onEliminar={() => eliminarVe(v.id)}
               onEnviar={() => enviarBienvenida(v.id, v.nombre, v.telefono)}
             />
           ))}
@@ -234,8 +265,13 @@ export default function Perfil() {
             key={p.id}
             nombre={p.nombre}
             email={p.email}
-            telefono={p.telefono}
+            telefono={p.telefono ?? ''}
+            editable={esDueno}
             enviado={!!enviados[p.id]}
+            onCambiarNombre={(t) => editarPe(p.id, 'nombre', t)}
+            onCambiarTelefono={(t) => editarPe(p.id, 'telefono', t)}
+            onCambiarEmail={(t) => editarPe(p.id, 'email', t)}
+            onEliminar={() => eliminarPe(p.id)}
             onEnviar={() => enviarBienvenida(p.id, p.nombre, p.telefono)}
           />
         ))}
@@ -268,25 +304,86 @@ export default function Perfil() {
   );
 }
 
+// Fila de un miembro del equipo (VE o Perú): si `editable` es true (dueño
+// del negocio) los campos se editan in-line y se guardan al perder el
+// foco, más un botón para eliminar. Si no, se muestran de solo lectura
+// (así lo ve un miembro del equipo, que solo puede consultar la lista).
+// El botón de WhatsApp está disponible para cualquiera que vea la fila.
 function OperadorFila({
   nombre,
   email,
   telefono,
+  editable,
   enviado,
+  onCambiarNombre,
+  onCambiarTelefono,
+  onCambiarEmail,
+  onEliminar,
   onEnviar,
 }: {
   nombre: string;
-  email: string | null;
-  telefono: string | null;
+  email: string;
+  telefono: string;
+  editable: boolean;
   enviado: boolean;
+  onCambiarNombre: (v: string) => void;
+  onCambiarTelefono: (v: string) => void;
+  onCambiarEmail: (v: string) => void;
+  onEliminar: () => void;
   onEnviar: () => void;
 }) {
+  const [nombreLocal, setNombreLocal] = useState(nombre);
+  const [telefonoLocal, setTelefonoLocal] = useState(telefono);
+  const [emailLocal, setEmailLocal] = useState(email);
+
+  if (!editable) {
+    return (
+      <View style={styles.miembroFila}>
+        <Text style={styles.miembroNombre}>{nombre}</Text>
+        {!!email && <Text style={styles.miembroDato}>{email}</Text>}
+        {!!telefono && <Text style={styles.miembroDato}>{telefono}</Text>}
+        {!!telefono && (
+          <Pressable style={styles.enviarMsjBtn} onPress={onEnviar}>
+            <Text style={styles.enviarMsjBtnTexto}>{enviado ? '✓ Abierto en WhatsApp' : 'Enviar mensaje'}</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.miembroFila}>
-      <Text style={styles.miembroNombre}>{nombre}</Text>
-      {email && <Text style={styles.miembroDato}>{email}</Text>}
-      {telefono && <Text style={styles.miembroDato}>{telefono}</Text>}
-      {telefono && (
+      <View style={styles.miembroHeaderRow}>
+        <TextInput
+          style={[styles.input, styles.miembroInputNombre]}
+          value={nombreLocal}
+          onChangeText={setNombreLocal}
+          onBlur={() => nombreLocal.trim() && onCambiarNombre(nombreLocal)}
+          placeholderTextColor={colors.textMuted}
+        />
+        <Pressable onPress={onEliminar} style={styles.miembroEliminarBtn}>
+          <Text style={styles.miembroEliminarTexto}>✕</Text>
+        </Pressable>
+      </View>
+      <TextInput
+        style={styles.input}
+        value={telefonoLocal}
+        onChangeText={setTelefonoLocal}
+        onBlur={() => onCambiarTelefono(telefonoLocal)}
+        keyboardType="phone-pad"
+        placeholder="Teléfono"
+        placeholderTextColor={colors.textMuted}
+      />
+      <TextInput
+        style={styles.input}
+        value={emailLocal}
+        onChangeText={setEmailLocal}
+        onBlur={() => emailLocal.trim() && onCambiarEmail(emailLocal)}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        placeholderTextColor={colors.textMuted}
+      />
+      {!!telefonoLocal && (
         <Pressable style={styles.enviarMsjBtn} onPress={onEnviar}>
           <Text style={styles.enviarMsjBtnTexto}>{enviado ? '✓ Abierto en WhatsApp' : 'Enviar mensaje'}</Text>
         </Pressable>
@@ -383,6 +480,10 @@ const styles = StyleSheet.create({
   copiarBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
   copiarBtnTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   miembroFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4, gap: 2 },
+  miembroHeaderRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  miembroInputNombre: { flex: 1, minWidth: 0, marginTop: 0 },
+  miembroEliminarBtn: { padding: 8 },
+  miembroEliminarTexto: { color: colors.danger, fontWeight: '800', fontSize: 14 },
   miembroNombre: { color: colors.text, fontSize: 14, fontWeight: '700' },
   miembroDato: { color: colors.textMuted, fontSize: 12 },
   enviarMsjBtn: {
