@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { LIMITE_CLIENTES } from '../../lib/plan';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -146,6 +147,13 @@ export default function ClientesRegistrados() {
             </View>
           )
         )}
+      </View>
+
+      <View style={[styles.card, cardShadow]}>
+        <Text style={styles.cardTitulo}>Cupo de clientes</Text>
+        <Text style={styles.cardTexto}>
+          {clientes.length} de {LIMITE_CLIENTES} clientes usados — te quedan {Math.max(0, LIMITE_CLIENTES - clientes.length)} cupos.
+        </Text>
       </View>
 
       <View style={styles.header}>

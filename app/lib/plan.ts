@@ -7,6 +7,13 @@ export const PRECIO_STARTER_MENSUAL = 100;
 
 export const DIAS_DEMO = 15;
 
+// Límites por negocio (mismos en DEMO y STARTER, para que el operador no
+// se encuentre con una sorpresa al pasar de uno a otro): clientes propios,
+// miembros de equipo en Perú (aparte del dueño) y operadores en Venezuela.
+export const LIMITE_CLIENTES = 100;
+export const LIMITE_EQUIPO_PERU = 1;
+export const LIMITE_EQUIPO_VENEZUELA = 2;
+
 const MS_POR_DIA = 86_400_000;
 
 export function diasRestantesDemo(demoInicio: string | null | undefined): number {

@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
 import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion, construirEnlaceEntrada } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
-import { diasRestantesDemo, fechaFinDemo, PRECIO_STARTER_MENSUAL } from '../../lib/plan';
+import { diasRestantesDemo, fechaFinDemo, PRECIO_STARTER_MENSUAL, LIMITE_EQUIPO_VENEZUELA, LIMITE_EQUIPO_PERU } from '../../lib/plan';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -147,6 +147,10 @@ export default function Perfil() {
   const agregarVe = async () => {
     if (!negocioId) return;
     setErrorVe(null);
+    if (veList.length >= LIMITE_EQUIPO_VENEZUELA) {
+      setErrorVe(`Alcanzaste el límite de ${LIMITE_EQUIPO_VENEZUELA} operadores en Venezuela de tu plan.`);
+      return;
+    }
     if (!veNombre.trim() || !veEmail.trim()) {
       setErrorVe('Completa el nombre y el correo.');
       return;
@@ -173,6 +177,10 @@ export default function Perfil() {
   const agregarPe = async () => {
     if (!negocioId) return;
     setErrorPe(null);
+    if (peList.length >= LIMITE_EQUIPO_PERU) {
+      setErrorPe(`Alcanzaste el límite de ${LIMITE_EQUIPO_PERU} miembro(s) de equipo en Perú de tu plan.`);
+      return;
+    }
     if (!peNombre.trim() || !peEmail.trim()) {
       setErrorPe('Completa el nombre y el correo.');
       return;
@@ -248,7 +256,9 @@ export default function Perfil() {
 
       {!esMismoOperadorVe && (
         <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>OPERADORES EN VENEZUELA - EQUIPO ({veList.length})</Text>
+          <Text style={styles.cardTitulo}>
+            OPERADORES EN VENEZUELA - EQUIPO ({veList.length}/{LIMITE_EQUIPO_VENEZUELA})
+          </Text>
           {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
           {veList.map((v) => (
             <OperadorFila
@@ -266,28 +276,33 @@ export default function Perfil() {
             />
           ))}
 
-          {esDueno && (
-            <NuevoOperadorForm
-              abierto={agregandoVe}
-              onAbrir={() => setAgregandoVe(true)}
-              onCancelar={() => setAgregandoVe(false)}
-              nombre={veNombre}
-              onNombre={setVeNombre}
-              telefono={veTelefono}
-              onTelefono={setVeTelefono}
-              telefonoPlaceholder="+58 999 999 999"
-              email={veEmail}
-              onEmail={setVeEmail}
-              guardando={guardandoVe}
-              error={errorVe}
-              onGuardar={agregarVe}
-            />
-          )}
+          {esDueno &&
+            (veList.length >= LIMITE_EQUIPO_VENEZUELA ? (
+              <Text style={styles.limiteTexto}>Alcanzaste el límite de {LIMITE_EQUIPO_VENEZUELA} operadores en Venezuela de tu plan.</Text>
+            ) : (
+              <NuevoOperadorForm
+                abierto={agregandoVe}
+                onAbrir={() => setAgregandoVe(true)}
+                onCancelar={() => setAgregandoVe(false)}
+                nombre={veNombre}
+                onNombre={setVeNombre}
+                telefono={veTelefono}
+                onTelefono={setVeTelefono}
+                telefonoPlaceholder="+58 999 999 999"
+                email={veEmail}
+                onEmail={setVeEmail}
+                guardando={guardandoVe}
+                error={errorVe}
+                onGuardar={agregarVe}
+              />
+            ))}
         </View>
       )}
 
       <View style={[styles.card, cardShadow]}>
-        <Text style={styles.cardTitulo}>OPERADORES EN PERÚ - EQUIPO ({peList.length})</Text>
+        <Text style={styles.cardTitulo}>
+          OPERADORES EN PERÚ - EQUIPO ({peList.length}/{LIMITE_EQUIPO_PERU})
+        </Text>
         {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
         {peList.map((p) => (
           <OperadorFila
@@ -305,23 +320,26 @@ export default function Perfil() {
           />
         ))}
 
-        {esDueno && (
-          <NuevoOperadorForm
-            abierto={agregandoPe}
-            onAbrir={() => setAgregandoPe(true)}
-            onCancelar={() => setAgregandoPe(false)}
-            nombre={peNombre}
-            onNombre={setPeNombre}
-            telefono={peTelefono}
-            onTelefono={setPeTelefono}
-            telefonoPlaceholder="+51 999 999 999"
-            email={peEmail}
-            onEmail={setPeEmail}
-            guardando={guardandoPe}
-            error={errorPe}
-            onGuardar={agregarPe}
-          />
-        )}
+        {esDueno &&
+          (peList.length >= LIMITE_EQUIPO_PERU ? (
+            <Text style={styles.limiteTexto}>Alcanzaste el límite de {LIMITE_EQUIPO_PERU} miembro(s) de equipo en Perú de tu plan.</Text>
+          ) : (
+            <NuevoOperadorForm
+              abierto={agregandoPe}
+              onAbrir={() => setAgregandoPe(true)}
+              onCancelar={() => setAgregandoPe(false)}
+              nombre={peNombre}
+              onNombre={setPeNombre}
+              telefono={peTelefono}
+              onTelefono={setPeTelefono}
+              telefonoPlaceholder="+51 999 999 999"
+              email={peEmail}
+              onEmail={setPeEmail}
+              guardando={guardandoPe}
+              error={errorPe}
+              onGuardar={agregarPe}
+            />
+          ))}
       </View>
 
       {esDueno && (
@@ -526,6 +544,7 @@ const styles = StyleSheet.create({
   enviarMsjBtnTexto: { color: '#fff', fontSize: 12, fontWeight: '700' },
   agregarBtn: { marginTop: 10, alignSelf: 'flex-start' },
   agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  limiteTexto: { color: colors.warning, fontSize: 12, fontWeight: '600', marginTop: 10 },
   nuevoBloque: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
   label: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 8 },
   input: {
