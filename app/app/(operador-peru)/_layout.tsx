@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { View, ColorValue, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
 import { colors } from '../../constants/theme';
 import { GroupHeader } from '../../components/GroupHeader';
 import { SuscripcionGate } from '../../components/SuscripcionGate';
@@ -30,10 +32,26 @@ export default function OperadorPeruLayout() {
   // aire de sobra. El inset se suma aparte para el indicador de inicio
   // (iPhone) o la barra de gestos (Android).
   const insets = useSafeAreaInsets();
-  const { signOut } = useAuth();
+  const { usuario, signOut } = useAuth();
+
+  const [operadorPeruId, setOperadorPeruId] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!usuario) return;
+    if (usuario.rol === 'operador_peru') {
+      setOperadorPeruId(usuario.id);
+      return;
+    }
+    supabase
+      .from('operador_peru_miembro')
+      .select('operador_peru_id')
+      .eq('usuario_id', usuario.id)
+      .maybeSingle()
+      .then(({ data }) => setOperadorPeruId(data?.operador_peru_id ?? null));
+  }, [usuario]);
+
   return (
     <View style={styles.container}>
-      <GroupHeader />
+      <GroupHeader operadorPeruId={operadorPeruId} />
       <SuscripcionGate>
         <Tabs
           screenOptions={{

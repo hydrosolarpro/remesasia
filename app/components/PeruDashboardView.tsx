@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch, Platform, Linking, Image } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { PerfilNegocio, Tasa } from '../types/database';
@@ -7,9 +7,31 @@ import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FEC
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe } from '../lib/fechaLocal';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
+import { formatearBs } from '../lib/formato';
+import { construirEnlaceWhatsApp, construirEnlaceWhatsAppGenerico, mensajeConfirmacionDeposito } from '../lib/whatsapp';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { colors, radius, cardShadow } from '../constants/theme';
+
+// Abre un enlace de wa.me apenas está listo. En web hay un `await` (llamada
+// a Supabase) entre el tap del botón y la apertura del enlace -- eso rompe
+// el "gesto de usuario" y el navegador bloquea el popup si recién ahí se
+// llama a `window.open`. Por eso, en web, se reserva la pestaña en blanco
+// de forma síncrona ANTES del await, y se le asigna la URL cuando ya está
+// lista (o se cierra si al final no hay a quién escribirle).
+function reservarPestanaWhatsApp(): { asignar: (url: string | null) => void } {
+  if (Platform.OS !== 'web') {
+    return { asignar: (url) => { if (url) Linking.openURL(url); } };
+  }
+  const tab = window.open('', '_blank');
+  return {
+    asignar: (url) => {
+      if (!tab) return;
+      if (url) tab.location.href = url;
+      else tab.close();
+    },
+  };
+}
 
 // Panel del Operador Perú: bienvenida + tasa + rentabilidad + eslogan,
 // "Operaciones en curso", "Operaciones realizadas" (con búsqueda) y resumen
@@ -221,28 +243,42 @@ export function PeruDashboardView({
     };
   }, [realizadas, perfil]);
 
-  const validarPeru = async (id: string) => {
-    setValidando({ id, tipo: 'peru' });
-    const { error } = await supabase.rpc('validar_deposito_peru', { p_solicitud_id: id });
+  const validarPeru = async (op: OperationRowData) => {
+    setValidando({ id: op.id, tipo: 'peru' });
+    const pestana = reservarPestanaWhatsApp();
+    const { error } = await supabase.rpc('validar_deposito_peru', { p_solicitud_id: op.id });
     setValidando(null);
-    if (!error) cargar();
+    if (error) {
+      pestana.asignar(null);
+      return;
+    }
+    const mensaje = mensajeConfirmacionDeposito(perfil?.nombre_negocio || 'Remesas Perú-Venezuela', op.beneficiario_banco, formatearBs(op.monto_ves));
+    pestana.asignar(construirEnlaceWhatsAppGenerico(op.cliente_telefono, mensaje));
+    cargar();
   };
 
-  const validarVe = async (id: string, comprobanteUri: string, comprobanteExt: string) => {
-    setValidando({ id, tipo: 've' });
+  const validarVe = async (op: OperationRowData, comprobanteUri: string, comprobanteExt: string) => {
+    setValidando({ id: op.id, tipo: 've' });
+    const pestana = reservarPestanaWhatsApp();
     try {
-      const path = `${id}/comprobante-vz.${comprobanteExt}`;
+      const path = `${op.id}/comprobante-vz.${comprobanteExt}`;
       const blob = await (await fetch(comprobanteUri)).blob();
       const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
 
       const { error } = await supabase.rpc('validar_deposito_venezuela', {
-        p_solicitud_id: id,
+        p_solicitud_id: op.id,
         p_comprobante_url: publicUrl.publicUrl,
       });
       if (error) throw error;
+
+      const mensaje = mensajeConfirmacionDeposito(perfil?.nombre_negocio || 'Remesas Perú-Venezuela', op.beneficiario_banco, formatearBs(op.monto_ves));
+      pestana.asignar(construirEnlaceWhatsApp(op.beneficiario_telefono, mensaje));
       cargar();
+    } catch (err) {
+      pestana.asignar(null);
+      throw err;
     } finally {
       setValidando(null);
     }
@@ -287,6 +323,14 @@ export function PeruDashboardView({
         rol={restringido ? 'operador_venezuela' : 'operador_peru'}
         etiqueta={restringido ? 'Operador Venezuela · Solo lectura' : esMiembroPe ? 'Operador Perú · Miembro de equipo' : undefined}
       />
+      {!!perfil?.nombre_negocio && (
+        <View style={styles.negocioRow}>
+          {!!perfil.logo_url && <Image source={{ uri: perfil.logo_url }} style={styles.negocioLogo} resizeMode="cover" />}
+          <Text style={styles.negocioNombre} numberOfLines={1}>
+            {perfil.nombre_negocio}
+          </Text>
+        </View>
+      )}
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
       <LiveClock />
 
@@ -432,10 +476,11 @@ export function PeruDashboardView({
                 style={styles.gridItem}
                 op={op}
                 numero={numeracion.get(op.id)}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
                 puedeValidarPeru={!restringido}
                 puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
-                onValidarPeru={() => validarPeru(op.id)}
-                onValidarVe={(comprobanteUri, comprobanteExt) => validarVe(op.id, comprobanteUri, comprobanteExt)}
+                onValidarPeru={() => validarPeru(op)}
+                onValidarVe={(comprobanteUri, comprobanteExt) => validarVe(op, comprobanteUri, comprobanteExt)}
                 validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
                 validandoVe={validando?.id === op.id && validando.tipo === 've'}
               />
@@ -465,6 +510,7 @@ export function PeruDashboardView({
                 style={styles.gridItem}
                 op={op}
                 numero={numeracion.get(op.id)}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
                 puedeValidarPeru={false}
                 puedeValidarVe={false}
                 onValidarPeru={() => {}}
@@ -501,6 +547,9 @@ function ResumenItem({ label, valor, destacado }: { label: string; valor: string
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
+  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  negocioLogo: { width: 28, height: 28, borderRadius: 8, backgroundColor: colors.cardAlt },
+  negocioNombre: { color: colors.accent, fontSize: 14, fontWeight: '800', flexShrink: 1 },
   bienvenida: { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: -4 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
   tasaCard: { alignItems: 'flex-start', gap: 4, marginTop: 8 },

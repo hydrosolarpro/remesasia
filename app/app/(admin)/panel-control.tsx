@@ -4,6 +4,8 @@ import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { RoleTag } from '../../components/RoleTag';
 import { RoundCheck } from '../../components/RoundCheck';
+import { diasRestantesDemo, demoVencido } from '../../lib/plan';
+import { PlanOperador } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7);
@@ -22,6 +24,8 @@ interface OperadorFila {
   telefono: string | null;
   created_at: string;
   acceso_concedido: boolean;
+  plan: PlanOperador;
+  demo_inicio: string | null;
   perfil_negocio: { nombre_negocio: string } | null;
   pagos_suscripcion: Pago[];
 }
@@ -39,7 +43,7 @@ export default function PanelControl() {
     const { data, error } = await supabase
       .from('usuarios')
       .select(
-        'id, nombre, email, telefono, created_at, acceso_concedido, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto)'
+        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto)'
       )
       .eq('rol', 'operador_peru')
       .order('created_at', { ascending: false });
@@ -54,13 +58,16 @@ export default function PanelControl() {
     }, [cargar])
   );
 
-  const validarPago = async (pagoId: string) => {
+  const validarPago = async (pagoId: string, operadorId: string) => {
     setProcesando(pagoId);
     const { data: usuarioAuth } = await supabase.auth.getUser();
     await supabase
       .from('pagos_suscripcion')
       .update({ estado: 'verificado', verificado_por: usuarioAuth.user?.id, verificado_at: new Date().toISOString() })
       .eq('id', pagoId);
+    // Al aprobar, el operador pasa automáticamente de DEMO a STARTER (y se
+    // le concede el acceso en el mismo paso, igual que en (admin)/index.tsx).
+    await supabase.from('usuarios').update({ plan: 'starter', acceso_concedido: true }).eq('id', operadorId);
     setProcesando(null);
     cargar();
   };
@@ -117,6 +124,15 @@ export default function PanelControl() {
             {op.perfil_negocio?.nombre_negocio ? <Text style={styles.negocio}>{op.perfil_negocio.nombre_negocio}</Text> : null}
             <Text style={styles.dato}>{op.email ?? 'Sin correo'}</Text>
             <Text style={styles.dato}>{op.telefono ?? 'Sin teléfono'}</Text>
+            <View style={[styles.planPill, op.plan === 'starter' ? styles.planPillStarter : styles.planPillDemo]}>
+              <Text style={styles.planPillTexto}>
+                {op.plan === 'starter'
+                  ? 'STARTER'
+                  : demoVencido(op.demo_inicio)
+                    ? 'DEMO — vencido'
+                    : `DEMO — ${diasRestantesDemo(op.demo_inicio)} días restantes`}
+              </Text>
+            </View>
 
             <View style={styles.checksRow}>
               <View style={styles.checkCol}>
@@ -125,7 +141,7 @@ export default function PanelControl() {
                   checked={pagoPeriodo?.estado === 'verificado'}
                   disabled={!pagoPeriodo || pagoPeriodo.estado !== 'pendiente'}
                   loading={procesando === pagoPeriodo?.id}
-                  onPress={() => pagoPeriodo && validarPago(pagoPeriodo.id)}
+                  onPress={() => pagoPeriodo && validarPago(pagoPeriodo.id, op.id)}
                 />
                 <Text style={styles.checkEstado}>
                   {!pagoPeriodo ? 'Sin comprobante' : pagoPeriodo.estado === 'verificado' ? 'Verificado' : pagoPeriodo.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
@@ -168,6 +184,10 @@ const styles = StyleSheet.create({
   nombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
   negocio: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   dato: { color: colors.textMuted, fontSize: 12 },
+  planPill: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4, marginTop: 6 },
+  planPillDemo: { backgroundColor: `${colors.warning}33` },
+  planPillStarter: { backgroundColor: `${colors.success}33` },
+  planPillTexto: { color: colors.text, fontSize: 11, fontWeight: '800' },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   checkCol: { alignItems: 'center', gap: 6, flex: 1, paddingHorizontal: 4 },
   checkLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },

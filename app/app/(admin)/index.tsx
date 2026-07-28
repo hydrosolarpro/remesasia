@@ -2,11 +2,9 @@ import { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
-import { extensionDeImagen } from '../../lib/imagenUtil';
 import { RoleTag } from '../../components/RoleTag';
 import { ConfiguracionPagosAdmin } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -96,6 +94,12 @@ export default function PanelAdmin() {
       .from('pagos_suscripcion')
       .update({ estado, verificado_por: usuario!.id, verificado_at: new Date().toISOString(), motivo_rechazo: motivo ?? null })
       .eq('id', pago.id);
+    // Al aprobar, el operador pasa automáticamente de DEMO a STARTER (y se
+    // le concede el acceso en el mismo paso, para no dejarlo viendo "en
+    // revisión" después de haber tenido acceso libre durante el DEMO).
+    if (!error && estado === 'verificado') {
+      await supabase.from('usuarios').update({ plan: 'starter', acceso_concedido: true }).eq('id', pago.operador_peru_id);
+    }
     setProcesandoPago(null);
     if (error) {
       Alert.alert('Error', error.message);
@@ -238,34 +242,11 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
   const [cuenta, setCuenta] = useState(config?.cuenta_soles ?? '');
   const [cci, setCci] = useState(config?.cci ?? '');
   const [titular, setTitular] = useState(config?.titular ?? '');
-  const [monto, setMonto] = useState(String(config?.monto_suscripcion ?? 50));
-  const [yapeQrUrl, setYapeQrUrl] = useState(config?.yape_qr_url ?? null);
-  const [plinQrUrl, setPlinQrUrl] = useState(config?.plin_qr_url ?? null);
+  const [yapeTelefono, setYapeTelefono] = useState(config?.yape_telefono ?? '');
+  const [plinTelefono, setPlinTelefono] = useState(config?.plin_telefono ?? '');
+  const [otroMedioNombre, setOtroMedioNombre] = useState(config?.otro_medio_nombre ?? '');
+  const [otroMedioTelefono, setOtroMedioTelefono] = useState(config?.otro_medio_telefono ?? '');
   const [guardando, setGuardando] = useState(false);
-  const [subiendo, setSubiendo] = useState<null | 'yape' | 'plin'>(null);
-
-  const subirQr = async (tipo: 'yape' | 'plin') => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permiso.granted) return;
-    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
-    if (resultado.canceled) return;
-
-    setSubiendo(tipo);
-    const archivo = resultado.assets[0];
-    const ext = extensionDeImagen(archivo);
-    const path = `admin/config/${tipo}.${ext}`;
-    const blob = await (await fetch(archivo.uri)).blob();
-    const { error } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
-    setSubiendo(null);
-    if (error) {
-      Alert.alert('Error al subir', error.message);
-      return;
-    }
-    const { data } = supabase.storage.from('comprobantes').getPublicUrl(path);
-    const url = `${data.publicUrl}?t=${Date.now()}`;
-    if (tipo === 'yape') setYapeQrUrl(url);
-    else setPlinQrUrl(url);
-  };
 
   const guardar = async () => {
     setGuardando(true);
@@ -274,9 +255,10 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
       cuenta_soles: cuenta.trim(),
       cci: cci.trim(),
       titular: titular.trim(),
-      monto_suscripcion: Number(monto.replace(',', '.')) || 50,
-      yape_qr_url: yapeQrUrl,
-      plin_qr_url: plinQrUrl,
+      yape_telefono: yapeTelefono.trim() || null,
+      plin_telefono: plinTelefono.trim() || null,
+      otro_medio_nombre: otroMedioNombre.trim() || null,
+      otro_medio_telefono: otroMedioTelefono.trim() || null,
     };
     const { error } = config
       ? await supabase.from('configuracion_pagos_admin').update(payload).eq('id', config.id)
@@ -299,18 +281,29 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
       <TextInput style={styles.input} value={cci} onChangeText={setCci} placeholderTextColor={colors.textMuted} />
       <Label texto="Titular" />
       <TextInput style={styles.input} value={titular} onChangeText={setTitular} placeholderTextColor={colors.textMuted} />
-      <Label texto="Monto de suscripción (S/ / mes)" />
-      <TextInput style={styles.input} value={monto} onChangeText={setMonto} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted} />
 
-      <View style={styles.qrRow}>
-        <View style={styles.qrCol}>
-          <Label texto="QR Yape" />
-          <QrPicker uri={yapeQrUrl} subiendo={subiendo === 'yape'} onPress={() => subirQr('yape')} />
-        </View>
-        <View style={styles.qrCol}>
-          <Label texto="QR Plin" />
-          <QrPicker uri={plinQrUrl} subiendo={subiendo === 'plin'} onPress={() => subirQr('plin')} />
-        </View>
+      <Label texto="Teléfono Yape" />
+      <TextInput style={styles.input} value={yapeTelefono} onChangeText={setYapeTelefono} keyboardType="phone-pad" placeholderTextColor={colors.textMuted} />
+      <Label texto="Teléfono Plin" />
+      <TextInput style={styles.input} value={plinTelefono} onChangeText={setPlinTelefono} keyboardType="phone-pad" placeholderTextColor={colors.textMuted} />
+
+      <Label texto="Otro medio de pago (opcional)" />
+      <View style={styles.otroMedioRow}>
+        <TextInput
+          style={[styles.input, styles.otroMedioNombre]}
+          value={otroMedioNombre}
+          onChangeText={setOtroMedioNombre}
+          placeholder="Nombre (Ej. Tunki, Agora...)"
+          placeholderTextColor={colors.textMuted}
+        />
+        <TextInput
+          style={[styles.input, styles.otroMedioTelefono]}
+          value={otroMedioTelefono}
+          onChangeText={setOtroMedioTelefono}
+          keyboardType="phone-pad"
+          placeholder="Teléfono"
+          placeholderTextColor={colors.textMuted}
+        />
       </View>
 
       <Pressable style={styles.boton} onPress={guardar} disabled={guardando}>
@@ -322,20 +315,6 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
 
 function Label({ texto }: { texto: string }) {
   return <Text style={styles.label}>{texto}</Text>;
-}
-
-function QrPicker({ uri, subiendo, onPress }: { uri: string | null; subiendo: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={styles.qrPicker} onPress={onPress} disabled={subiendo}>
-      {subiendo ? (
-        <ActivityIndicator color={colors.primary} />
-      ) : uri ? (
-        <Image source={{ uri }} style={styles.qrImg} resizeMode="contain" />
-      ) : (
-        <Text style={styles.qrPlaceholder}>Subir QR</Text>
-      )}
-    </Pressable>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -380,23 +359,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
     backgroundColor: colors.cardAlt,
   },
-  qrRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  qrCol: { flex: 1 },
-  qrPicker: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-    backgroundColor: colors.cardAlt,
-    overflow: 'hidden',
-  },
-  qrImg: { width: '100%', height: '100%' },
-  qrPlaceholder: { color: colors.accent, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  otroMedioRow: { flexDirection: 'row', gap: 8 },
+  otroMedioNombre: { flex: 1, minWidth: 0, marginTop: 0 },
+  otroMedioTelefono: { flex: 1, minWidth: 0, marginTop: 0 },
   signOut: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   signOutTexto: { color: colors.danger, fontWeight: '700' },
 });

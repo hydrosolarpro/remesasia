@@ -9,6 +9,7 @@ import { colors, APP_MAX_WIDTH_MEDIUM } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 import { NarrowShell } from '../../components/NarrowShell';
 import { TabBarIcon } from '../../components/TabBarIcon';
+import { AccesoNegocioGate } from '../../components/AccesoNegocioGate';
 
 const ICONO = {
   index: '🏠',
@@ -73,6 +74,7 @@ export default function ClienteLayout() {
 
   return (
     <NarrowShell maxWidth={APP_MAX_WIDTH_MEDIUM}>
+      <AccesoNegocioGate operadorPeruId={usuario?.negocio_operador_peru_id} rolParaAviso="cliente">
       <Tabs
         screenOptions={{
           headerStyle: { backgroundColor: colors.card },
@@ -145,6 +147,7 @@ export default function ClienteLayout() {
         />
         <Tabs.Screen name="solicitud/[id]" options={{ title: 'Detalle de solicitud', href: null }} />
       </Tabs>
+      </AccesoNegocioGate>
     </NarrowShell>
   );
 }

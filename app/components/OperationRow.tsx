@@ -4,7 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Solicitud } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { CopyField } from './CopyField';
-import { construirEnlaceWhatsApp } from '../lib/whatsapp';
+import { construirEnlaceWhatsApp, mensajeConfirmacionDeposito } from '../lib/whatsapp';
+import { formatearBs } from '../lib/formato';
 import { extensionDeImagen } from '../lib/imagenUtil';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -69,6 +70,7 @@ export function formatearTiempoRespuesta(peruAt: string, veAt: string): string {
 export function OperationRow({
   op,
   numero,
+  nombreNegocio,
   puedeValidarPeru,
   puedeValidarVe,
   onValidarPeru,
@@ -80,6 +82,8 @@ export function OperationRow({
   op: OperationRowData;
   /** Numeración estable (p.ej. en "Operaciones realizadas"), independiente del orden/filtro visible. */
   numero?: number;
+  /** Nombre del negocio, para el mensaje de WhatsApp (mismo texto que el envío automático al validar). */
+  nombreNegocio: string;
   puedeValidarPeru: boolean;
   puedeValidarVe: boolean;
   onValidarPeru: () => void;
@@ -102,7 +106,11 @@ export function OperationRow({
     onValidarVe(resultado.assets[0].uri, extensionDeImagen(resultado.assets[0]));
   };
 
-  const enlaceWhatsApp = op.check_deposito_ve ? construirEnlaceWhatsApp(op.beneficiario_telefono, mensajeWhatsApp(op)) : null;
+  // Botón de respaldo para reenviar manualmente (el envío automático ya
+  // ocurre al presionar el check de validación en PeruDashboardView).
+  const enlaceWhatsApp = op.check_deposito_ve
+    ? construirEnlaceWhatsApp(op.beneficiario_telefono, mensajeConfirmacionDeposito(nombreNegocio, op.beneficiario_banco, formatearBs(op.monto_ves)))
+    : null;
 
   const notificarWhatsApp = async () => {
     if (!enlaceWhatsApp) return;
@@ -198,10 +206,6 @@ export function OperationRow({
       )}
     </View>
   );
-}
-
-function mensajeWhatsApp(op: OperationRowData): string {
-  return `Hola ${op.beneficiario_nombre}, te informamos que tu remesa de Bs ${op.monto_ves.toFixed(2)} ya fue transferida exitosamente. ¡Gracias por confiar en nosotros!`;
 }
 
 function ImagenDesplegable({ titulo, uri }: { titulo: string; uri: string }) {

@@ -242,6 +242,14 @@ export default function InicioCliente() {
     <>
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol="cliente" />
+      {!!perfil?.nombre_negocio && (
+        <View style={styles.negocioRow}>
+          {!!perfil.logo_url && <Image source={{ uri: perfil.logo_url }} style={styles.negocioLogo} resizeMode="cover" />}
+          <Text style={styles.negocioNombre} numberOfLines={1}>
+            {perfil.nombre_negocio}
+          </Text>
+        </View>
+      )}
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {usuario?.nombre}</Text>
       <LiveClock />
       {!!perfil?.eslogan && <Text style={styles.eslogan}>&quot;{perfil.eslogan}&quot;</Text>}
@@ -449,6 +457,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 },
   avisoSinNegocio: { color: colors.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
+  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  negocioLogo: { width: 28, height: 28, borderRadius: 8, backgroundColor: colors.cardAlt },
+  negocioNombre: { color: colors.accent, fontSize: 14, fontWeight: '800', flexShrink: 1 },
   bienvenida: { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: -4 },
   eslogan: { color: colors.accent, fontSize: 13, fontStyle: 'italic', fontWeight: '600' },
   horario: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },

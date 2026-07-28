@@ -12,6 +12,7 @@ export type EstadoSolicitud =
 
 export type MetodoPago = 'yape' | 'plin' | 'banco';
 export type TipoTransferencia = 'transferencia_bancaria' | 'pago_movil';
+export type PlanOperador = 'demo' | 'starter';
 
 export interface Usuario {
   id: string;
@@ -23,6 +24,9 @@ export interface Usuario {
   push_token: string | null;
   negocio_operador_peru_id: string | null;
   acceso_concedido: boolean;
+  /** Solo relevante para rol 'operador_peru': plan DEMO (15 días) o STARTER (pagado). */
+  plan: PlanOperador;
+  demo_inicio: string | null;
   created_at: string;
 }
 
@@ -192,6 +196,10 @@ export interface ConfiguracionPagosAdmin {
   titular: string | null;
   yape_qr_url: string | null;
   plin_qr_url: string | null;
+  yape_telefono: string | null;
+  plin_telefono: string | null;
+  otro_medio_nombre: string | null;
+  otro_medio_telefono: string | null;
   monto_suscripcion: number;
   updated_at: string;
 }

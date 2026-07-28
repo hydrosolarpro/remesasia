@@ -1,10 +1,14 @@
+import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { ColorValue } from 'react-native';
+import { ColorValue, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
 import { colors } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 import { TabBarIcon } from '../../components/TabBarIcon';
+import { AccesoNegocioGate } from '../../components/AccesoNegocioGate';
+import { PlanBadge } from '../../components/PlanBadge';
 
 const ICONO = { index: '📋', estadisticas: '📊', perfil: '👤' };
 
@@ -20,14 +24,32 @@ export default function OperadorVenezuelaLayout() {
   // aire de sobra. El inset se suma aparte para el indicador de inicio
   // (iPhone) o la barra de gestos (Android).
   const insets = useSafeAreaInsets();
-  const { signOut } = useAuth();
+  const { usuario, signOut } = useAuth();
+
+  const [operadorPeruId, setOperadorPeruId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!usuario) return;
+    supabase
+      .from('operador_venezuela_perfil')
+      .select('operador_peru_id')
+      .eq('usuario_id', usuario.id)
+      .maybeSingle()
+      .then(({ data }) => setOperadorPeruId(data?.operador_peru_id ?? null));
+  }, [usuario]);
+
   return (
+    <AccesoNegocioGate operadorPeruId={operadorPeruId} rolParaAviso="operador_venezuela">
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
         headerTitle: () => <BannerTitle />,
-        headerRight: () => <BannerFlags />,
+        headerRight: () => (
+          <View>
+            <BannerFlags />
+            <PlanBadge operadorPeruId={operadorPeruId} />
+          </View>
+        ),
         headerShadowVisible: false,
         tabBarStyle: {
           backgroundColor: colors.card,
@@ -73,5 +95,6 @@ export default function OperadorVenezuelaLayout() {
         }}
       />
     </Tabs>
+    </AccesoNegocioGate>
   );
 }

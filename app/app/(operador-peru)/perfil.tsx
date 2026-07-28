@@ -7,8 +7,12 @@ import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
 import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion, construirEnlaceEntrada } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { diasRestantesDemo, fechaFinDemo, PRECIO_STARTER_MENSUAL } from '../../lib/plan';
+import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
+
+const FORMATTER_FECHA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 function mensajeBienvenida(nombre: string): string {
   return `¡Hola ${nombre}! Bienvenido(a) al equipo de Remesas PERU-VENEZUELA 🎉. Ya puedes ingresar a la app desde este enlace: ${construirEnlaceEntrada()} — inicia sesión con este mismo correo de Gmail.`;
@@ -39,6 +43,8 @@ export default function Perfil() {
   const [peEmail, setPeEmail] = useState('');
   const [guardandoPe, setGuardandoPe] = useState(false);
   const [errorPe, setErrorPe] = useState<string | null>(null);
+
+  const [solicitandoStarter, setSolicitandoStarter] = useState(false);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -216,6 +222,29 @@ export default function Perfil() {
           )
         )}
       </View>
+
+      {esDueno && usuario && (
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.cardTitulo}>TU PLAN</Text>
+          {usuario.plan === 'starter' ? (
+            <Text style={styles.cardTexto}>Plan STARTER activo — S/ {PRECIO_STARTER_MENSUAL.toFixed(2)} / mes.</Text>
+          ) : (
+            <>
+              <Text style={styles.cardTexto}>
+                Plan DEMO — quedan {diasRestantesDemo(usuario.demo_inicio)} días
+                {usuario.demo_inicio ? ` (vence el ${FORMATTER_FECHA.format(fechaFinDemo(usuario.demo_inicio))})` : ''}.
+              </Text>
+              {solicitandoStarter ? (
+                <FormularioSolicitudPlan onEnviado={() => setSolicitandoStarter(false)} />
+              ) : (
+                <Pressable style={styles.agregarBtn} onPress={() => setSolicitandoStarter(true)}>
+                  <Text style={styles.agregarBtnTexto}>Solicitar plan STARTER (S/ {PRECIO_STARTER_MENSUAL.toFixed(2)} / mes)</Text>
+                </Pressable>
+              )}
+            </>
+          )}
+        </View>
+      )}
 
       {!esMismoOperadorVe && (
         <View style={[styles.card, cardShadow]}>
