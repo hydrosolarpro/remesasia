@@ -30,8 +30,10 @@ export function ClienteSolicitudRow({
   style,
   onConfirmar,
   onReportar,
+  onConfirmarResuelto,
   confirmando,
   reportando,
+  confirmandoResuelto,
 }: {
   solicitud: Solicitud;
   numero?: number;
@@ -39,8 +41,11 @@ export function ClienteSolicitudRow({
   /** Llamados solo cuando check_deposito_ve=true (ver checksRow de confirmación abajo). */
   onConfirmar?: () => void;
   onReportar?: () => void;
+  /** El cliente ya verificó en cuenta y el depósito sí llegó -- disponible mientras en_revision=true. */
+  onConfirmarResuelto?: () => void;
   confirmando?: boolean;
   reportando?: boolean;
+  confirmandoResuelto?: boolean;
 }) {
   const [abierto, setAbierto] = useState(false);
 
@@ -102,9 +107,15 @@ export function ClienteSolicitudRow({
           {solicitud.check_deposito_ve && (
             <View style={styles.confirmacionBloque}>
               {solicitud.en_revision ? (
-                <Text style={styles.enRevisionTexto}>
-                  🔎 En revisión por el equipo — te avisaremos por Telegram apenas se resuelva.
-                </Text>
+                <View style={styles.enRevisionBloque}>
+                  <Text style={styles.enRevisionTexto}>
+                    🔎 En revisión por el equipo — te avisaremos por Telegram apenas se resuelva.
+                  </Text>
+                  <View style={styles.checkCol}>
+                    <RoundCheck checked={false} loading={confirmandoResuelto} onPress={onConfirmarResuelto} size={26} />
+                    <Text style={styles.checkLabel}>Ya verifiqué en cuenta, sí llegó — avisar a los operadores</Text>
+                  </View>
+                </View>
               ) : solicitud.check_beneficiario_confirmado ? (
                 <View style={styles.checkCol}>
                   <RoundCheck checked disabled size={26} />
@@ -194,6 +205,7 @@ const styles = StyleSheet.create({
   checkLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '600', textAlign: 'center' },
   checkHora: { color: colors.textMuted, fontSize: 9 },
   confirmacionBloque: { marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  enRevisionBloque: { gap: 10, alignItems: 'center' },
   enRevisionTexto: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center' },
   imagenToggle: { backgroundColor: colors.cardAlt, borderRadius: radius.sm, padding: 10, marginTop: 4 },
   imagenToggleTexto: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center' },

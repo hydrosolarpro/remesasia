@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Linking } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { registrarPushToken } from '../../lib/notifications';
 import { reservarPestanaExterna } from '../../lib/pestanaExterna';
+import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { colors, radius } from '../../constants/theme';
 
 const BOT_TELEGRAM = 'Remesaspv_bot';
@@ -24,10 +25,33 @@ export default function Perfil() {
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
   const [conectandoTelegram, setConectandoTelegram] = useState(false);
+  const [operador, setOperador] = useState<{ nombre: string; telefono: string | null } | null>(null);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
   }, [usuario]);
+
+  // Contacto de soporte: el operador principal de Perú del negocio al que
+  // pertenece el cliente (no hay un registro de "quién lo atendió" a nivel
+  // general, así que se usa el dueño del negocio como contacto por defecto).
+  useEffect(() => {
+    if (!usuario?.negocio_operador_peru_id) return;
+    supabase
+      .from('usuarios')
+      .select('nombre, telefono')
+      .eq('id', usuario.negocio_operador_peru_id)
+      .maybeSingle()
+      .then(({ data }) => setOperador(data));
+  }, [usuario?.negocio_operador_peru_id]);
+
+  const enlaceWhatsAppOperador = operador
+    ? construirEnlaceWhatsAppGenerico(operador.telefono, 'Hola, necesito ayuda con una solicitud en Remesas PERU-VENEZUELA.')
+    : null;
+
+  const contactarOperador = () => {
+    if (!enlaceWhatsAppOperador) return;
+    Linking.openURL(enlaceWhatsAppOperador);
+  };
 
   // Al volver a esta pantalla (p.ej. tras vincular Telegram y regresar del
   // navegador/app de Telegram) se refresca el usuario para reflejar el
@@ -90,7 +114,8 @@ export default function Perfil() {
 
   if (editando) {
     return (
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.tituloPagina}>Perfil y Contacto</Text>
         <Text style={styles.nombre}>Editar mis datos</Text>
 
         <Text style={styles.label}>Nombre completo</Text>
@@ -117,12 +142,13 @@ export default function Perfil() {
         <Pressable style={styles.buttonOutline} onPress={cancelar} disabled={guardando}>
           <Text style={styles.buttonOutlineText}>Cancelar</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.tituloPagina}>Perfil y Contacto</Text>
       <Text style={styles.nombre}>{usuario?.nombre ?? 'Cliente'}</Text>
       <Text style={styles.dato}>{usuario?.email}</Text>
       <Text style={styles.dato}>{usuario?.telefono}</Text>
@@ -147,13 +173,31 @@ export default function Perfil() {
           </>
         )}
       </View>
-    </View>
+
+      <View style={styles.contactoCard}>
+        <Text style={styles.telegramTitulo}>Contacto de soporte</Text>
+        <Text style={styles.telegramDato}>
+          Para resolver situaciones que no puedan resolverse con el flujo de trabajo en el aplicativo, comunícate directamente
+          {operador?.nombre ? ` con ${operador.nombre}` : ' con tu operador'}.
+        </Text>
+        {enlaceWhatsAppOperador ? (
+          <Pressable style={styles.whatsappBtn} onPress={contactarOperador}>
+            <Text style={styles.whatsappBtnTexto} numberOfLines={2}>
+              Enviar WhatsApp{operador?.nombre ? ` a ${operador.nombre}` : ''}
+            </Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.telegramDato}>Aún no hay un teléfono de contacto configurado.</Text>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg, padding: 24, gap: 12 },
-  nombre: { color: colors.text, fontSize: 22, fontWeight: '800' },
+  container: { flexGrow: 1, backgroundColor: colors.bg, padding: 24, gap: 12, paddingBottom: 48 },
+  tituloPagina: { color: colors.text, fontSize: 20, fontWeight: '800', flexShrink: 1, flexWrap: 'wrap' },
+  nombre: { color: colors.text, fontSize: 22, fontWeight: '800', flexShrink: 1, flexWrap: 'wrap' },
   dato: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
   datoUltimo: { color: colors.textMuted, fontSize: 14, marginTop: -8, marginBottom: 12 },
   exito: { color: colors.success, fontSize: 13, fontWeight: '700' },
@@ -174,6 +218,9 @@ const styles = StyleSheet.create({
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
   telegramCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 10, marginTop: 8 },
-  telegramTitulo: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  telegramDato: { color: colors.textMuted, fontSize: 13 },
+  telegramTitulo: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1, flexWrap: 'wrap' },
+  telegramDato: { color: colors.textMuted, fontSize: 13, flexShrink: 1, flexWrap: 'wrap' },
+  contactoCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 10, marginTop: 8 },
+  whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.md, padding: 14, alignItems: 'center' },
+  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 14, textAlign: 'center', flexShrink: 1, flexWrap: 'wrap' },
 });

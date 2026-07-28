@@ -13,7 +13,7 @@ export default function SolicitudesCliente() {
   const [cargando, setCargando] = useState(true);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [horarioFin, setHorarioFin] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState<{ id: string; tipo: 'confirmar' | 'reportar' } | null>(null);
+  const [enviando, setEnviando] = useState<{ id: string; tipo: 'confirmar' | 'reportar' | 'resolver' } | null>(null);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -90,6 +90,16 @@ export default function SolicitudesCliente() {
     cargar();
   };
 
+  // El cliente ya verificó en cuenta tras reportar "no llegó" y confirma
+  // que sí llegó -- reutiliza el mismo RPC que usan los operadores para
+  // resolver "Operaciones por revisar" (ver 0045_cliente_autorresuelve_revision.sql).
+  const confirmarResuelto = async (s: Solicitud) => {
+    setEnviando({ id: s.id, tipo: 'resolver' });
+    await supabase.rpc('resolver_revision_beneficiario', { p_solicitud_id: s.id });
+    setEnviando(null);
+    cargar();
+  };
+
   if (cargando) {
     return (
       <View style={styles.center}>
@@ -110,8 +120,10 @@ export default function SolicitudesCliente() {
             numero={numeracion.get(s.id)}
             onConfirmar={() => confirmarBeneficiario(s)}
             onReportar={() => reportarNoLlego(s)}
+            onConfirmarResuelto={() => confirmarResuelto(s)}
             confirmando={enviando?.id === s.id && enviando.tipo === 'confirmar'}
             reportando={enviando?.id === s.id && enviando.tipo === 'reportar'}
+            confirmandoResuelto={enviando?.id === s.id && enviando.tipo === 'resolver'}
           />
         ))}
       </View>
@@ -126,8 +138,10 @@ export default function SolicitudesCliente() {
             numero={numeracion.get(s.id)}
             onConfirmar={() => confirmarBeneficiario(s)}
             onReportar={() => reportarNoLlego(s)}
+            onConfirmarResuelto={() => confirmarResuelto(s)}
             confirmando={enviando?.id === s.id && enviando.tipo === 'confirmar'}
             reportando={enviando?.id === s.id && enviando.tipo === 'reportar'}
+            confirmandoResuelto={enviando?.id === s.id && enviando.tipo === 'resolver'}
           />
         ))}
       </View>

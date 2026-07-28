@@ -111,8 +111,8 @@ export function PeruDashboardView({
     // Red de seguridad: si el canal realtime se corta en silencio (pasa
     // ocasionalmente con websockets de larga duración), esto garantiza que
     // la lista -- y por lo tanto la alarma sonora, que depende de
-    // `operaciones` -- nunca quede más de ~30s desactualizada.
-    const intervalo = setInterval(cargar, 30_000);
+    // `operaciones` -- nunca quede más de ~5s desactualizada.
+    const intervalo = setInterval(cargar, 5_000);
 
     return () => {
       supabase.removeChannel(channel);
