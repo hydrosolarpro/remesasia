@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { ClienteSolicitudRow } from '../../components/ClientSolicitudRow';
+import { hoyLocal, fechaLocalDe } from '../../lib/fechaLocal';
 import { Solicitud } from '../../types/database';
 import { colors } from '../../constants/theme';
 
@@ -32,7 +33,14 @@ export default function SolicitudesCliente() {
   );
 
   const enCurso = useMemo(() => solicitudes.filter((s) => !s.check_deposito_ve), [solicitudes]);
-  const realizadas = useMemo(() => solicitudes.filter((s) => s.check_deposito_ve), [solicitudes]);
+  // Solo las completadas HOY: al cambiar de día desaparecen de esta lista
+  // (pero no de la base de datos — siguen disponibles para buscarlas con
+  // los filtros de Estadísticas). Mismo criterio que ya usa
+  // PeruDashboardView.tsx para operador Perú y Venezuela.
+  const realizadas = useMemo(
+    () => solicitudes.filter((s) => s.check_deposito_ve && s.check_deposito_ve_at && fechaLocalDe(s.check_deposito_ve_at) === hoyLocal()),
+    [solicitudes]
+  );
 
   // Numeración única y continua sobre TODAS las solicitudes (en curso +
   // realizadas), por orden de envío — así una solicitud conserva su
@@ -62,8 +70,8 @@ export default function SolicitudesCliente() {
         ))}
       </View>
 
-      <Text style={styles.seccionTitulo}>Solicitudes realizadas ({realizadas.length})</Text>
-      {realizadas.length === 0 && <Text style={styles.vacio}>Todavía no tienes solicitudes completadas.</Text>}
+      <Text style={styles.seccionTitulo}>Solicitudes realizadas hoy ({realizadas.length})</Text>
+      {realizadas.length === 0 && <Text style={styles.vacio}>Todavía no tienes solicitudes completadas hoy.</Text>}
       <View style={styles.lista}>
         {realizadas.map((s) => (
           <ClienteSolicitudRow key={s.id} solicitud={s} numero={numeracion.get(s.id)} />
