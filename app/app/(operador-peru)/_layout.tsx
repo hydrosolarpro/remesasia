@@ -45,7 +45,11 @@ export default function OperadorPeruLayout() {
               paddingTop: 8,
               paddingBottom: 10 + insets.bottom,
             },
-            tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+            // Con el tamaño de fuente y padding lateral por defecto,
+            // etiquetas largas como "Estadísticas" no entraban en su
+            // columna y React Navigation las cortaba con "...".
+            tabBarItemStyle: { paddingHorizontal: 0 },
+            tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
             tabBarActiveTintColor: colors.primary,
             tabBarInactiveTintColor: colors.textMuted,
           }}

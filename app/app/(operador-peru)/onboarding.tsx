@@ -13,11 +13,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as Clipboard from 'expo-clipboard';
 import { extensionDeImagen } from '../../lib/imagenUtil';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
-import { construirEnlaceEntrada } from '../../lib/invitaciones';
 import { colors, radius, cardShadow } from '../../constants/theme';
 import { RoleTag } from '../../components/RoleTag';
 
@@ -44,15 +42,13 @@ export default function OnboardingNegocio() {
   const [telefono, setTelefono] = useState('');
   const [yapeTelefono, setYapeTelefono] = useState('');
   const [plinTelefono, setPlinTelefono] = useState('');
+  const [otroMedioNombre, setOtroMedioNombre] = useState('');
+  const [otroMedioTelefono, setOtroMedioTelefono] = useState('');
   const [cuentas, setCuentas] = useState<CuentaForm[]>([{ entidad: '', titular: '', numero_cuenta: '', cci: '' }]);
   const [esMismoOperadorVe, setEsMismoOperadorVe] = useState(false);
-  const [veNombre, setVeNombre] = useState('');
-  const [veTelefono, setVeTelefono] = useState('');
-  const [veEmail, setVeEmail] = useState('');
   const [horarioInicio, setHorarioInicio] = useState('');
   const [horarioFin, setHorarioFin] = useState('');
   const [subiendoImagen, setSubiendoImagen] = useState<null | 'logo'>(null);
-  const [copiadoEnlaceVe, setCopiadoEnlaceVe] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -60,10 +56,9 @@ export default function OnboardingNegocio() {
     setNombreOperador(usuario.nombre ?? '');
     setTelefono(usuario.telefono ?? '');
 
-    const [{ data: perfil }, { data: cuentasBd }, { data: vePerfil }] = await Promise.all([
+    const [{ data: perfil }, { data: cuentasBd }] = await Promise.all([
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', usuario.id).maybeSingle(),
       supabase.from('cuentas_bancarias_operador').select('*').eq('operador_peru_id', usuario.id),
-      supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', usuario.id).maybeSingle(),
     ]);
 
     if (perfil) {
@@ -71,6 +66,8 @@ export default function OnboardingNegocio() {
       setLogoUrl(perfil.logo_url);
       setYapeTelefono(perfil.yape_telefono ?? '');
       setPlinTelefono(perfil.plin_telefono ?? '');
+      setOtroMedioNombre(perfil.otro_medio_nombre ?? '');
+      setOtroMedioTelefono(perfil.otro_medio_telefono ?? '');
       setEsMismoOperadorVe(perfil.es_operador_venezuela_mismo);
       setHorarioInicio(perfil.horario_inicio ?? '');
       setHorarioFin(perfil.horario_fin ?? '');
@@ -79,11 +76,6 @@ export default function OnboardingNegocio() {
       setCuentas(
         cuentasBd.map((c) => ({ id: c.id, entidad: c.entidad, titular: c.titular ?? '', numero_cuenta: c.numero_cuenta, cci: c.cci ?? '' }))
       );
-    }
-    if (vePerfil) {
-      setVeNombre(vePerfil.nombre ?? '');
-      setVeTelefono(vePerfil.telefono ?? '');
-      setVeEmail(vePerfil.email ?? '');
     }
     setCargando(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -138,10 +130,6 @@ export default function OnboardingNegocio() {
       setError('Agrega al menos una cuenta bancaria.');
       return;
     }
-    if (!esMismoOperadorVe && (!veNombre.trim() || !veEmail.trim())) {
-      setError('Completa el nombre y email del operador Venezuela, o marca "Soy el mismo".');
-      return;
-    }
 
     setGuardando(true);
     try {
@@ -154,6 +142,8 @@ export default function OnboardingNegocio() {
           logo_url: logoUrl,
           yape_telefono: yapeTelefono.trim() || null,
           plin_telefono: plinTelefono.trim() || null,
+          otro_medio_nombre: otroMedioNombre.trim() || null,
+          otro_medio_telefono: otroMedioTelefono.trim() || null,
           es_operador_venezuela_mismo: esMismoOperadorVe,
           horario_inicio: horarioInicio.trim(),
           horario_fin: horarioFin.trim(),
@@ -173,21 +163,6 @@ export default function OnboardingNegocio() {
         }))
       );
       if (cuentasError) throw cuentasError;
-
-      if (esMismoOperadorVe) {
-        await supabase.from('operador_venezuela_perfil').delete().eq('operador_peru_id', usuario.id);
-      } else {
-        const { error: veError } = await supabase.from('operador_venezuela_perfil').upsert(
-          {
-            operador_peru_id: usuario.id,
-            nombre: veNombre.trim(),
-            telefono: veTelefono.trim() || null,
-            email: veEmail.trim().toLowerCase(),
-          },
-          { onConflict: 'operador_peru_id' }
-        );
-        if (veError) throw veError;
-      }
 
       await refreshUsuario();
       router.replace('/(operador-peru)');
@@ -253,6 +228,25 @@ export default function OnboardingNegocio() {
           placeholder="+51 999 999 999"
           placeholderTextColor={colors.textMuted}
         />
+
+        <Label texto="Otro medio de pago (opcional)" />
+        <View style={styles.cuentaRow}>
+          <TextInput
+            style={[styles.input, styles.cuentaEntidad]}
+            value={otroMedioNombre}
+            onChangeText={setOtroMedioNombre}
+            placeholder="Nombre (Ej. Tunki, Agora...)"
+            placeholderTextColor={colors.textMuted}
+          />
+          <TextInput
+            style={[styles.input, styles.cuentaNumero]}
+            value={otroMedioTelefono}
+            onChangeText={setOtroMedioTelefono}
+            keyboardType="phone-pad"
+            placeholder="Teléfono"
+            placeholderTextColor={colors.textMuted}
+          />
+        </View>
       </Section>
 
       <Section titulo="Cuentas bancarias">
@@ -341,36 +335,9 @@ export default function OnboardingNegocio() {
         </View>
 
         {!esMismoOperadorVe && (
-          <>
-            <Label texto="Nombre completo" />
-            <TextInput style={styles.input} value={veNombre} onChangeText={setVeNombre} placeholderTextColor={colors.textMuted} />
-            <Label texto="Teléfono" />
-            <TextInput style={styles.input} value={veTelefono} onChangeText={setVeTelefono} keyboardType="phone-pad" placeholder="+58 999 999 999" placeholderTextColor={colors.textMuted} />
-            <Label texto="Correo Gmail (con ese correo debe iniciar sesión)" />
-            <TextInput
-              style={styles.input}
-              value={veEmail}
-              onChangeText={setVeEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder="operador.venezuela@gmail.com"
-              placeholderTextColor={colors.textMuted}
-            />
-            <Text style={styles.ayuda}>
-              Apenas esa persona entre con ese correo de Gmail, el sistema la reconoce sola como Operador Venezuela — no
-              necesita un enlace especial, solo la puerta de entrada de la app:
-            </Text>
-            <Pressable
-              style={styles.copiarEnlaceBtn}
-              onPress={async () => {
-                await Clipboard.setStringAsync(construirEnlaceEntrada());
-                setCopiadoEnlaceVe(true);
-                setTimeout(() => setCopiadoEnlaceVe(false), 1500);
-              }}
-            >
-              <Text style={styles.copiarEnlaceBtnTexto}>{copiadoEnlaceVe ? '✓ Copiado' : 'Copiar enlace de acceso'}</Text>
-            </Pressable>
-          </>
+          <Text style={styles.ayuda}>
+            Para agregar a las personas de tu equipo en Venezuela (o en Perú), ve a la pestaña Perfil.
+          </Text>
         )}
       </Section>
 
@@ -447,8 +414,12 @@ const styles = StyleSheet.create({
   logoPlaceholder: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
   cuentaBloque: { gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   cuentaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  cuentaEntidad: { flex: 1, marginTop: 0 },
-  cuentaNumero: { flex: 1, marginTop: 0 },
+  // minWidth: 0 es necesario porque en web un input dentro de un flex
+  // container no se encoge por debajo de su ancho de contenido por
+  // defecto -- sin esto, un CCI largo (20 dígitos) empujaba el campo
+  // fuera del margen visible en pantallas de celular.
+  cuentaEntidad: { flex: 1, minWidth: 0, marginTop: 0 },
+  cuentaNumero: { flex: 1, minWidth: 0, marginTop: 0 },
   quitarBtn: { padding: 8 },
   quitarBtnTexto: { color: colors.danger, fontSize: 16, fontWeight: '800' },
   agregarBtn: { marginTop: 12, alignSelf: 'flex-start' },

@@ -1,22 +1,44 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { useEffect, useState, useCallback } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Linking } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
-import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion, construirEnlaceEntrada } from '../../lib/invitaciones';
+import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
+function mensajeBienvenida(nombre: string): string {
+  return `¡Hola ${nombre}! Bienvenido(a) al equipo de Remesas PERU-VENEZUELA 🎉. Ya puedes ingresar a la app desde este enlace: ${construirEnlaceEntrada()} — inicia sesión con este mismo correo de Gmail.`;
+}
+
 export default function Perfil() {
   const { usuario } = useAuth();
+  const esDueno = usuario?.rol === 'operador_peru';
   const [negocioId, setNegocioId] = useState<string | null | undefined>(undefined);
+  const [esMismoOperadorVe, setEsMismoOperadorVe] = useState(false);
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [generando, setGenerando] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const [veList, setVeList] = useState<OperadorVenezuelaPerfil[]>([]);
   const [peList, setPeList] = useState<OperadorPeruMiembro[]>([]);
+  const [enviados, setEnviados] = useState<Record<string, boolean>>({});
+
+  const [agregandoVe, setAgregandoVe] = useState(false);
+  const [veNombre, setVeNombre] = useState('');
+  const [veTelefono, setVeTelefono] = useState('');
+  const [veEmail, setVeEmail] = useState('');
+  const [guardandoVe, setGuardandoVe] = useState(false);
+  const [errorVe, setErrorVe] = useState<string | null>(null);
+
+  const [agregandoPe, setAgregandoPe] = useState(false);
+  const [peNombre, setPeNombre] = useState('');
+  const [peTelefono, setPeTelefono] = useState('');
+  const [peEmail, setPeEmail] = useState('');
+  const [guardandoPe, setGuardandoPe] = useState(false);
+  const [errorPe, setErrorPe] = useState<string | null>(null);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -45,7 +67,7 @@ export default function Perfil() {
       .finally(() => setGenerando(false));
   }, [negocioId]);
 
-  useEffect(() => {
+  const cargarEquipos = useCallback(() => {
     if (!negocioId) return;
     supabase
       .from('operador_venezuela_perfil')
@@ -61,11 +83,85 @@ export default function Perfil() {
       .then(({ data }) => setPeList((data as OperadorPeruMiembro[] | null) ?? []));
   }, [negocioId]);
 
+  useEffect(() => {
+    cargarEquipos();
+  }, [cargarEquipos]);
+
+  useEffect(() => {
+    if (!negocioId) return;
+    supabase
+      .from('perfil_negocio')
+      .select('es_operador_venezuela_mismo')
+      .eq('operador_peru_id', negocioId)
+      .maybeSingle()
+      .then(({ data }) => setEsMismoOperadorVe(data?.es_operador_venezuela_mismo ?? false));
+  }, [negocioId]);
+
   const copiarEnlace = async () => {
     if (!enlaceCliente) return;
     await Clipboard.setStringAsync(enlaceCliente);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 1500);
+  };
+
+  const enviarBienvenida = async (id: string, nombre: string, telefono: string | null) => {
+    const enlace = construirEnlaceWhatsAppGenerico(telefono, mensajeBienvenida(nombre));
+    if (!enlace) return;
+    await Linking.openURL(enlace);
+    setEnviados((prev) => ({ ...prev, [id]: true }));
+    setTimeout(() => setEnviados((prev) => ({ ...prev, [id]: false })), 3000);
+  };
+
+  const agregarVe = async () => {
+    if (!negocioId) return;
+    setErrorVe(null);
+    if (!veNombre.trim() || !veEmail.trim()) {
+      setErrorVe('Completa el nombre y el correo.');
+      return;
+    }
+    setGuardandoVe(true);
+    const { error } = await supabase.from('operador_venezuela_perfil').insert({
+      operador_peru_id: negocioId,
+      nombre: veNombre.trim(),
+      telefono: veTelefono.trim() || null,
+      email: veEmail.trim().toLowerCase(),
+    });
+    setGuardandoVe(false);
+    if (error) {
+      setErrorVe(error.message);
+      return;
+    }
+    setVeNombre('');
+    setVeTelefono('');
+    setVeEmail('');
+    setAgregandoVe(false);
+    cargarEquipos();
+  };
+
+  const agregarPe = async () => {
+    if (!negocioId) return;
+    setErrorPe(null);
+    if (!peNombre.trim() || !peEmail.trim()) {
+      setErrorPe('Completa el nombre y el correo.');
+      return;
+    }
+    setGuardandoPe(true);
+    const { error } = await supabase.from('operador_peru_miembro').insert({
+      operador_peru_id: negocioId,
+      nombre: peNombre.trim(),
+      telefono: peTelefono.trim() || null,
+      email: peEmail.trim().toLowerCase(),
+    });
+    setGuardandoPe(false);
+    if (error) {
+      setErrorPe(error.message);
+      return;
+    }
+    setPeNombre('');
+    setPeTelefono('');
+    setPeEmail('');
+    setAgregandoPe(false);
+    cargarEquipos();
   };
 
   return (
@@ -95,37 +191,180 @@ export default function Perfil() {
         )}
       </View>
 
-      <View style={[styles.card, cardShadow]}>
-        <Text style={styles.cardTitulo}>Operadores Venezuela ({veList.length})</Text>
-        {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
-        {veList.map((v) => (
-          <View key={v.id} style={styles.miembroFila}>
-            <Text style={styles.miembroNombre}>{v.nombre}</Text>
-            <Text style={styles.miembroDato}>{v.email}</Text>
-            {v.telefono && <Text style={styles.miembroDato}>{v.telefono}</Text>}
-          </View>
-        ))}
-      </View>
+      {!esMismoOperadorVe && (
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.cardTitulo}>OPERADORES EN VENEZUELA - EQUIPO ({veList.length})</Text>
+          {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
+          {veList.map((v) => (
+            <OperadorFila
+              key={v.id}
+              nombre={v.nombre}
+              email={v.email}
+              telefono={v.telefono}
+              enviado={!!enviados[v.id]}
+              onEnviar={() => enviarBienvenida(v.id, v.nombre, v.telefono)}
+            />
+          ))}
+
+          {esDueno && (
+            <NuevoOperadorForm
+              abierto={agregandoVe}
+              onAbrir={() => setAgregandoVe(true)}
+              onCancelar={() => setAgregandoVe(false)}
+              nombre={veNombre}
+              onNombre={setVeNombre}
+              telefono={veTelefono}
+              onTelefono={setVeTelefono}
+              telefonoPlaceholder="+58 999 999 999"
+              email={veEmail}
+              onEmail={setVeEmail}
+              guardando={guardandoVe}
+              error={errorVe}
+              onGuardar={agregarVe}
+            />
+          )}
+        </View>
+      )}
 
       <View style={[styles.card, cardShadow]}>
-        <Text style={styles.cardTitulo}>Operadores Perú — equipo ({peList.length})</Text>
+        <Text style={styles.cardTitulo}>OPERADORES EN PERÚ - EQUIPO ({peList.length})</Text>
         {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
         {peList.map((p) => (
-          <View key={p.id} style={styles.miembroFila}>
-            <Text style={styles.miembroNombre}>{p.nombre}</Text>
-            <Text style={styles.miembroDato}>{p.email}</Text>
-            {p.telefono && <Text style={styles.miembroDato}>{p.telefono}</Text>}
-          </View>
+          <OperadorFila
+            key={p.id}
+            nombre={p.nombre}
+            email={p.email}
+            telefono={p.telefono}
+            enviado={!!enviados[p.id]}
+            onEnviar={() => enviarBienvenida(p.id, p.nombre, p.telefono)}
+          />
         ))}
-        <Text style={styles.cardTextoChico}>Para agregar, editar o quitar operadores, ve a la pestaña "Panel".</Text>
+
+        {esDueno && (
+          <NuevoOperadorForm
+            abierto={agregandoPe}
+            onAbrir={() => setAgregandoPe(true)}
+            onCancelar={() => setAgregandoPe(false)}
+            nombre={peNombre}
+            onNombre={setPeNombre}
+            telefono={peTelefono}
+            onTelefono={setPeTelefono}
+            telefonoPlaceholder="+51 999 999 999"
+            email={peEmail}
+            onEmail={setPeEmail}
+            guardando={guardandoPe}
+            error={errorPe}
+            onGuardar={agregarPe}
+          />
+        )}
       </View>
 
-      {usuario?.rol === 'operador_peru' && (
+      {esDueno && (
         <Pressable style={styles.buttonOutline} onPress={() => router.push('/(operador-peru)/onboarding')}>
           <Text style={styles.buttonOutlineText}>Editar datos del negocio</Text>
         </Pressable>
       )}
     </ScrollView>
+  );
+}
+
+function OperadorFila({
+  nombre,
+  email,
+  telefono,
+  enviado,
+  onEnviar,
+}: {
+  nombre: string;
+  email: string | null;
+  telefono: string | null;
+  enviado: boolean;
+  onEnviar: () => void;
+}) {
+  return (
+    <View style={styles.miembroFila}>
+      <Text style={styles.miembroNombre}>{nombre}</Text>
+      {email && <Text style={styles.miembroDato}>{email}</Text>}
+      {telefono && <Text style={styles.miembroDato}>{telefono}</Text>}
+      {telefono && (
+        <Pressable style={styles.enviarMsjBtn} onPress={onEnviar}>
+          <Text style={styles.enviarMsjBtnTexto}>{enviado ? '✓ Abierto en WhatsApp' : 'Enviar mensaje'}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function NuevoOperadorForm({
+  abierto,
+  onAbrir,
+  onCancelar,
+  nombre,
+  onNombre,
+  telefono,
+  onTelefono,
+  telefonoPlaceholder,
+  email,
+  onEmail,
+  guardando,
+  error,
+  onGuardar,
+}: {
+  abierto: boolean;
+  onAbrir: () => void;
+  onCancelar: () => void;
+  nombre: string;
+  onNombre: (v: string) => void;
+  telefono: string;
+  onTelefono: (v: string) => void;
+  telefonoPlaceholder: string;
+  email: string;
+  onEmail: (v: string) => void;
+  guardando: boolean;
+  error: string | null;
+  onGuardar: () => void;
+}) {
+  if (!abierto) {
+    return (
+      <Pressable style={styles.agregarBtn} onPress={onAbrir}>
+        <Text style={styles.agregarBtnTexto}>+ Agregar operador</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.nuevoBloque}>
+      <Text style={styles.label}>Nombre completo</Text>
+      <TextInput style={styles.input} value={nombre} onChangeText={onNombre} placeholderTextColor={colors.textMuted} />
+      <Text style={styles.label}>Teléfono (para el mensaje de bienvenida por WhatsApp)</Text>
+      <TextInput
+        style={styles.input}
+        value={telefono}
+        onChangeText={onTelefono}
+        keyboardType="phone-pad"
+        placeholder={telefonoPlaceholder}
+        placeholderTextColor={colors.textMuted}
+      />
+      <Text style={styles.label}>Correo Gmail (con ese correo debe iniciar sesión)</Text>
+      <TextInput
+        style={styles.input}
+        value={email}
+        onChangeText={onEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        placeholder="nombre@gmail.com"
+        placeholderTextColor={colors.textMuted}
+      />
+      {error && <Text style={styles.error}>{error}</Text>}
+      <View style={styles.nuevoAccionesRow}>
+        <Pressable style={styles.guardarNuevoBtn} onPress={onGuardar} disabled={guardando}>
+          {guardando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.guardarNuevoBtnTexto}>Guardar</Text>}
+        </Pressable>
+        <Pressable style={styles.cancelarNuevoBtn} onPress={onCancelar} disabled={guardando}>
+          <Text style={styles.cancelarNuevoBtnTexto}>Cancelar</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -135,18 +374,46 @@ const styles = StyleSheet.create({
   email: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
   telefono: { color: colors.textMuted, fontSize: 14, marginBottom: 4 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
-  cardTitulo: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  cardTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
   cardTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
-  cardTextoChico: { color: colors.textMuted, fontSize: 11, lineHeight: 15, marginTop: 4, fontStyle: 'italic' },
   boton: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center' },
   botonTexto: { color: colors.text, fontWeight: '700' },
   enlaceRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  enlaceTexto: { flex: 1, color: colors.accent, fontSize: 12 },
+  enlaceTexto: { flex: 1, minWidth: 0, color: colors.accent, fontSize: 12 },
   copiarBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
   copiarBtnTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
-  miembroFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4 },
+  miembroFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4, gap: 2 },
   miembroNombre: { color: colors.text, fontSize: 14, fontWeight: '700' },
   miembroDato: { color: colors.textMuted, fontSize: 12 },
+  enviarMsjBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.success,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 6,
+  },
+  enviarMsjBtnTexto: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  agregarBtn: { marginTop: 10, alignSelf: 'flex-start' },
+  agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  nuevoBloque: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
+  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 8 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    color: colors.text,
+    fontSize: 15,
+    marginTop: 5,
+    backgroundColor: colors.cardAlt,
+  },
+  error: { color: colors.danger, fontSize: 13, marginTop: 6 },
+  nuevoAccionesRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  guardarNuevoBtn: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  guardarNuevoBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
+  cancelarNuevoBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  cancelarNuevoBtnTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
 });

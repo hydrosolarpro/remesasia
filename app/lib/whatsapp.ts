@@ -26,3 +26,20 @@ export function construirEnlaceWhatsApp(telefono: string | null | undefined, men
   if (!normalizado) return null;
   return `https://wa.me/${normalizado}?text=${encodeURIComponent(mensaje)}`;
 }
+
+// Para números que NO son de Venezuela (p.ej. operadores en Perú, +51):
+// a diferencia de normalizarTelefonoVe, acá no hay una regla fija de
+// código de país que asumir, así que se exige que el operador lo haya
+// escrito él mismo (los placeholders del formulario ya lo piden, p.ej.
+// "+51 999 999 999") y solo se limpian los caracteres que no son dígitos.
+export function normalizarTelefonoGenerico(telefono: string | null | undefined): string | null {
+  if (!telefono) return null;
+  const soloDigitos = telefono.replace(/\D/g, '');
+  return soloDigitos.length >= 8 ? soloDigitos : null;
+}
+
+export function construirEnlaceWhatsAppGenerico(telefono: string | null | undefined, mensaje: string): string | null {
+  const normalizado = normalizarTelefonoGenerico(telefono);
+  if (!normalizado) return null;
+  return `https://wa.me/${normalizado}?text=${encodeURIComponent(mensaje)}`;
+}

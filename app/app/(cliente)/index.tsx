@@ -358,10 +358,13 @@ export default function InicioCliente() {
             <Text style={styles.seccionTitulo}>Datos para pagar en Perú</Text>
             <Text style={styles.pagarA}>{nombreOperador}</Text>
 
-            {(perfil?.yape_telefono || perfil?.plin_telefono) && (
+            {(perfil?.yape_telefono || perfil?.plin_telefono || perfil?.otro_medio_telefono) && (
               <View style={styles.telefonosPago}>
                 {perfil?.yape_telefono && <CopyField label="Yape" value={perfil.yape_telefono} />}
                 {perfil?.plin_telefono && <CopyField label="Plin" value={perfil.plin_telefono} />}
+                {perfil?.otro_medio_telefono && (
+                  <CopyField label={perfil.otro_medio_nombre || 'Otro medio de pago'} value={perfil.otro_medio_telefono} />
+                )}
               </View>
             )}
 
