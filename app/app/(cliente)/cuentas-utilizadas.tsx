@@ -157,73 +157,101 @@ export default function CuentasUtilizadas() {
       <Text style={styles.titulo}>Cuentas de beneficiarios guardadas</Text>
       <Text style={styles.subtitulo}>Se usan para autocompletar tus solicitudes.</Text>
 
-      {cuentas.map((c) => (
-        <View key={c.id} style={[styles.card, cardShadow]}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.nombre}>{c.nombre_beneficiario}</Text>
-            <View style={styles.acciones}>
-              <Pressable onPress={() => abrirEdicion(c)}>
-                <Text style={styles.editar}>Editar</Text>
-              </Pressable>
-              <Pressable onPress={() => eliminar(c)}>
-                <Text style={styles.eliminar}>Eliminar</Text>
-              </Pressable>
-            </View>
+      {cuentas.map((c) =>
+        mostrarForm && editandoId === c.id ? (
+          <View key={c.id} style={[styles.card, cardShadow]}>
+            <FormularioCuenta form={form} setForm={setForm} error={error} guardando={guardando} onCancelar={() => setMostrarForm(false)} onGuardar={guardar} />
           </View>
-          <Text style={styles.dato}>C.I. {c.ci} · {c.telefono ?? 'sin teléfono'}</Text>
-          <Text style={styles.dato}>{c.entidad_bancaria} · {c.numero_cuenta}</Text>
-
-          <View style={styles.telegramBloque}>
-            <Text style={styles.telegramTitulo}>Configuración de notificaciones del beneficiario</Text>
-            {c.telegram_connected ? (
-              <Text style={styles.telegramConectado}>✓ Telegram vinculado{c.telegram_username ? ` (@${c.telegram_username})` : ''}</Text>
-            ) : enlacesTelegram[c.id] ? (
-              <View style={styles.telegramAcciones}>
-                <Pressable style={styles.telegramBoton} onPress={() => copiarEnlace(c.id, enlacesTelegram[c.id])}>
-                  <Text style={styles.telegramBotonTexto}>{copiadoId === c.id ? '✓ Copiado' : 'Copiar enlace'}</Text>
+        ) : (
+          <View key={c.id} style={[styles.card, cardShadow]}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.nombre}>{c.nombre_beneficiario}</Text>
+              <View style={styles.acciones}>
+                <Pressable onPress={() => abrirEdicion(c)}>
+                  <Text style={styles.editar}>Editar</Text>
                 </Pressable>
-                <Pressable style={styles.telegramBotonWhatsapp} onPress={() => enviarEnlacePorWhatsApp(c, enlacesTelegram[c.id])}>
-                  <Text style={styles.telegramBotonWhatsappTexto}>Enviar por WhatsApp</Text>
+                <Pressable onPress={() => eliminar(c)}>
+                  <Text style={styles.eliminar}>Eliminar</Text>
                 </Pressable>
               </View>
-            ) : (
-              <Pressable style={styles.telegramBoton} onPress={() => generarEnlaceTelegram(c)} disabled={generandoTelegramId === c.id}>
-                <Text style={styles.telegramBotonTexto}>
-                  {generandoTelegramId === c.id ? 'Generando…' : 'Vincular Telegram del beneficiario'}
-                </Text>
-              </Pressable>
-            )}
+            </View>
+            <Text style={styles.dato}>C.I. {c.ci} · {c.telefono ?? 'sin teléfono'}</Text>
+            <Text style={styles.dato}>{c.entidad_bancaria} · {c.numero_cuenta}</Text>
+
+            <View style={styles.telegramBloque}>
+              <Text style={styles.telegramTitulo}>Configuración de notificaciones del beneficiario</Text>
+              {c.telegram_connected ? (
+                <Text style={styles.telegramConectado}>✓ Telegram vinculado{c.telegram_username ? ` (@${c.telegram_username})` : ''}</Text>
+              ) : enlacesTelegram[c.id] ? (
+                <View style={styles.telegramAcciones}>
+                  <Pressable style={styles.telegramBoton} onPress={() => copiarEnlace(c.id, enlacesTelegram[c.id])}>
+                    <Text style={styles.telegramBotonTexto}>{copiadoId === c.id ? '✓ Copiado' : 'Copiar enlace'}</Text>
+                  </Pressable>
+                  <Pressable style={styles.telegramBotonWhatsapp} onPress={() => enviarEnlacePorWhatsApp(c, enlacesTelegram[c.id])}>
+                    <Text style={styles.telegramBotonWhatsappTexto}>Enviar por WhatsApp</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable style={styles.telegramBoton} onPress={() => generarEnlaceTelegram(c)} disabled={generandoTelegramId === c.id}>
+                  <Text style={styles.telegramBotonTexto}>
+                    {generandoTelegramId === c.id ? 'Generando…' : 'Vincular Telegram del beneficiario'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
-        </View>
-      ))}
+        )
+      )}
 
       {cuentas.length === 0 && !mostrarForm && <Text style={styles.vacio}>Aún no guardaste ninguna cuenta.</Text>}
 
-      {mostrarForm ? (
+      {mostrarForm && editandoId === null ? (
         <View style={[styles.card, cardShadow]}>
-          <Field label="Nombre completo" value={form.nombre_beneficiario} onChangeText={(v) => setForm((f) => ({ ...f, nombre_beneficiario: v }))} />
-          <Field label="Teléfono" value={form.telefono ?? ''} onChangeText={(v) => setForm((f) => ({ ...f, telefono: v }))} keyboardType="phone-pad" />
-          <Field label="Cédula (C.I.)" value={form.ci} onChangeText={(v) => setForm((f) => ({ ...f, ci: v }))} />
-          <Field label="Entidad bancaria" value={form.entidad_bancaria} onChangeText={(v) => setForm((f) => ({ ...f, entidad_bancaria: v }))} />
-          <Field label="N° de cuenta" value={form.numero_cuenta} onChangeText={(v) => setForm((f) => ({ ...f, numero_cuenta: v }))} keyboardType="numeric" />
-
-          {error && <Text style={styles.error}>{error}</Text>}
-
-          <View style={styles.formBotones}>
-            <Pressable style={styles.botonCancelar} onPress={() => setMostrarForm(false)}>
-              <Text style={styles.botonCancelarTexto}>Cancelar</Text>
-            </Pressable>
-            <Pressable style={styles.botonGuardar} onPress={guardar} disabled={guardando}>
-              <Text style={styles.botonGuardarTexto}>{guardando ? 'Guardando…' : 'Guardar'}</Text>
-            </Pressable>
-          </View>
+          <FormularioCuenta form={form} setForm={setForm} error={error} guardando={guardando} onCancelar={() => setMostrarForm(false)} onGuardar={guardar} />
         </View>
-      ) : (
+      ) : !mostrarForm ? (
         <Pressable style={styles.agregarBtn} onPress={abrirNueva}>
           <Text style={styles.agregarBtnTexto}>+ Agregar cuenta</Text>
         </Pressable>
-      )}
+      ) : null}
     </ScrollView>
+  );
+}
+
+function FormularioCuenta({
+  form,
+  setForm,
+  error,
+  guardando,
+  onCancelar,
+  onGuardar,
+}: {
+  form: Form;
+  setForm: (updater: (f: Form) => Form) => void;
+  error: string | null;
+  guardando: boolean;
+  onCancelar: () => void;
+  onGuardar: () => void;
+}) {
+  return (
+    <>
+      <Field label="Nombre completo" value={form.nombre_beneficiario} onChangeText={(v) => setForm((f) => ({ ...f, nombre_beneficiario: v }))} />
+      <Field label="Teléfono" value={form.telefono ?? ''} onChangeText={(v) => setForm((f) => ({ ...f, telefono: v }))} keyboardType="phone-pad" />
+      <Field label="Cédula (C.I.)" value={form.ci} onChangeText={(v) => setForm((f) => ({ ...f, ci: v }))} />
+      <Field label="Entidad bancaria" value={form.entidad_bancaria} onChangeText={(v) => setForm((f) => ({ ...f, entidad_bancaria: v }))} />
+      <Field label="N° de cuenta" value={form.numero_cuenta} onChangeText={(v) => setForm((f) => ({ ...f, numero_cuenta: v }))} keyboardType="numeric" />
+
+      {error && <Text style={styles.error}>{error}</Text>}
+
+      <View style={styles.formBotones}>
+        <Pressable style={styles.botonCancelar} onPress={onCancelar}>
+          <Text style={styles.botonCancelarTexto}>Cancelar</Text>
+        </Pressable>
+        <Pressable style={styles.botonGuardar} onPress={onGuardar} disabled={guardando}>
+          <Text style={styles.botonGuardarTexto}>{guardando ? 'Guardando…' : 'Guardar'}</Text>
+        </Pressable>
+      </View>
+    </>
   );
 }
 

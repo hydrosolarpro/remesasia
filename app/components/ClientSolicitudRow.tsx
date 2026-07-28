@@ -5,6 +5,7 @@ import { Solicitud } from '../types/database';
 import { construirEnlaceWhatsApp } from '../lib/whatsapp';
 import { formatearBs } from '../lib/formato';
 import { FORMATTER_FECHA_HORA } from './OperationRow';
+import { RoundCheck } from './RoundCheck';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const ETIQUETA_METODO_PAGO: Record<Solicitud['metodo_pago'], string> = {
@@ -27,10 +28,19 @@ export function ClienteSolicitudRow({
   solicitud,
   numero,
   style,
+  onConfirmar,
+  onReportar,
+  confirmando,
+  reportando,
 }: {
   solicitud: Solicitud;
   numero?: number;
   style?: StyleProp<ViewStyle>;
+  /** Llamados solo cuando check_deposito_ve=true (ver checksRow de confirmación abajo). */
+  onConfirmar?: () => void;
+  onReportar?: () => void;
+  confirmando?: boolean;
+  reportando?: boolean;
 }) {
   const [abierto, setAbierto] = useState(false);
 
@@ -88,6 +98,32 @@ export function ClienteSolicitudRow({
             <EstadoPaso etiqueta="Pago validado en Perú" hecho={solicitud.check_deposito_peru} fecha={solicitud.check_deposito_peru_at} />
             <EstadoPaso etiqueta="Depósito en Venezuela" hecho={solicitud.check_deposito_ve} fecha={solicitud.check_deposito_ve_at} />
           </View>
+
+          {solicitud.check_deposito_ve && (
+            <View style={styles.confirmacionBloque}>
+              {solicitud.en_revision ? (
+                <Text style={styles.enRevisionTexto}>
+                  🔎 En revisión por el equipo — te avisaremos por Telegram apenas se resuelva.
+                </Text>
+              ) : solicitud.check_beneficiario_confirmado ? (
+                <View style={styles.checkCol}>
+                  <RoundCheck checked disabled size={26} />
+                  <Text style={styles.checkLabel}>Depósito validado en cuenta del Beneficiario</Text>
+                </View>
+              ) : (
+                <View style={styles.checksRow}>
+                  <View style={styles.checkCol}>
+                    <RoundCheck checked={false} loading={confirmando} onPress={onConfirmar} size={26} />
+                    <Text style={styles.checkLabel}>Depósito validado en cuenta del Beneficiario</Text>
+                  </View>
+                  <View style={styles.checkCol}>
+                    <RoundCheck checked={false} loading={reportando} onPress={onReportar} size={26} />
+                    <Text style={styles.checkLabel}>No llegó el depósito</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
           {solicitud.comprobante_vz_url && (
             <>
@@ -157,6 +193,8 @@ const styles = StyleSheet.create({
   checkDotHecho: { backgroundColor: colors.success, borderColor: colors.success },
   checkLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '600', textAlign: 'center' },
   checkHora: { color: colors.textMuted, fontSize: 9 },
+  confirmacionBloque: { marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  enRevisionTexto: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center' },
   imagenToggle: { backgroundColor: colors.cardAlt, borderRadius: radius.sm, padding: 10, marginTop: 4 },
   imagenToggleTexto: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center' },
   comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },

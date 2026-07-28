@@ -43,7 +43,8 @@ export function PeruDashboardView({
   const [esloganBorrador, setEsloganBorrador] = useState('');
   const [editandoRentabilidad, setEditandoRentabilidad] = useState(false);
   const [rentabilidadBorrador, setRentabilidadBorrador] = useState('');
-  const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas'>('en_curso');
+  const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas' | 'por_revisar'>('en_curso');
+  const [resolviendoId, setResolviendoId] = useState<string | null>(null);
 
   // El corte de "realizadas" hacia solo-estadísticas es a la hora de
   // cierre del horario de atención (no a medianoche) -- este tick fuerza
@@ -98,10 +99,24 @@ export function PeruDashboardView({
     cargar();
     const channel = supabase
       .channel(`peru-dashboard-${operadorPeruId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes' }, () => cargar())
-      .subscribe();
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'solicitudes', filter: `negocio_operador_peru_id=eq.${operadorPeruId}` },
+        () => cargar()
+      )
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') console.warn(`peru-dashboard-${operadorPeruId}: realtime status = ${status}`);
+      });
+
+    // Red de seguridad: si el canal realtime se corta en silencio (pasa
+    // ocasionalmente con websockets de larga duración), esto garantiza que
+    // la lista -- y por lo tanto la alarma sonora, que depende de
+    // `operaciones` -- nunca quede más de ~30s desactualizada.
+    const intervalo = setInterval(cargar, 30_000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(intervalo);
     };
   }, [cargar, operadorPeruId]);
 
@@ -119,15 +134,23 @@ export function PeruDashboardView({
     return operaciones.filter((o) => o.check_deposito_ve && o.check_deposito_ve_at && fechaLocalDe(o.check_deposito_ve_at) === hoyLocal());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operaciones, perfil?.horario_fin, tickHorario]);
+  // El cliente reportó que el depósito no llegó a la cuenta del
+  // beneficiario -- queda aquí hasta que un operador (Perú o Venezuela) lo
+  // marque como resuelto.
+  const porRevisar = useMemo(() => operaciones.filter((o) => o.en_revision), [operaciones]);
 
   // Alerta sonora: suena apenas aparece una operación que necesita la
   // acción de ESTA sesión -- para Venezuela, un depósito que Perú ya
   // validó y espera que VE la cargue; para Perú, una solicitud nueva del
-  // cliente que todavía no valida. Se repite cada 2 minutos mientras siga
-  // pendiente, hasta que se atienda el check correspondiente.
+  // cliente que todavía no valida; para ambos, un caso reportado por el
+  // cliente en "Operaciones por revisar" (cualquier operador lo resuelve).
+  // Se repite cada 2 minutos mientras siga pendiente, hasta que se atienda.
   const reproducirAlerta = useAlertaSonora();
   const pendientesAccion = useMemo(
-    () => operaciones.filter((o) => (restringido ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru)),
+    () =>
+      operaciones.filter(
+        (o) => (restringido ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru) || o.en_revision
+      ),
     [operaciones, restringido]
   );
   const pendientesAccionRef = useRef(0);
@@ -266,6 +289,13 @@ export function PeruDashboardView({
     } finally {
       setValidando(null);
     }
+  };
+
+  const resolverRevision = async (op: OperationRowData) => {
+    setResolviendoId(op.id);
+    await supabase.rpc('resolver_revision_beneficiario', { p_solicitud_id: op.id });
+    setResolviendoId(null);
+    cargar();
   };
 
   const guardarEslogan = async () => {
@@ -448,6 +478,18 @@ export function PeruDashboardView({
             Operaciones realizadas (Hoy) ({realizadas.length})
           </Text>
         </Pressable>
+        <Pressable
+          style={[
+            styles.opsToggleBtn,
+            porRevisar.length > 0 && styles.opsToggleBtnAlerta,
+            vistaOperaciones === 'por_revisar' && styles.opsToggleBtnActivo,
+          ]}
+          onPress={() => setVistaOperaciones('por_revisar')}
+        >
+          <Text style={[styles.opsToggleTexto, vistaOperaciones === 'por_revisar' && styles.opsToggleTextoActivo]}>
+            Operaciones por revisar ({porRevisar.length})
+          </Text>
+        </Pressable>
       </View>
 
       {vistaOperaciones === 'en_curso' ? (
@@ -471,7 +513,7 @@ export function PeruDashboardView({
             ))}
           </View>
         </>
-      ) : (
+      ) : vistaOperaciones === 'realizadas' ? (
         <>
           <View style={styles.seccionHeaderRow}>
             <Text style={styles.miniLabel}>Buscar en realizadas de hoy</Text>
@@ -501,6 +543,29 @@ export function PeruDashboardView({
                 onValidarVe={() => {}}
                 validandoPeru={false}
                 validandoVe={false}
+              />
+            ))}
+          </View>
+        </>
+      ) : (
+        <>
+          {porRevisar.length === 0 && <Text style={styles.vacio}>No hay operaciones por revisar.</Text>}
+          <View style={styles.grid}>
+            {porRevisar.map((op) => (
+              <OperationRow
+                key={op.id}
+                style={styles.gridItem}
+                op={op}
+                numero={numeracion.get(op.id)}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
+                puedeValidarPeru={false}
+                puedeValidarVe={false}
+                onValidarPeru={() => {}}
+                onValidarVe={() => {}}
+                validandoPeru={false}
+                validandoVe={false}
+                onResolverRevision={() => resolverRevision(op)}
+                resolviendoRevision={resolviendoId === op.id}
               />
             ))}
           </View>
@@ -564,6 +629,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   opsToggleBtnActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  opsToggleBtnAlerta: { borderColor: colors.danger },
   opsToggleTexto: { color: colors.textMuted, fontWeight: '800', fontSize: 16, textTransform: 'uppercase' },
   opsToggleTextoActivo: { color: colors.text },
   excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },

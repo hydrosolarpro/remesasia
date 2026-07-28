@@ -77,6 +77,8 @@ export function OperationRow({
   onValidarVe,
   validandoPeru,
   validandoVe,
+  onResolverRevision,
+  resolviendoRevision,
   style,
 }: {
   op: OperationRowData;
@@ -91,6 +93,9 @@ export function OperationRow({
   onValidarVe: (comprobanteUri: string, comprobanteExt: string) => void;
   validandoPeru: boolean;
   validandoVe: boolean;
+  /** Solo relevante cuando op.en_revision=true (lista "Operaciones por revisar"). */
+  onResolverRevision?: () => void;
+  resolviendoRevision?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -197,6 +202,17 @@ export function OperationRow({
             </View>
           </View>
 
+          {op.en_revision && (
+            <View style={styles.revisionCard}>
+              <Text style={styles.revisionTitulo}>⚠️ El cliente reportó que el depósito no llegó a la cuenta del beneficiario</Text>
+              {op.en_revision_at && <Text style={styles.checkHora}>Reportado: {FORMATTER_FECHA_HORA.format(new Date(op.en_revision_at))}</Text>}
+              <View style={styles.checkCol}>
+                <Text style={styles.checkLabel}>Marcar como resuelto</Text>
+                <RoundCheck checked={false} loading={resolviendoRevision} onPress={onResolverRevision} />
+              </View>
+            </View>
+          )}
+
           {enlaceWhatsApp && (
             <Pressable style={styles.whatsappBtn} onPress={notificarWhatsApp}>
               <Text style={styles.whatsappBtnTexto}>Notificar por WhatsApp al beneficiario</Text>
@@ -272,4 +288,15 @@ const styles = StyleSheet.create({
   checkValidador: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 1 },
   whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
   whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  revisionCard: {
+    backgroundColor: `${colors.danger}18`,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.sm,
+    padding: 12,
+    marginTop: 12,
+    gap: 8,
+    alignItems: 'center',
+  },
+  revisionTitulo: { color: colors.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' },
 });

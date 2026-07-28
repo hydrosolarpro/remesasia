@@ -13,6 +13,7 @@ export default function SolicitudesCliente() {
   const [cargando, setCargando] = useState(true);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [horarioFin, setHorarioFin] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState<{ id: string; tipo: 'confirmar' | 'reportar' } | null>(null);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -75,6 +76,20 @@ export default function SolicitudesCliente() {
     return mapa;
   }, [solicitudes]);
 
+  const confirmarBeneficiario = async (s: Solicitud) => {
+    setEnviando({ id: s.id, tipo: 'confirmar' });
+    await supabase.rpc('confirmar_beneficiario_recibido', { p_solicitud_id: s.id });
+    setEnviando(null);
+    cargar();
+  };
+
+  const reportarNoLlego = async (s: Solicitud) => {
+    setEnviando({ id: s.id, tipo: 'reportar' });
+    await supabase.rpc('reportar_beneficiario_no_recibido', { p_solicitud_id: s.id });
+    setEnviando(null);
+    cargar();
+  };
+
   if (cargando) {
     return (
       <View style={styles.center}>
@@ -89,7 +104,15 @@ export default function SolicitudesCliente() {
       {enCurso.length === 0 && <Text style={styles.vacio}>No tienes solicitudes en curso.</Text>}
       <View style={styles.lista}>
         {enCurso.map((s) => (
-          <ClienteSolicitudRow key={s.id} solicitud={s} numero={numeracion.get(s.id)} />
+          <ClienteSolicitudRow
+            key={s.id}
+            solicitud={s}
+            numero={numeracion.get(s.id)}
+            onConfirmar={() => confirmarBeneficiario(s)}
+            onReportar={() => reportarNoLlego(s)}
+            confirmando={enviando?.id === s.id && enviando.tipo === 'confirmar'}
+            reportando={enviando?.id === s.id && enviando.tipo === 'reportar'}
+          />
         ))}
       </View>
 
@@ -97,7 +120,15 @@ export default function SolicitudesCliente() {
       {realizadas.length === 0 && <Text style={styles.vacio}>Todavía no tienes solicitudes completadas hoy.</Text>}
       <View style={styles.lista}>
         {realizadas.map((s) => (
-          <ClienteSolicitudRow key={s.id} solicitud={s} numero={numeracion.get(s.id)} />
+          <ClienteSolicitudRow
+            key={s.id}
+            solicitud={s}
+            numero={numeracion.get(s.id)}
+            onConfirmar={() => confirmarBeneficiario(s)}
+            onReportar={() => reportarNoLlego(s)}
+            confirmando={enviando?.id === s.id && enviando.tipo === 'confirmar'}
+            reportando={enviando?.id === s.id && enviando.tipo === 'reportar'}
+          />
         ))}
       </View>
     </ScrollView>

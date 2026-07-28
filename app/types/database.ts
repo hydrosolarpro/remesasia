@@ -80,6 +80,14 @@ export interface Solicitud {
   negocio_operador_peru_id: string;
   created_at: string;
   updated_at: string;
+  /** El cliente confirma que el dinero llegó a la cuenta del beneficiario. */
+  check_beneficiario_confirmado: boolean;
+  check_beneficiario_confirmado_at: string | null;
+  /** true mientras la solicitud está escalada en "Operaciones por revisar". */
+  en_revision: boolean;
+  en_revision_at: string | null;
+  revision_resuelta_at: string | null;
+  revision_resuelta_por: string | null;
 }
 
 export interface PerfilNegocio {

@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
 
   try {
     const { solicitud_id, tipo } = await req.json();
-    if (!solicitud_id || (tipo !== 'peru' && tipo !== 'venezuela')) {
+    if (!solicitud_id || (tipo !== 'peru' && tipo !== 'venezuela' && tipo !== 'revision_resuelta')) {
       return new Response(JSON.stringify({ error: 'Falta solicitud_id o tipo inválido' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -37,8 +37,10 @@ Deno.serve(async (req) => {
 
     if (tipo === 'peru') {
       await notificarCliente(supabase, solicitud);
-    } else {
+    } else if (tipo === 'venezuela') {
       await notificarBeneficiario(supabase, solicitud);
+    } else {
+      await notificarRevisionResuelta(supabase, solicitud);
     }
 
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
@@ -85,7 +87,7 @@ async function notificarCliente(supabase: any, solicitud: any) {
 }
 
 // deno-lint-ignore no-explicit-any
-async function notificarBeneficiario(supabase: any, solicitud: any) {
+async function chatIdBeneficiario(supabase: any, solicitud: any): Promise<string | null> {
   const { data: beneficiario } = await supabase
     .from('cuentas_utilizadas_cliente')
     .select('telegram_chat_id, telegram_connected')
@@ -93,8 +95,13 @@ async function notificarBeneficiario(supabase: any, solicitud: any) {
     .eq('ci', solicitud.beneficiario_ci)
     .eq('numero_cuenta', solicitud.beneficiario_cuenta)
     .maybeSingle();
+  return beneficiario?.telegram_connected && beneficiario.telegram_chat_id ? beneficiario.telegram_chat_id : null;
+}
 
-  if (!beneficiario?.telegram_connected || !beneficiario.telegram_chat_id) {
+// deno-lint-ignore no-explicit-any
+async function notificarBeneficiario(supabase: any, solicitud: any) {
+  const chatId = await chatIdBeneficiario(supabase, solicitud);
+  if (!chatId) {
     console.log(`telegram-notificar-deposito: beneficiario de solicitud ${solicitud.id} sin Telegram conectado, se omite envío`);
     return;
   }
@@ -109,6 +116,35 @@ async function notificarBeneficiario(supabase: any, solicitud: any) {
     `por una cantidad de Bs ${formatearBs(solicitud.monto_ves)}, solicitado por ${nombreCliente}. ` +
     `Por favor verificar dicho deposito en cuenta. En caso contrario comunicarse con ${nombreCliente}.`;
 
-  const enviado = await sendTelegramMessage(beneficiario.telegram_chat_id, mensaje);
+  const enviado = await sendTelegramMessage(chatId, mensaje);
   if (!enviado) console.error(`telegram-notificar-deposito: falló el envío al beneficiario de solicitud ${solicitud.id}`);
+}
+
+// deno-lint-ignore no-explicit-any
+async function notificarRevisionResuelta(supabase: any, solicitud: any) {
+  const { data: cliente } = await supabase
+    .from('usuarios')
+    .select('nombre, telegram_chat_id, telegram_connected')
+    .eq('id', solicitud.cliente_id)
+    .single();
+
+  const mensaje =
+    `${cliente?.nombre ?? 'Cliente'} y ${solicitud.beneficiario_nombre}, Disculpen los inconvenientes. ` +
+    `Se ha revisado y solucionado con éxito!!!, revisar nuevamente el depósito en cuenta beneficiario, ` +
+    `valide nuevamente en la parte de solicitudes.`;
+
+  if (cliente?.telegram_connected && cliente.telegram_chat_id) {
+    const enviado = await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
+    if (!enviado) console.error(`telegram-notificar-deposito: falló el envío de revisión resuelta al cliente ${solicitud.cliente_id}`);
+  } else {
+    console.log(`telegram-notificar-deposito: cliente ${solicitud.cliente_id} sin Telegram conectado, se omite envío de revisión resuelta`);
+  }
+
+  const chatIdBenef = await chatIdBeneficiario(supabase, solicitud);
+  if (chatIdBenef) {
+    const enviado = await sendTelegramMessage(chatIdBenef, mensaje);
+    if (!enviado) console.error(`telegram-notificar-deposito: falló el envío de revisión resuelta al beneficiario de solicitud ${solicitud.id}`);
+  } else {
+    console.log(`telegram-notificar-deposito: beneficiario de solicitud ${solicitud.id} sin Telegram conectado, se omite envío de revisión resuelta`);
+  }
 }
