@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { PerfilNegocio, Tasa } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
-import { hoyLocal, fechaLocalDe } from '../lib/fechaLocal';
+import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../lib/fechaLocal';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { formatearBs } from '../lib/formato';
 import { construirEnlaceWhatsApp, construirEnlaceWhatsAppGenerico, mensajeConfirmacionDeposito } from '../lib/whatsapp';
@@ -67,6 +67,16 @@ export function PeruDashboardView({
   const [rentabilidadBorrador, setRentabilidadBorrador] = useState('');
   const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas'>('en_curso');
 
+  // El corte de "realizadas" hacia solo-estadísticas es a la hora de
+  // cierre del horario de atención (no a medianoche) -- este tick fuerza
+  // un recálculo periódico para que la lista se vacíe sola en cuanto se
+  // cruza esa hora, sin necesidad de recargar la pantalla.
+  const [tickHorario, setTickHorario] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTickHorario((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const cargar = useCallback(async () => {
     const [{ data: perfilData }, { data: tasaData }, { data: opsData }] = await Promise.all([
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
@@ -119,14 +129,18 @@ export function PeruDashboardView({
 
   // "En curso" no tiene fecha límite: una operación pendiente sigue
   // apareciendo aquí sin importar cuántos días pasen, hasta que se
-  // complete. "Realizadas" en cambio se reinicia cada día -- solo muestra
-  // las completadas HOY; las de días anteriores quedan disponibles en
-  // Estadísticas, no aquí.
+  // complete. "Realizadas" en cambio se corta a la hora de cierre del
+  // horario de atención del negocio (no a medianoche): pasada esa hora,
+  // la lista de hoy queda vacía aquí -- sin perder nada, solo dejan de
+  // listarse; siguen disponibles en Estadísticas con los filtros de fecha.
+  // Sin horario_fin configurado, se usa medianoche como respaldo (ya lo
+  // cubre el filtro por fecha calendario de abajo).
   const enCurso = useMemo(() => operaciones.filter((o) => !o.check_deposito_ve), [operaciones]);
-  const realizadas = useMemo(
-    () => operaciones.filter((o) => o.check_deposito_ve && o.check_deposito_ve_at && fechaLocalDe(o.check_deposito_ve_at) === hoyLocal()),
-    [operaciones]
-  );
+  const realizadas = useMemo(() => {
+    if (yaCerroHoy(perfil?.horario_fin)) return [];
+    return operaciones.filter((o) => o.check_deposito_ve && o.check_deposito_ve_at && fechaLocalDe(o.check_deposito_ve_at) === hoyLocal());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operaciones, perfil?.horario_fin, tickHorario]);
 
   // Alerta sonora: suena apenas aparece una operación que necesita la
   // acción de ESTA sesión -- para Venezuela, un depósito que Perú ya

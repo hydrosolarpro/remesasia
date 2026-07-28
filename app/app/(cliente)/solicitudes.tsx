@@ -1,10 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { ClienteSolicitudRow } from '../../components/ClientSolicitudRow';
-import { hoyLocal, fechaLocalDe } from '../../lib/fechaLocal';
+import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../../lib/fechaLocal';
 import { Solicitud } from '../../types/database';
 import { colors } from '../../constants/theme';
 
@@ -12,6 +12,7 @@ export default function SolicitudesCliente() {
   const { usuario } = useAuth();
   const [cargando, setCargando] = useState(true);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+  const [horarioFin, setHorarioFin] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -32,15 +33,37 @@ export default function SolicitudesCliente() {
     }, [cargar])
   );
 
+  // El corte de "realizadas hoy" es a la hora de cierre del horario de
+  // atención del negocio (perfil_negocio.horario_fin), no a medianoche.
+  useEffect(() => {
+    if (!usuario?.negocio_operador_peru_id) return;
+    supabase
+      .from('perfil_negocio')
+      .select('horario_fin')
+      .eq('operador_peru_id', usuario.negocio_operador_peru_id)
+      .maybeSingle()
+      .then(({ data }) => setHorarioFin(data?.horario_fin || null));
+  }, [usuario?.negocio_operador_peru_id]);
+
+  // Tick periódico para que la lista se vacíe sola en cuanto se cruza la
+  // hora de cierre, sin necesidad de recargar la pantalla.
+  const [tickHorario, setTickHorario] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTickHorario((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const enCurso = useMemo(() => solicitudes.filter((s) => !s.check_deposito_ve), [solicitudes]);
-  // Solo las completadas HOY: al cambiar de día desaparecen de esta lista
-  // (pero no de la base de datos — siguen disponibles para buscarlas con
-  // los filtros de Estadísticas). Mismo criterio que ya usa
-  // PeruDashboardView.tsx para operador Perú y Venezuela.
-  const realizadas = useMemo(
-    () => solicitudes.filter((s) => s.check_deposito_ve && s.check_deposito_ve_at && fechaLocalDe(s.check_deposito_ve_at) === hoyLocal()),
-    [solicitudes]
-  );
+  // Solo las completadas HOY y antes de la hora de cierre: pasada esa
+  // hora (o al cambiar de día calendario si no hay horario configurado),
+  // desaparecen de esta lista pero no de la base de datos — siguen
+  // disponibles para buscarlas con los filtros de Estadísticas. Mismo
+  // criterio que ya usa PeruDashboardView.tsx para operador Perú/Venezuela.
+  const realizadas = useMemo(() => {
+    if (yaCerroHoy(horarioFin)) return [];
+    return solicitudes.filter((s) => s.check_deposito_ve && s.check_deposito_ve_at && fechaLocalDe(s.check_deposito_ve_at) === hoyLocal());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solicitudes, horarioFin, tickHorario]);
 
   // Numeración única y continua sobre TODAS las solicitudes (en curso +
   // realizadas), por orden de envío — así una solicitud conserva su
