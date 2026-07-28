@@ -209,8 +209,8 @@ export default function InicioCliente() {
       limpiarBeneficiario();
       setComprobanteUri(null);
       Alert.alert(
-        '¡Gracias por preferirnos!',
-        'Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar tu solicitud revisa tu lista de "Solicitudes realizadas".',
+        '¡Gracias por preferirnos!!!',
+        'Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar su solicitud revise el menú: Solicitudes.',
         [{ text: 'Entendido', onPress: () => router.push({ pathname: '/(cliente)/solicitud/[id]', params: { id: solicitud.id } }) }]
       );
     } catch (err) {

@@ -2,13 +2,13 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { useAudioPlayer } from 'expo-audio';
 import { supabase } from '../lib/supabase';
 import { construirEnlaceEntrada } from '../lib/invitaciones';
 import { PerfilNegocio, Tasa, OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe } from '../lib/fechaLocal';
+import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -127,28 +127,14 @@ export function PeruDashboardView({
   // Alerta sonora: suena apenas aparece una operación que necesita la
   // acción de ESTA sesión -- para Venezuela, un depósito que Perú ya
   // validó y espera que VE la cargue; para Perú, una solicitud nueva del
-  // cliente que todavía no valida. Se repite cada 3 minutos mientras siga
-  // pendiente, hasta que se cargue el depósito de esa operación. Los
-  // navegadores bloquean el audio si la página no tuvo ninguna
-  // interacción todavía -- por eso el catch silencioso; en cuanto el
-  // operador toque algo en la pantalla, las siguientes alertas suenan
-  // normal.
-  const alertaPlayer = useAudioPlayer(require('../assets/sounds/alerta.wav'));
+  // cliente que todavía no valida. Se repite cada 2 minutos mientras siga
+  // pendiente, hasta que se atienda el check correspondiente.
+  const reproducirAlerta = useAlertaSonora();
   const pendientesAccion = useMemo(
     () => operaciones.filter((o) => (restringido ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru)),
     [operaciones, restringido]
   );
   const pendientesAccionRef = useRef(0);
-
-  const reproducirAlerta = useCallback(() => {
-    try {
-      alertaPlayer.seekTo(0);
-      alertaPlayer.play();
-    } catch {
-      // Bloqueado por política de autoplay del navegador; se reintentará
-      // en la próxima alerta (cada 3 min) o apenas el usuario interactúe.
-    }
-  }, [alertaPlayer]);
 
   useEffect(() => {
     if (pendientesAccion.length > pendientesAccionRef.current) reproducirAlerta();
@@ -158,9 +144,28 @@ export function PeruDashboardView({
   useEffect(() => {
     const id = setInterval(() => {
       if (pendientesAccionRef.current > 0) reproducirAlerta();
-    }, 3 * 60 * 1000);
+    }, 2 * 60 * 1000);
     return () => clearInterval(id);
   }, [reproducirAlerta]);
+
+  // Aviso de una sola vez (no se repite) para el Operador Perú cuando
+  // Venezuela confirma un depósito: a esa altura ya no hay nada pendiente
+  // por atender de este lado, solo se avisa que la operación se completó.
+  // `null` en la ref marca "todavía no se estableció la base" -- así no
+  // suena de golpe por todas las operaciones que ya estaban completadas
+  // antes de entrar a la pantalla.
+  const completadosConocidosRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (restringido) return;
+    const completadosAhora = new Set(operaciones.filter((o) => o.check_deposito_ve).map((o) => o.id));
+    if (completadosConocidosRef.current === null) {
+      completadosConocidosRef.current = completadosAhora;
+      return;
+    }
+    const hayNuevoCompletado = [...completadosAhora].some((id) => !completadosConocidosRef.current!.has(id));
+    if (hayNuevoCompletado) reproducirAlerta();
+    completadosConocidosRef.current = completadosAhora;
+  }, [operaciones, restringido, reproducirAlerta]);
 
   // Buscador único (nombre, teléfono, fecha, monto en soles o año) — un solo
   // campo de texto en vez de varios filtros separados, para no sobrecargar

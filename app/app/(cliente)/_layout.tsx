@@ -1,7 +1,10 @@
+import { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
 import { ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
+import { useAlertaSonora } from '../../lib/useAlertaSonora';
 import { colors, APP_MAX_WIDTH_MEDIUM } from '../../constants/theme';
 import { BannerTitle, BannerFlags } from '../../components/AppBanner';
 import { NarrowShell } from '../../components/NarrowShell';
@@ -27,7 +30,47 @@ export default function ClienteLayout() {
   // aire de sobra. El inset se suma aparte para el indicador de inicio
   // (iPhone) o la barra de gestos (Android).
   const insets = useSafeAreaInsets();
-  const { signOut } = useAuth();
+  const { usuario, signOut } = useAuth();
+
+  // Alerta sonora de una sola vez (no se repite, el cliente no tiene
+  // ningún check que atender) cuando se confirma el depósito en
+  // Venezuela de alguna de sus solicitudes. Vive en el layout -- no en
+  // una pantalla puntual -- para sonar sin importar en qué pestaña esté.
+  const reproducirAlerta = useAlertaSonora();
+  const completadosConocidosRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!usuario) return;
+    let cancelado = false;
+
+    const revisarCompletados = async () => {
+      const { data } = await supabase.from('solicitudes').select('id').eq('cliente_id', usuario.id).eq('check_deposito_ve', true);
+      if (cancelado) return;
+      const completadosAhora = new Set((data ?? []).map((d) => d.id as string));
+      if (completadosConocidosRef.current === null) {
+        completadosConocidosRef.current = completadosAhora;
+        return;
+      }
+      const hayNuevo = [...completadosAhora].some((id) => !completadosConocidosRef.current!.has(id));
+      if (hayNuevo) reproducirAlerta();
+      completadosConocidosRef.current = completadosAhora;
+    };
+
+    revisarCompletados();
+    const channel = supabase
+      .channel(`cliente-alertas-${usuario.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'solicitudes', filter: `cliente_id=eq.${usuario.id}` },
+        () => revisarCompletados()
+      )
+      .subscribe();
+
+    return () => {
+      cancelado = true;
+      supabase.removeChannel(channel);
+    };
+  }, [usuario, reproducirAlerta]);
+
   return (
     <NarrowShell maxWidth={APP_MAX_WIDTH_MEDIUM}>
       <Tabs
