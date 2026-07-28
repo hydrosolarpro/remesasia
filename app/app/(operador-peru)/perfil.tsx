@@ -9,6 +9,7 @@ import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion, construirEnl
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { diasRestantesDemo, fechaFinDemo, PRECIO_STARTER_MENSUAL, LIMITE_EQUIPO_VENEZUELA, LIMITE_EQUIPO_PERU } from '../../lib/plan';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
+import { PlanesInfo } from '../../components/PlanesInfo';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -230,6 +231,8 @@ export default function Perfil() {
           )
         )}
       </View>
+
+      {esDueno && <PlanesInfo />}
 
       {esDueno && usuario && (
         <View style={[styles.card, cardShadow]}>
