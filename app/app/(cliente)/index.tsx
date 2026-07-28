@@ -21,6 +21,7 @@ import { formatearBs } from '../../lib/formato';
 import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
 import { RoleTag } from '../../components/RoleTag';
+import { MensajeModal } from '../../components/MensajeModal';
 import {
   Tasa,
   TasaBcv,
@@ -56,6 +57,7 @@ export default function InicioCliente() {
   const [comprobanteExt, setComprobanteExt] = useState('jpg');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mostrarExito, setMostrarExito] = useState(false);
 
   const negocioId = usuario?.negocio_operador_peru_id ?? null;
 
@@ -208,10 +210,7 @@ export default function InicioCliente() {
       setMontoPen('');
       limpiarBeneficiario();
       setComprobanteUri(null);
-      Alert.alert(
-        '¡Gracias por preferirnos!!!',
-        'Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar su solicitud revise su Lista de "Solicitudes realizadas".'
-      );
+      setMostrarExito(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.');
     } finally {
@@ -240,6 +239,7 @@ export default function InicioCliente() {
   }
 
   return (
+    <>
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol="cliente" />
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {usuario?.nombre}</Text>
@@ -410,6 +410,13 @@ export default function InicioCliente() {
         </>
       )}
     </ScrollView>
+    <MensajeModal
+      visible={mostrarExito}
+      titulo="¡Gracias por preferirnos!!!"
+      mensaje='Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar su solicitud revise su Lista de "Solicitudes realizadas".'
+      onCerrar={() => setMostrarExito(false)}
+    />
+    </>
   );
 }
 

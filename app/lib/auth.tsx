@@ -30,7 +30,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUsuario(null);
       return;
     }
-    const { data } = await supabase.from('usuarios').select('*').eq('id', userId).single();
+    let { data } = await supabase.from('usuarios').select('*').eq('id', userId).single();
+
+    // El vínculo por correo con Operador Venezuela / equipo Operador Perú
+    // normalmente ocurre solo una vez, al crear la cuenta (ver
+    // handle_new_user en la base de datos). Repetimos esa revisión en cada
+    // carga de sesión en dos casos que el trigger no cubre: (a) esta
+    // persona ya tenía cuenta como 'cliente' antes de que el Operador Perú
+    // cargara su correo, o (b) ya tenía el rol correcto pero su fila de
+    // vínculo se borró y se volvió a registrar (queda huérfana si no
+    // repetimos la revisión, porque el rol ya no es 'cliente').
+    if (data?.rol === 'cliente' || data?.rol === 'operador_venezuela' || data?.rol === 'operador_peru_miembro') {
+      const { data: rolActualizado } = await supabase.rpc('vincular_cuenta_pendiente');
+      if (rolActualizado && rolActualizado !== data.rol) {
+        ({ data } = await supabase.from('usuarios').select('*').eq('id', userId).single());
+      }
+    }
+
     setUsuario(data as Usuario | null);
   };
 
