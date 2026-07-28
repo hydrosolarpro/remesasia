@@ -42,8 +42,8 @@ export default function OnboardingNegocio() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [nombreOperador, setNombreOperador] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [yapeQrUrl, setYapeQrUrl] = useState<string | null>(null);
-  const [plinQrUrl, setPlinQrUrl] = useState<string | null>(null);
+  const [yapeTelefono, setYapeTelefono] = useState('');
+  const [plinTelefono, setPlinTelefono] = useState('');
   const [cuentas, setCuentas] = useState<CuentaForm[]>([{ entidad: '', titular: '', numero_cuenta: '', cci: '' }]);
   const [esMismoOperadorVe, setEsMismoOperadorVe] = useState(false);
   const [veNombre, setVeNombre] = useState('');
@@ -51,7 +51,7 @@ export default function OnboardingNegocio() {
   const [veEmail, setVeEmail] = useState('');
   const [horarioInicio, setHorarioInicio] = useState('');
   const [horarioFin, setHorarioFin] = useState('');
-  const [subiendoImagen, setSubiendoImagen] = useState<null | 'logo' | 'yape' | 'plin'>(null);
+  const [subiendoImagen, setSubiendoImagen] = useState<null | 'logo'>(null);
   const [copiadoEnlaceVe, setCopiadoEnlaceVe] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -69,8 +69,8 @@ export default function OnboardingNegocio() {
     if (perfil) {
       setNombreNegocio(perfil.nombre_negocio ?? '');
       setLogoUrl(perfil.logo_url);
-      setYapeQrUrl(perfil.yape_qr_url);
-      setPlinQrUrl(perfil.plin_qr_url);
+      setYapeTelefono(perfil.yape_telefono ?? '');
+      setPlinTelefono(perfil.plin_telefono ?? '');
       setEsMismoOperadorVe(perfil.es_operador_venezuela_mismo);
       setHorarioInicio(perfil.horario_inicio ?? '');
       setHorarioFin(perfil.horario_fin ?? '');
@@ -93,7 +93,7 @@ export default function OnboardingNegocio() {
     cargar();
   }, [cargar]);
 
-  const subirImagen = async (tipo: 'logo' | 'yape' | 'plin') => {
+  const subirImagen = async (tipo: 'logo') => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
       Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos.');
@@ -117,9 +117,7 @@ export default function OnboardingNegocio() {
     }
     const { data } = supabase.storage.from('comprobantes').getPublicUrl(path);
     const urlConCacheBust = `${data.publicUrl}?t=${Date.now()}`;
-    if (tipo === 'logo') setLogoUrl(urlConCacheBust);
-    if (tipo === 'yape') setYapeQrUrl(urlConCacheBust);
-    if (tipo === 'plin') setPlinQrUrl(urlConCacheBust);
+    setLogoUrl(urlConCacheBust);
   };
 
   const agregarCuenta = () => setCuentas((prev) => [...prev, { entidad: '', titular: '', numero_cuenta: '', cci: '' }]);
@@ -154,8 +152,8 @@ export default function OnboardingNegocio() {
           operador_peru_id: usuario.id,
           nombre_negocio: nombreNegocio.trim(),
           logo_url: logoUrl,
-          yape_qr_url: yapeQrUrl,
-          plin_qr_url: plinQrUrl,
+          yape_telefono: yapeTelefono.trim() || null,
+          plin_telefono: plinTelefono.trim() || null,
           es_operador_venezuela_mismo: esMismoOperadorVe,
           horario_inicio: horarioInicio.trim(),
           horario_fin: horarioFin.trim(),
@@ -235,17 +233,26 @@ export default function OnboardingNegocio() {
         </View>
       </Section>
 
-      <Section titulo="QR de pago">
-        <View style={styles.qrRow}>
-          <View style={styles.qrCol}>
-            <Label texto="Yape" />
-            <QrPicker uri={yapeQrUrl} subiendo={subiendoImagen === 'yape'} onPress={() => subirImagen('yape')} />
-          </View>
-          <View style={styles.qrCol}>
-            <Label texto="Plin" />
-            <QrPicker uri={plinQrUrl} subiendo={subiendoImagen === 'plin'} onPress={() => subirImagen('plin')} />
-          </View>
-        </View>
+      <Section titulo="Teléfono de pago (Yape / Plin)">
+        <Text style={styles.ayuda}>El cliente verá este número para pagarte por Yape o Plin, con opción de copiarlo.</Text>
+        <Label texto="Teléfono Yape" />
+        <TextInput
+          style={styles.input}
+          value={yapeTelefono}
+          onChangeText={setYapeTelefono}
+          keyboardType="phone-pad"
+          placeholder="+51 999 999 999"
+          placeholderTextColor={colors.textMuted}
+        />
+        <Label texto="Teléfono Plin" />
+        <TextInput
+          style={styles.input}
+          value={plinTelefono}
+          onChangeText={setPlinTelefono}
+          keyboardType="phone-pad"
+          placeholder="+51 999 999 999"
+          placeholderTextColor={colors.textMuted}
+        />
       </Section>
 
       <Section titulo="Cuentas bancarias">
@@ -403,20 +410,6 @@ function LogoPicker({ uri, subiendo, onPress }: { uri: string | null; subiendo: 
   );
 }
 
-function QrPicker({ uri, subiendo, onPress }: { uri: string | null; subiendo: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={styles.qrPicker} onPress={onPress} disabled={subiendo}>
-      {subiendo ? (
-        <ActivityIndicator color={colors.primary} />
-      ) : uri ? (
-        <Image source={{ uri }} style={styles.qrImg} resizeMode="contain" />
-      ) : (
-        <Text style={styles.qrPlaceholder}>Subir QR</Text>
-      )}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 16, paddingBottom: 48 },
@@ -452,23 +445,6 @@ const styles = StyleSheet.create({
   },
   logoImg: { width: '100%', height: '100%' },
   logoPlaceholder: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
-  qrRow: { flexDirection: 'row', gap: 16, marginTop: 4 },
-  qrCol: { flex: 1 },
-  qrPicker: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    backgroundColor: colors.cardAlt,
-    overflow: 'hidden',
-  },
-  qrImg: { width: '100%', height: '100%' },
-  qrPlaceholder: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
   cuentaBloque: { gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   cuentaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   cuentaEntidad: { flex: 1, marginTop: 0 },

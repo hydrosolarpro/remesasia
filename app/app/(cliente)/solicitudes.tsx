@@ -76,7 +76,7 @@ export default function SolicitudesCliente() {
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 10, paddingBottom: 48 },
-  seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
+  seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8, textTransform: 'uppercase' },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
   lista: { gap: 10 },
 });

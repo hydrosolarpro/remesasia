@@ -83,6 +83,8 @@ export interface PerfilNegocio {
   rentabilidad_pct: number;
   yape_qr_url: string | null;
   plin_qr_url: string | null;
+  yape_telefono: string | null;
+  plin_telefono: string | null;
   es_operador_venezuela_mismo: boolean;
   horario_inicio: string;
   horario_fin: string;

@@ -11,13 +11,13 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { extensionDeImagen } from '../../lib/imagenUtil';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { calcularConversion } from '../../lib/tasaCalculo';
 import { obtenerTasaBcv } from '../../lib/bcv';
+import { formatearBs } from '../../lib/formato';
 import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
 import { RoleTag } from '../../components/RoleTag';
@@ -210,8 +210,7 @@ export default function InicioCliente() {
       setComprobanteUri(null);
       Alert.alert(
         '¡Gracias por preferirnos!!!',
-        'Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar su solicitud revise el menú: Solicitudes.',
-        [{ text: 'Entendido', onPress: () => router.push({ pathname: '/(cliente)/solicitud/[id]', params: { id: solicitud.id } }) }]
+        'Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar su solicitud revise su Lista de "Solicitudes realizadas".'
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.');
@@ -287,7 +286,7 @@ export default function InicioCliente() {
 
         {conversion && (
           <View style={styles.resultado}>
-            <Text style={styles.resultadoBs}>Bs {conversion.montoVes.toFixed(2)}</Text>
+            <Text style={styles.resultadoBs}>Bs {formatearBs(conversion.montoVes)}</Text>
             {bcv && (
               <Text style={styles.resultadoEquivalente}>
                 ≈ ${equivalenteUsd!.toFixed(2)} · €{equivalenteEur!.toFixed(2)}
@@ -359,20 +358,12 @@ export default function InicioCliente() {
             <Text style={styles.seccionTitulo}>Datos para pagar en Perú</Text>
             <Text style={styles.pagarA}>{nombreOperador}</Text>
 
-            <View style={styles.qrRow}>
-              {perfil?.yape_qr_url && (
-                <View style={styles.qrCol}>
-                  <Text style={styles.qrLabel}>Yape</Text>
-                  <Image source={{ uri: perfil.yape_qr_url }} style={styles.qrImg} resizeMode="contain" />
-                </View>
-              )}
-              {perfil?.plin_qr_url && (
-                <View style={styles.qrCol}>
-                  <Text style={styles.qrLabel}>Plin</Text>
-                  <Image source={{ uri: perfil.plin_qr_url }} style={styles.qrImg} resizeMode="contain" />
-                </View>
-              )}
-            </View>
+            {(perfil?.yape_telefono || perfil?.plin_telefono) && (
+              <View style={styles.telefonosPago}>
+                {perfil?.yape_telefono && <CopyField label="Yape" value={perfil.yape_telefono} />}
+                {perfil?.plin_telefono && <CopyField label="Plin" value={perfil.plin_telefono} />}
+              </View>
+            )}
 
             {cuentasOperador.map((c) => (
               <View key={c.id} style={styles.cuentaBanco}>
@@ -492,10 +483,7 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
   switchLabel: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 8 },
   pagarA: { color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  qrRow: { flexDirection: 'row', gap: 16, marginBottom: 8 },
-  qrCol: { flex: 1, alignItems: 'center' },
-  qrLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 4 },
-  qrImg: { width: '100%', aspectRatio: 1, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
+  telefonosPago: { marginBottom: 4 },
   cuentaBanco: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
   cuentaBancoEntidad: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   metodoRow: { flexDirection: 'row', gap: 10, marginTop: 6 },

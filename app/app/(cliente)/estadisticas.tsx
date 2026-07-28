@@ -7,7 +7,8 @@ import { DateRangeFilter } from '../../components/DateRangeFilter';
 import { EstadisticaGraficos } from '../../components/EstadisticaGraficos';
 import { SolicitudCard } from '../../components/SolicitudCard';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
-import { RangoFecha } from '../../lib/dateRange';
+import { calcularRango, RangoFecha } from '../../lib/dateRange';
+import { hoyLocal } from '../../lib/fechaLocal';
 import { Solicitud } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -99,6 +100,16 @@ export default function EstadisticasCliente() {
   return (
     <ScrollView ref={scrollRef} contentContainerStyle={styles.container} style={SIN_OVERSCROLL_Y}>
       <Text style={styles.titulo}>Estadística de depósitos realizados</Text>
+
+      {/* Atajo de un toque para el día de hoy, sin pasar por el calendario
+          del filtro de abajo. Al día siguiente esta consulta ya no aplica
+          -- pero esas solicitudes no se pierden: quedan en la base y se
+          pueden volver a ver con cualquiera de los otros filtros (fecha
+          específica, rango, mes, etc.) eligiendo esa fecha pasada. */}
+      <Pressable style={styles.hoyBtn} onPress={() => buscar(calcularRango('dia', hoyLocal(), ''))}>
+        <Text style={styles.hoyBtnTexto}>📅 Solicitudes de hoy</Text>
+      </Pressable>
+
       <DateRangeFilter onCambio={buscar} />
 
       {cargando && <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />}
@@ -150,6 +161,16 @@ export default function EstadisticasCliente() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 14, paddingBottom: 48 },
   titulo: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  hoyBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: `${colors.primary}22`,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  hoyBtnTexto: { color: colors.text, fontSize: 13, fontWeight: '700' },
   resumen: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 10 },
   resumenHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resumenPeriodo: { color: colors.textMuted, fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },

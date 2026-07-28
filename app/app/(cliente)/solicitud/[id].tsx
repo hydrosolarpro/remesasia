@@ -3,9 +3,15 @@ import { View, Text, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator
 import { useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { descargarYCompartirComprobante } from '../../../lib/pdf';
+import { formatearBs } from '../../../lib/formato';
 import { Solicitud } from '../../../types/database';
 import { EstadoBadge } from '../../../components/EstadoBadge';
 import { colors, radius, cardShadow } from '../../../constants/theme';
+
+const ETIQUETA_TIPO_TRANSFERENCIA: Record<Solicitud['tipo_transferencia'], string> = {
+  transferencia_bancaria: 'Transferencia bancaria',
+  pago_movil: 'Pago móvil',
+};
 
 /**
  * Seguimiento de una solicitud ya enviada: estado, checks de validación,
@@ -55,7 +61,7 @@ export default function DetalleSolicitud() {
         <View style={[styles.avisoCompletado, cardShadow]}>
           <Text style={styles.avisoTitulo}>✓ ¡Operación completada!</Text>
           <Text style={styles.avisoTexto}>
-            Confirmamos que {solicitud.beneficiario_nombre} recibió Bs {solicitud.monto_ves.toFixed(2)} en Venezuela.
+            Confirmamos que {solicitud.beneficiario_nombre} recibió Bs {formatearBs(solicitud.monto_ves)} en Venezuela.
           </Text>
         </View>
       )}
@@ -72,11 +78,12 @@ export default function DetalleSolicitud() {
         <Row label="Banco" value={solicitud.beneficiario_banco} />
         <Row label="Cuenta / teléfono" value={solicitud.beneficiario_cuenta} />
         <Row label="Envías" value={`S/ ${solicitud.monto_pen.toFixed(2)}`} />
-        <Row label="Recibe" value={`Bs ${solicitud.monto_ves.toFixed(2)}`} />
+        <Row label="Recibe" value={`Bs ${formatearBs(solicitud.monto_ves)}`} />
         <Row
           label="Método de pago"
           value={solicitud.metodo_pago === 'yape' ? 'Yape' : solicitud.metodo_pago === 'plin' ? 'Plin' : 'Transferencia bancaria'}
         />
+        <Row label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[solicitud.tipo_transferencia]} />
       </View>
 
       {solicitud.comprobante_pago_url && (

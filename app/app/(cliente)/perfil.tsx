@@ -1,16 +1,98 @@
-import { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
 import { registrarPushToken } from '../../lib/notifications';
 import { colors, radius } from '../../constants/theme';
 
+// Edición de datos en la misma pantalla (sin navegar a otra ruta): antes
+// "Editar mis datos" llevaba a /(auth)/registro (una pantalla ajena a este
+// grupo de tabs) y al volver con router.replace('/(cliente)') se veía un
+// salto a pantalla blanca. Editando in-place evitamos ese remount y el
+// usuario nunca sale de la pestaña Perfil.
 export default function Perfil() {
-  const { usuario } = useAuth();
+  const { usuario, refreshUsuario } = useAuth();
+  const [editando, setEditando] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [pais, setPais] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [guardado, setGuardado] = useState(false);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
   }, [usuario]);
+
+  const empezarEdicion = () => {
+    setNombre(usuario?.nombre ?? '');
+    setTelefono(usuario?.telefono ?? '');
+    setPais(usuario?.pais ?? '');
+    setError(null);
+    setGuardado(false);
+    setEditando(true);
+  };
+
+  const cancelar = () => {
+    setEditando(false);
+    setError(null);
+  };
+
+  const guardar = async () => {
+    if (!usuario) return;
+    setError(null);
+    if (!nombre.trim() || !telefono.trim() || !pais.trim()) {
+      setError('Completa todos los campos.');
+      return;
+    }
+    setGuardando(true);
+    const { error: updateError } = await supabase
+      .from('usuarios')
+      .update({ nombre: nombre.trim(), telefono: telefono.trim(), pais: pais.trim() })
+      .eq('id', usuario.id);
+    setGuardando(false);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    await refreshUsuario();
+    setEditando(false);
+    setGuardado(true);
+    setTimeout(() => setGuardado(false), 3000);
+  };
+
+  if (editando) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.nombre}>Editar mis datos</Text>
+
+        <Text style={styles.label}>Nombre completo</Text>
+        <TextInput style={styles.input} value={nombre} onChangeText={setNombre} placeholderTextColor={colors.textMuted} />
+
+        <Text style={styles.label}>Teléfono</Text>
+        <TextInput
+          style={styles.input}
+          value={telefono}
+          onChangeText={setTelefono}
+          keyboardType="phone-pad"
+          placeholder="+51 999 999 999"
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <Text style={styles.label}>País</Text>
+        <TextInput style={styles.input} value={pais} onChangeText={setPais} placeholderTextColor={colors.textMuted} />
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <Pressable style={styles.button} onPress={guardar} disabled={guardando}>
+          {guardando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar</Text>}
+        </Pressable>
+        <Pressable style={styles.buttonOutline} onPress={cancelar} disabled={guardando}>
+          <Text style={styles.buttonOutlineText}>Cancelar</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -19,7 +101,9 @@ export default function Perfil() {
       <Text style={styles.dato}>{usuario?.telefono}</Text>
       <Text style={styles.datoUltimo}>{usuario?.pais}</Text>
 
-      <Pressable style={styles.buttonOutline} onPress={() => router.push('/(auth)/registro')}>
+      {guardado && <Text style={styles.exito}>✓ Datos guardados satisfactoriamente</Text>}
+
+      <Pressable style={styles.buttonOutline} onPress={empezarEdicion}>
         <Text style={styles.buttonOutlineText}>Editar mis datos</Text>
       </Pressable>
     </View>
@@ -31,6 +115,21 @@ const styles = StyleSheet.create({
   nombre: { color: colors.text, fontSize: 22, fontWeight: '800' },
   dato: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
   datoUltimo: { color: colors.textMuted, fontSize: 14, marginTop: -8, marginBottom: 12 },
+  exito: { color: colors.success, fontSize: 13, fontWeight: '700' },
+  label: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: 14,
+    color: colors.text,
+    fontSize: 16,
+    marginTop: 6,
+    backgroundColor: colors.card,
+  },
+  error: { color: colors.danger, fontSize: 13 },
+  button: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center', marginTop: 8 },
+  buttonText: { color: colors.text, fontWeight: '700', fontSize: 16 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
 });

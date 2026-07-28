@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Solicitud } from '../types/database';
+import { formatearBs } from '../lib/formato';
 import { EstadoBadge } from './EstadoBadge';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -20,7 +21,7 @@ export function SolicitudCard({ solicitud, onPress }: { solicitud: Solicitud; on
       <Text style={styles.beneficiario}>{solicitud.beneficiario_nombre}</Text>
       <View style={styles.row}>
         <Text style={styles.monto}>S/ {solicitud.monto_pen.toFixed(2)}</Text>
-        <Text style={styles.montoVes}>Bs {solicitud.monto_ves.toFixed(2)}</Text>
+        <Text style={styles.montoVes}>Bs {formatearBs(solicitud.monto_ves)}</Text>
       </View>
     </Pressable>
   );

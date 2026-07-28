@@ -87,7 +87,13 @@ export default function ClienteLayout() {
             paddingTop: 8,
             paddingBottom: 10 + insets.bottom,
           },
-          tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+          // 6 pestañas en la misma barra (una más que operador Perú/Venezuela):
+          // con el tamaño de fuente y padding lateral por defecto, etiquetas
+          // como "Estadísticas" no entraban en su columna y React Navigation
+          // las cortaba con "...". Fuente más chica + sin padding lateral del
+          // ítem le da a cada etiqueta todo el ancho de su columna.
+          tabBarItemStyle: { paddingHorizontal: 0 },
+          tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textMuted,
         }}
