@@ -10,6 +10,15 @@ import { useState } from 'react';
 // Perú entienda el valor sin tener que preguntar.
 export function PlanesInfo() {
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  
+  // Función para manejar el cambio del checkbox
+  const handleToggleCheckbox = () => {
+    // Solo permite cambiar si NO está aceptado (no se puede desmarcar)
+    if (!aceptaTerminos) {
+      setAceptaTerminos(true);
+    }
+  };
+
   return (
     <View style={[styles.card, cardShadow]}>
       <Text style={styles.titulo}>Haz crecer tu negocio de remesas</Text>
@@ -92,8 +101,9 @@ export function PlanesInfo() {
 
           <View style={styles.terminosAceptacion}>
             <TouchableOpacity
-              onPress={() => setAceptaTerminos(!aceptaTerminos)}
+              onPress={handleToggleCheckbox}
               style={styles.checkboxContainer}
+              disabled={aceptaTerminos} // Deshabilita el TouchableOpacity cuando ya está aceptado
             >
               <Text style={[
                 styles.checkbox,
@@ -103,9 +113,14 @@ export function PlanesInfo() {
               </Text>
             </TouchableOpacity>
 
-            <Text style={styles.terminosTexto}>
-              He leído y acepto los Términos y Condiciones de Uso. Una vez aceptados,
-              esta autorización será registrada y no podrá deshabilitarse.
+            <Text style={[
+              styles.terminosTexto,
+              aceptaTerminos && styles.terminosTextoAceptado
+            ]}>
+              {aceptaTerminos 
+                ? '✅ Términos y Condiciones aceptados. Esta autorización ha sido registrada y no puede deshabilitarse.'
+                : 'He leído y acepto los Términos y Condiciones de Uso. Una vez aceptados, esta autorización será registrada y no podrá deshabilitarse.'
+              }
             </Text>
           </View>
         </View>
@@ -225,6 +240,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 12,
+    flex: 1,
+  },
+  terminosTextoAceptado: {
+    color: colors.success,
+    fontWeight: '700',
   },
   linkPdf: {
     color: '#0066CC',
@@ -247,6 +267,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   checkboxActivo: {
-    color: colors.primary,
+    color: colors.success,
   },
 });
