@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
-import { obtenerOCrearInvitacionCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
 import { LIMITE_CLIENTES } from '../../lib/plan';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -117,7 +117,7 @@ export default function ClientesRegistrados() {
     if (!negocioId) return;
     setCargandoEnlace(true);
     obtenerOCrearInvitacionCliente(negocioId)
-      .then((inv) => setEnlaceCliente(construirEnlaceInvitacion(inv.token)))
+      .then((inv) => setEnlaceCliente(construirEnlaceLandingCliente(inv.token)))
       .finally(() => setCargandoEnlace(false));
   }, [negocioId]);
 
@@ -184,7 +184,7 @@ export default function ClientesRegistrados() {
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
       <View style={[styles.card, cardShadow]}>
-        <Text style={styles.cardTitulo}>Invitar clientes</Text>
+        <Text style={styles.cardTitulo}>Comparte tu página de clientes</Text>
         <Text style={styles.cardTexto}>
           Un solo enlace para todos tus clientes — compártelo por WhatsApp. Quien lo abra entra directo como tu cliente.
         </Text>

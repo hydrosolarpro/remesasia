@@ -12,6 +12,13 @@ const CLAVE_TOKEN_PENDIENTE = 'remesasia_invitacion_pendiente';
 // cae a localhost (sirve para probar pegando el link en el navegador).
 const BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL ?? Constants.expoConfig?.extra?.webBaseUrl ?? 'http://localhost:8081';
 
+// Landing de captación de clientes (remesas-perú-venezuela---envíoya,
+// desplegada aparte en Vercel). Es la MISMA página para todos los
+// operadores: cada uno la comparte con su propio token como parámetro
+// (?op=), y ella arma sola el enlace de invitación real de ese negocio en
+// sus botones "Accede YA" (ver src/data/appData.ts de esa landing).
+const LANDING_BASE_URL = process.env.EXPO_PUBLIC_LANDING_BASE_URL ?? 'https://remesas-envioya.vercel.app';
+
 export async function crearInvitacion(tipo: TipoInvitacion, negocioOperadorPeruId?: string) {
   const { data: usuario } = await supabase.auth.getUser();
   const { data, error } = await supabase
@@ -43,6 +50,15 @@ export async function obtenerOCrearInvitacionCliente(operadorPeruId: string) {
 
 export function construirEnlaceInvitacion(token: string) {
   return `${BASE_URL}/invitacion/${token}`;
+}
+
+// Enlace que comparte el operador con sus clientes: pasa primero por la
+// landing de captación (con su propio token identificándolo) y de ahí el
+// botón "Accede YA" lleva a construirEnlaceInvitacion(token) de ese mismo
+// negocio -- sin este paso intermedio, el cliente iría directo a
+// /invitacion/<token> sin ver la página de presentación.
+export function construirEnlaceLandingCliente(token: string) {
+  return `${LANDING_BASE_URL}/?op=${encodeURIComponent(token)}`;
 }
 
 // El Operador Venezuela no canjea un token: su cuenta se vincula sola por
