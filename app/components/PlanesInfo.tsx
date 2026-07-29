@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEA',
   },
   terminosTitulo: {
-    color: colors.text,
+    color: '#111827',
     fontSize: 14,
     fontWeight: '800',
     marginBottom: 8,
