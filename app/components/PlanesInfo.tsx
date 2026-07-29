@@ -83,7 +83,7 @@ export function PlanesInfo() {
          Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')
         }
           >       <Text style={styles.linkPdf}>
-      📄 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)
+        📁 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)
     </Text>
   </Pressable>
 
