@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
@@ -25,6 +25,7 @@ export default function ClientesRegistrados() {
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
   const [copiado, setCopiado] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!usuario) return;
@@ -40,23 +41,55 @@ export default function ClientesRegistrados() {
       .then(({ data }) => setNegocioId(data?.operador_peru_id ?? null));
   }, [usuario]);
 
+  const cargarClientes = useCallback(() => {
+    if (!negocioId) return;
+    setCargandoClientes(true);
+    supabase
+      .from('usuarios')
+      .select('*')
+      .eq('rol', 'cliente')
+      .eq('negocio_operador_peru_id', negocioId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setClientes((data as Usuario[] | null) ?? []);
+        setCargandoClientes(false);
+      });
+  }, [negocioId]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!negocioId) return;
-      setCargandoClientes(true);
-      supabase
-        .from('usuarios')
-        .select('*')
-        .eq('rol', 'cliente')
-        .eq('negocio_operador_peru_id', negocioId)
-        .order('created_at', { ascending: false })
-        .then(({ data }) => {
-          setClientes((data as Usuario[] | null) ?? []);
-          setCargandoClientes(false);
-        });
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [negocioId])
+      cargarClientes();
+    }, [cargarClientes])
   );
+
+  // Elimina la fila de `usuarios` y la cuenta de acceso del cliente (ver
+  // supabase/functions/eliminar-cliente). La propia función rechaza el
+  // borrado si el cliente ya tiene solicitudes registradas, para no perder
+  // historial financiero -- acá solo se muestra ese mensaje si ocurre.
+  const eliminarCliente = (item: Usuario) => {
+    const confirmarYBorrar = async () => {
+      setEliminandoId(item.id);
+      const { data, error } = await supabase.functions.invoke('eliminar-cliente', { body: { cliente_id: item.id } });
+      setEliminandoId(null);
+      const mensajeError = error ? (data as { error?: string } | null)?.error || error.message : null;
+      if (mensajeError) {
+        if (Platform.OS === 'web') window.alert(mensajeError);
+        else Alert.alert('No se pudo eliminar', mensajeError);
+        return;
+      }
+      cargarClientes();
+    };
+
+    const mensaje = `¿Eliminar a ${item.nombre} de tus clientes? Solo se puede eliminar si no tiene solicitudes registradas. Esta acción no se puede deshacer.`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(mensaje)) confirmarYBorrar();
+      return;
+    }
+    Alert.alert('Eliminar cliente', mensaje, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: confirmarYBorrar },
+    ]);
+  };
 
   useEffect(() => {
     if (!negocioId) return;
@@ -184,11 +217,26 @@ export default function ClientesRegistrados() {
         <View style={styles.lista}>
           {clientesFiltrados.map((item) => (
             <View key={item.id} style={[styles.card, cardShadow]}>
-              <Text style={styles.nombre}>{item.nombre}</Text>
-              <Text style={styles.dato}>{item.email}</Text>
-              <Text style={styles.dato}>
-                {item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}
-              </Text>
+              <View style={styles.clienteHeader}>
+                <View style={styles.clienteDatos}>
+                  <Text style={styles.nombre}>{item.nombre}</Text>
+                  <Text style={styles.dato}>{item.email}</Text>
+                  <Text style={styles.dato}>
+                    {item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.eliminarBtn}
+                  onPress={() => eliminarCliente(item)}
+                  disabled={eliminandoId === item.id}
+                >
+                  {eliminandoId === item.id ? (
+                    <ActivityIndicator size="small" color={colors.danger} />
+                  ) : (
+                    <Text style={styles.eliminarBtnTexto}>Eliminar</Text>
+                  )}
+                </Pressable>
+              </View>
             </View>
           ))}
         </View>
@@ -227,4 +275,8 @@ const styles = StyleSheet.create({
   dato: { color: colors.textMuted, fontSize: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
   lista: { gap: 10 },
+  clienteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  clienteDatos: { flex: 1, gap: 2 },
+  eliminarBtn: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
+  eliminarBtnTexto: { color: colors.danger, fontSize: 12, fontWeight: '700' },
 });
