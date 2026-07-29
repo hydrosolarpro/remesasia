@@ -71,7 +71,27 @@ export default function ClientesRegistrados() {
       setEliminandoId(item.id);
       const { data, error } = await supabase.functions.invoke('eliminar-cliente', { body: { cliente_id: item.id } });
       setEliminandoId(null);
-      const mensajeError = error ? (data as { error?: string } | null)?.error || error.message : null;
+      // supabase.functions.invoke() NO pone el cuerpo JSON del error en
+      // `data` cuando la función responde con status distinto de 2xx --
+      // ahí `data` es null y solo queda `error.message` genérico
+      // ("Edge Function returned a non-2xx status code"). El mensaje real
+      // que arma la función (p.ej. "tiene solicitudes registradas") viaja
+      // en `error.context`, la Response cruda del fetch.
+      let mensajeError: string | null = null;
+      if (error) {
+        mensajeError = error.message;
+        const contexto = (error as { context?: unknown }).context;
+        if (contexto instanceof Response) {
+          try {
+            const cuerpo = await contexto.json();
+            if (cuerpo?.error) mensajeError = cuerpo.error;
+          } catch {
+            // Respuesta sin JSON válido: se mantiene error.message.
+          }
+        } else if ((data as { error?: string } | null)?.error) {
+          mensajeError = (data as { error: string }).error;
+        }
+      }
       if (mensajeError) {
         if (Platform.OS === 'web') window.alert(mensajeError);
         else Alert.alert('No se pudo eliminar', mensajeError);
