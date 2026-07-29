@@ -66,24 +66,23 @@ export function PlanesInfo() {
         </Text>
 
           <View style={styles.terminosBox}>
-  <Text style={styles.terminosTitulo}>
-    Términos y condiciones de uso de la plataforma Remesas PERÚ-VENEZUELA
-  </Text>
 
-  <Text style={styles.terminosTexto}>
-    Importante: antes de activar tu suscripción debes leer cuidadosamente los
-    Términos y Condiciones de Uso de la plataforma. Al marcar la aceptación
-    declaras que has leído, comprendido y aceptado íntegramente dicho
-    documento, el cual constituye el acuerdo legal que regula el uso de la
-    plataforma.
-  </Text>
+            <Text style={styles.terminosTitulo}>
+             Términos y condiciones de uso de la plataforma Remesas PERÚ-VENEZUELA
+            </Text>
 
-  <Pressable
-    onPress={() =>
-      Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')
-    }
-  >
-    <Text style={styles.linkPdf}>
+           <Text style={styles.terminosTexto}>
+            Importante: antes de activar tu suscripción debes leer cuidadosamente los
+            Términos y Condiciones de Uso de la plataforma. Al marcar la aceptación
+            declaras que has leído, comprendido y aceptado íntegramente dicho
+            documento, el cual constituye el acuerdo legal que regula el uso de la
+            plataforma.
+         </Text>
+         <Pressable
+          onPress={() =>
+         Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')
+        }
+          >       <Text style={styles.linkPdf}>
       📄 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)
     </Text>
   </Pressable>
@@ -112,11 +111,30 @@ function Beneficio({ texto, destacado }: { texto: string; destacado?: boolean })
     </View>
   );
 }
-
 const styles = StyleSheet.create({
-  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 10 },
-  titulo: { color: colors.text, fontSize: 16, fontWeight: '900' },
-  intro: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    padding: 16,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: 16,
+    gap: 10,
+  },
+  titulo: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  intro: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   planBloque: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -125,45 +143,82 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 4,
   },
-  planDestacado: { borderColor: colors.primary, backgroundColor: `${colors.primary}14` },
-  planHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  planEmoji: { fontSize: 18 },
-  planNombre: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  planSubtitulo: { color: colors.accent, fontSize: 12, fontWeight: '700', marginBottom: 2 },
-  beneficioRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  beneficioCheck: { color: colors.textMuted, fontSize: 13, fontWeight: '800', marginTop: 1 },
-  beneficioCheckDestacado: { color: colors.success },
-  beneficioTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18, flex: 1 },
-  cierre: { color: colors.text, fontSize: 12, fontWeight: '700', lineHeight: 17, marginTop: 6, fontStyle: 'italic' },
-
-terminosBox: {
-  marginTop: 16,
-  padding: 14,
-  borderWidth: 1,
-  borderColor: colors.primary,
-  borderRadius: radius.sm,
-  backgroundColor: '#FFFBEA',
-},
-
-terminosTitulo: {
-  color: colors.text,
-  fontSize: 14,
-  fontWeight: '800',
-  marginBottom: 8,
-},
-
-terminosTexto: {
-  color: colors.textMuted,
-  fontSize: 13,
-  lineHeight: 18,
-  marginBottom: 12,
-},
-
-linkPdf: {
-  color: '#0066CC',
-  fontSize: 13,
-  fontWeight: '700',
-  textDecorationLine: 'underline',
-  marginBottom: 12,
-},
+  planDestacado: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}14`,
+  },
+  planHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  planEmoji: {
+    fontSize: 18,
+  },
+  planNombre: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  planSubtitulo: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  beneficioRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  beneficioCheck: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 1,
+  },
+  beneficioCheckDestacado: {
+    color: colors.success,
+  },
+  beneficioTexto: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  cierre: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
+  terminosBox: {
+    marginTop: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.sm,
+    backgroundColor: '#FFFBEA',
+  },
+  terminosTitulo: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  terminosTexto: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  linkPdf: {
+    color: '#0066CC',
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+    marginBottom: 12,
+  },
 });
