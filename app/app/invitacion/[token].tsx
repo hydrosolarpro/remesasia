@@ -9,12 +9,15 @@ import { colors, radius } from '../../constants/theme';
 
 // Pantalla de aterrizaje de un enlace de invitación (admin -> Operador
 // Perú, u Operador Perú -> cliente). Si no hay sesión, guarda el token y
-// manda a Google; si ya hay sesión, canjea directo.
+// manda a Google; si ya hay sesión, canjea directo -- salvo que esa
+// cuenta ya tenga un rol distinto de 'cliente' (canjear_invitacion lo
+// rechaza para no sobreescribir una cuenta de operador por accidente).
 export default function Invitacion() {
   const { token } = useLocalSearchParams<{ token: string }>();
-  const { session, loading } = useAuth();
+  const { session, loading, signOut } = useAuth();
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
 
   useEffect(() => {
     if (loading || !session || !token) return;
@@ -23,6 +26,10 @@ export default function Invitacion() {
       try {
         const resultado = await canjearInvitacion(token);
         if (!resultado.ok) {
+          // Se guarda el token pendiente por si el usuario cierra sesión y
+          // continúa con otra cuenta: al volver a entrar, app/index.tsx lo
+          // retoma solo.
+          await guardarTokenPendiente(token);
           setError(resultado.error ?? 'No se pudo usar esta invitación.');
           setProcesando(false);
           return;
@@ -34,6 +41,11 @@ export default function Invitacion() {
       }
     })();
   }, [loading, session, token]);
+
+  const cerrarSesionYContinuar = async () => {
+    setCerrandoSesion(true);
+    await signOut();
+  };
 
   const continuarConGoogle = async () => {
     setError(null);
@@ -47,13 +59,19 @@ export default function Invitacion() {
     }
   };
 
-  if (loading || procesando) {
+  if (loading || procesando || cerrandoSesion) {
     return (
       <View style={styles.container}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
+
+  // Si ya hay una sesión activa (por eso llegó al error en vez del botón
+  // de Google) no tiene sentido ofrecer "Continuar con Google" de nuevo --
+  // hay que cerrar sesión primero para que la persona entre con la cuenta
+  // correcta.
+  const mostrarCerrarSesion = !!error && !!session;
 
   return (
     <View style={styles.container}>
@@ -63,9 +81,15 @@ export default function Invitacion() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Pressable style={styles.button} onPress={continuarConGoogle}>
-        <Text style={styles.buttonText}>Continuar con Google</Text>
-      </Pressable>
+      {mostrarCerrarSesion ? (
+        <Pressable style={styles.button} onPress={cerrarSesionYContinuar}>
+          <Text style={styles.buttonText}>Cerrar sesión y continuar con otra cuenta</Text>
+        </Pressable>
+      ) : (
+        <Pressable style={styles.button} onPress={continuarConGoogle}>
+          <Text style={styles.buttonText}>Continuar con Google</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
