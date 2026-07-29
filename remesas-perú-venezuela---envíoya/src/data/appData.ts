@@ -1,10 +1,22 @@
 import { FAQItem, FeatureCardItem, PaymentMethod, VenezuelanBank } from '../types';
 
-// Enlace de invitación de este operador Perú (José Silva / "Remesas") en la
-// app real (remesasia.vercel.app). Es único y permanente: cualquiera que
-// inicie sesión con Google a través de él queda vinculado automáticamente
-// como cliente de este negocio (ver app/lib/invitaciones.ts -> canjear_invitacion).
-export const CLIENT_APP_LINK = 'https://remesasia.vercel.app/invitacion/0bc684d1c75a400aa9b6cbd45d76dda4';
+// Token de invitación por defecto (José Silva / "Remesas"), usado solo si
+// esta landing se abre SIN el parámetro ?op=... en la URL (p. ej. alguien
+// entra directo al dominio sin pasar por el enlace que comparte un operador).
+const DEFAULT_OPERATOR_TOKEN = '0bc684d1c75a400aa9b6cbd45d76dda4';
+
+// Cualquier operador Perú comparte esta MISMA landing con su propio token
+// como parámetro (?op=<token>, ver "Clientes" en su panel). Esta función lee
+// ese parámetro al cargar la página y arma el enlace de invitación real
+// (remesasia.vercel.app) de ESE operador -- así "Accede YA" vincula al
+// visitante con el negocio correcto sin importar quién compartió el enlace.
+// Se calcula una sola vez al cargar el módulo (SPA sin cambios de URL en
+// caliente), ver app/lib/invitaciones.ts -> canjear_invitacion.
+export const CLIENT_APP_LINK = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('op')?.trim() || DEFAULT_OPERATOR_TOKEN;
+  return `https://remesasia.vercel.app/invitacion/${encodeURIComponent(token)}`;
+})();
 
 export const CURRENT_EXCHANGE_RATE = 11.25; // 1 PEN = 11.25 VES
 
