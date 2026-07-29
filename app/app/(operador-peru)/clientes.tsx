@@ -49,6 +49,7 @@ export default function ClientesRegistrados() {
       .select('*')
       .eq('rol', 'cliente')
       .eq('negocio_operador_peru_id', negocioId)
+      .is('eliminado_at', null)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setClientes((data as Usuario[] | null) ?? []);
@@ -62,10 +63,11 @@ export default function ClientesRegistrados() {
     }, [cargarClientes])
   );
 
-  // Elimina la fila de `usuarios` y la cuenta de acceso del cliente (ver
-  // supabase/functions/eliminar-cliente). La propia función rechaza el
-  // borrado si el cliente ya tiene solicitudes registradas, para no perder
-  // historial financiero -- acá solo se muestra ese mensaje si ocurre.
+  // Borrado lógico: marca al cliente como eliminado y borra su acceso (ver
+  // supabase/functions/eliminar-cliente). Su fila de `usuarios` no se
+  // borra físicamente -- así sus solicitudes pasadas conservan su nombre
+  // y datos completos en reportes/exportes, sin importar cuánto historial
+  // tenga.
   const eliminarCliente = (item: Usuario) => {
     const confirmarYBorrar = async () => {
       setEliminandoId(item.id);
@@ -100,7 +102,7 @@ export default function ClientesRegistrados() {
       cargarClientes();
     };
 
-    const mensaje = `¿Eliminar a ${item.nombre} de tus clientes? Solo se puede eliminar si no tiene solicitudes registradas. Esta acción no se puede deshacer.`;
+    const mensaje = `¿Eliminar a ${item.nombre} de tus clientes? Perderá el acceso a la app; sus solicitudes anteriores se conservan en tus reportes. Esta acción no se puede deshacer.`;
     if (Platform.OS === 'web') {
       if (window.confirm(mensaje)) confirmarYBorrar();
       return;

@@ -3,16 +3,17 @@ import { supabaseCaller } from '../_shared/supabaseCaller.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
- * Elimina un cliente: su fila en `usuarios` y su cuenta de autenticación
- * (para que, si vuelve a entrar, se registre como cliente nuevo desde
- * cero, en vez de quedar en un estado inconsistente). Invocada
- * directamente por el operador Perú desde el panel "Clientes"
- * (app/app/(operador-peru)/clientes.tsx).
+ * "Elimina" un cliente: borrado lógico (marca `eliminado_at`) + borra su
+ * cuenta de autenticación, para que desaparezca de "Clientes registrados"
+ * y libere su cupo, sin importar cuántas solicitudes tenga. La fila de
+ * `usuarios` se conserva a propósito -- así sus solicitudes pasadas
+ * siguen mostrando su nombre y datos completos en reportes/exportes
+ * (Excel/PDF), en vez de quedar huérfanas. Si vuelve a entrar con la
+ * misma cuenta de Google, se registra como cliente nuevo desde cero
+ * (auth.users le asigna un id distinto, no hay conflicto).
  *
- * Solo permite eliminar clientes sin ninguna solicitud registrada -- la
- * FK `solicitudes.cliente_id` ya protege el historial a nivel de base de
- * datos (delete_rule = NO ACTION), pero acá se valida antes para devolver
- * un mensaje claro en vez de un error crudo de Postgres.
+ * Invocada directamente por el operador Perú desde el panel "Clientes"
+ * (app/app/(operador-peru)/clientes.tsx).
  */
 Deno.serve(async (req) => {
   const preflight = manejarPreflight(req);
@@ -57,7 +58,7 @@ Deno.serve(async (req) => {
     const admin = supabaseAdmin();
     const { data: cliente } = await admin
       .from('usuarios')
-      .select('rol, negocio_operador_peru_id')
+      .select('rol, negocio_operador_peru_id, eliminado_at')
       .eq('id', cliente_id)
       .maybeSingle();
 
@@ -68,17 +69,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { count } = await admin.from('solicitudes').select('id', { count: 'exact', head: true }).eq('cliente_id', cliente_id);
-    if (count && count > 0) {
-      return new Response(
-        JSON.stringify({ error: 'No se puede eliminar: este cliente ya tiene solicitudes registradas (se conserva el historial).' }),
-        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
+    if (cliente.eliminado_at) {
+      return new Response(JSON.stringify({ error: 'Este cliente ya fue eliminado' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
-    const { error: deleteError } = await admin.from('usuarios').delete().eq('id', cliente_id);
+    const { error: deleteError } = await admin.from('usuarios').update({ eliminado_at: new Date().toISOString() }).eq('id', cliente_id);
     if (deleteError) {
-      console.error('eliminar-cliente: error borrando usuarios', deleteError);
+      console.error('eliminar-cliente: error marcando eliminado_at', deleteError);
       return new Response(JSON.stringify({ error: 'No se pudo eliminar el registro del cliente' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
