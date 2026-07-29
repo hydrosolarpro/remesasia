@@ -1,13 +1,15 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { DIAS_DEMO, PRECIO_STARTER_MENSUAL, LIMITE_CLIENTES, LIMITE_EQUIPO_PERU, LIMITE_EQUIPO_VENEZUELA } from '../lib/plan';
 import { colors, radius, cardShadow } from '../constants/theme';
 import { Pressable, Linking } from 'react-native';
+import { useState } from 'react'; 
 
 // Presentación comercial de los planes (distinta de la tarjeta "Tu plan",
 // que muestra el estado puntual del operador): explica qué incluye cada
 // plan y por qué conviene pasar a STARTER, para que el propio Operador
 // Perú entienda el valor sin tener que preguntar.
 export function PlanesInfo() {
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   return (
     <View style={[styles.card, cardShadow]}>
       <Text style={styles.titulo}>Haz crecer tu negocio de remesas</Text>
@@ -65,43 +67,52 @@ export function PlanesInfo() {
           Con {LIMITE_CLIENTES} clientes activos y comisión por remesa, STARTER se paga solo desde las primeras operaciones del mes.
         </Text>
 
-          <View style={styles.terminosBox}>
+        <View style={styles.terminosBox}>
+          <Text style={styles.terminosTitulo}>
+            Términos y condiciones de uso de la plataforma Remesas PERÚ-VENEZUELA
+          </Text>
 
-            <Text style={styles.terminosTitulo}>
-             Términos y condiciones de uso de la plataforma Remesas PERÚ-VENEZUELA
-            </Text>
-
-           <Text style={styles.terminosTexto}>
+          <Text style={styles.terminosTexto}>
             Importante: antes de activar tu suscripción debes leer cuidadosamente los
             Términos y Condiciones de Uso de la plataforma. Al marcar la aceptación
             declaras que has leído, comprendido y aceptado íntegramente dicho
             documento, el cual constituye el acuerdo legal que regula el uso de la
             plataforma.
-         </Text>
-         <Pressable
-          onPress={() =>
-         Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')
-        }
-          >       <Text style={styles.linkPdf}>
-        📁 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)
-    </Text>
-  </Pressable>
+          </Text>
 
-  <View style={styles.beneficioRow}>
-    <Text style={styles.beneficioCheck}>☐</Text>
-    <Text style={styles.beneficioTexto}>
-      He leído y acepto los Términos y Condiciones de Uso. Una vez aceptados,
-      esta autorización será registrada y no podrá deshabilitarse.
-    </Text>
-  </View>
-</View>
-        
+          <Pressable
+            onPress={() =>
+              Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')
+            }
+          >
+            <Text style={styles.linkPdf}>
+              📁 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)
+            </Text>
+          </Pressable>
+
+          <View style={styles.terminosAceptacion}>
+            <TouchableOpacity
+              onPress={() => setAceptaTerminos(!aceptaTerminos)}
+              style={styles.checkboxContainer}
+            >
+              <Text style={[
+                styles.checkbox,
+                aceptaTerminos && styles.checkboxActivo
+              ]}>
+                {aceptaTerminos ? '☑' : '☐'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.terminosTexto}>
+              He leído y acepto los Términos y Condiciones de Uso. Una vez aceptados,
+              esta autorización será registrada y no podrá deshabilitarse.
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
 }
-
-
 
 function Beneficio({ texto, destacado }: { texto: string; destacado?: boolean }) {
   return (
@@ -111,6 +122,7 @@ function Beneficio({ texto, destacado }: { texto: string; destacado?: boolean })
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -220,5 +232,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
     marginBottom: 12,
+  },
+  terminosAceptacion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+  },
+  checkboxContainer: {
+    padding: 4,
+  },
+  checkbox: {
+    fontSize: 20,
+    color: colors.textMuted,
+  },
+  checkboxActivo: {
+    color: colors.primary,
   },
 });
