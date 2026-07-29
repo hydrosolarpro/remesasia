@@ -5,7 +5,7 @@
 // de la plataforma, así que vive acá como constante.
 export const PRECIO_STARTER_MENSUAL = 100;
 
-export const DIAS_DEMO = 15;
+export const DIAS_DEMO = 7;
 
 // Límites por negocio (mismos en DEMO y STARTER, para que el operador no
 // se encuentre con una sorpresa al pasar de uno a otro): clientes propios,

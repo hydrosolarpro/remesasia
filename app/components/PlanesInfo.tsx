@@ -20,7 +20,21 @@ export function PlanesInfo() {
           <Text style={styles.planEmoji}>🎁</Text>
           <Text style={styles.planNombre}>DEMO — {DIAS_DEMO} días gratis</Text>
         </View>
-        <Beneficio texto="Acceso completo desde el primer minuto: valida pagos, publica tu tasa del día y atiende clientes." />
+        <Beneficio texto="Acceso completo a la plataforma digital por 7 días continuos con acceso vía Gmail de Google con autentificación segura y automática." />
+        <Beneficio texto="Plataforma digital en línea atractiva, colaborativa entre clientes y operadores, fácil uso y adecuada para el manejo con smartphone con respaldo de base de datos y seguridad cibernética." />
+        <Beneficio texto="Registro hasta 100 clientes finales con contador de cupos disponibles según registro de clientes de forma automática y con opción a búsqueda de clientes." />
+        <Beneficio texto="Hasta 2 operadores en el país recepción y 2 operador en el país de entrega." />
+        <Beneficio texto="Datos importantes para la gestión del negocio: Nombre, Logo, eslogan, datos personales (nombre y teléfono, correo), datos de plataformas digitales de transferencia de la moneda de recepción, datos de cuentas bancarias, registro de los operadores, horario de atención, tasa de la moneda de recepción/entrega, % de rentabilidad y ganancia por operación y total de operaciones." />
+        <Beneficio texto="Listado de operaciones para la recepción de solicitudes de los clientes finales con todos los datos requeridos para la transferencia de la remesa, resumen de operaciones, carga de imágenes de depósitos (país de recepción/país de entrega), lista de operaciones realizadas y de revisión con check de validación de recepción de pago y de validación de los depósitos en el país de entrega de remesa." />
+        <Beneficio texto="Información automatiza y en tiempo real de indicaciones de fecha y hora de las operaciones, tiempo de respuesta entre operaciones en curso, realizadas, operaciones por revisión para la confirmación de validación de depósito pro los clientes y de alarma sonora en las sesiones de operadores (país recepción /país entrega) para la eficiente gestión de las remesas." />
+        <Beneficio texto="Respuesta automáticas e inmediatas de las operaciones de remesa a los clientes (país recepción /país entrega_benficiarios) por vía WhatsApp y Telegram." />
+        <Beneficio texto="Respuesta de información de enlaces para el acceso del equipo de operadores (país recepción /país entrega) por vía WhatsApp." />
+        <Beneficio texto="Resultado de estadísticas: total de operaciones realizadas, total de montos en la moneda de recepción/entrega con su total de Ganancias, resumen de operaciones por operadores (país recepción /país entrega), reporte por día, fecha específica, rango de fechas, mes, rango de meses, año y rango de años, gráficas de las operaciones resultados tipo barra, circular y lineal." />
+        <Beneficio texto="Invitaciones automáticas por vía WhatsApp usando una Landing page altamente profesional con todos las funcionalidades y beneficios del servicio para la incorporación de clientes existente (migración a la plataforma) y nuevas captaciones de clientes en el país de recepción." />
+        <Beneficio texto="Exportaciones en formato EXCEL y PDF: Descarga de resultado de operaciones según estadísticas seleccionadas con lista su lista respectiva, descarga de gráficos de estadísticas, descarga de clientes registrados." />
+        <Beneficio texto="Soporte técnico y asesorías en línea 24/7." />
+        <Beneficio texto="Herramientas para el marketing orgánico e inorgánico con uso de IA. Próximamente - en creación." />
+        <Beneficio texto="Mejoras continuas en programación y desarrollo Web, usabilidad, automatizaciones y herramientas e IA. Próximamente - en creación." />
         <Beneficio texto="Arma tu equipo en Venezuela y en Perú para probar el flujo real de principio a fin." />
         <Beneficio texto="Sin tarjeta ni pagos por adelantado — se activa solo con tu registro." />
       </View>
@@ -28,13 +42,24 @@ export function PlanesInfo() {
       <View style={[styles.planBloque, styles.planDestacado]}>
         <View style={styles.planHeaderRow}>
           <Text style={styles.planEmoji}>🚀</Text>
-          <Text style={styles.planNombre}>STARTER — S/ {PRECIO_STARTER_MENSUAL.toFixed(2)} / mes</Text>
+          <Text style={styles.planNombre}>STARTER — S/. {PRECIO_STARTER_MENSUAL.toFixed(2)} / mes</Text>
         </View>
-        <Text style={styles.planSubtitulo}>Para el negocio que ya no quiere fecha de vencimiento.</Text>
-        <Beneficio texto={`Hasta ${LIMITE_CLIENTES} clientes activos enviando remesas con vos.`} destacado />
-        <Beneficio texto={`${LIMITE_EQUIPO_VENEZUELA} operadores en Venezuela, para repartir la carga y responder más rápido.`} destacado />
-        <Beneficio texto={`${LIMITE_EQUIPO_PERU} miembro adicional de equipo en Perú, además de vos.`} destacado />
-        <Beneficio texto="Acceso permanente, sin cuenta regresiva: tu operación no se detiene." destacado />
+        <Text style={styles.planSubtitulo}>Para el negocio de inicio rápido y pasar de la atención manual a la atención digital y automática.</Text>
+        <Beneficio texto="Acceso completo a la plataforma digital por 30 días continuos con acceso vía Gmail de Google con autentificación segura y automática." destacado />
+        <Beneficio texto="Plataforma digital en línea atractiva, colaborativa entre clientes y operadores, fácil uso y adecuada para el manejo con smartphone con respaldo de base de datos y seguridad cibernética." destacado />
+        <Beneficio texto={`Registro hasta ${LIMITE_CLIENTES} clientes finales con contador de cupos disponibles según registro de clientes de forma automática y con opción a búsqueda de clientes. `} destacado />
+        <Beneficio texto={`Hasta ${LIMITE_EQUIPO_PERU} operador en el país recepción (aparte de ti) y ${LIMITE_EQUIPO_VENEZUELA} operadores en el país de entrega. `} destacado />
+        <Beneficio texto="Datos importantes para la gestión del negocio: Nombre, Logo, eslogan, datos personales (nombre y teléfono, correo), datos de plataformas digitales de transferencia de la moneda de recepción, datos de cuentas bancarias, registro de los operadores, horario de atención, tasa de la moneda de recepción/entrega, % de rentabilidad y ganancia por operación y total de operaciones. " destacado />
+        <Beneficio texto="Listado de operaciones para la recepción de solicitudes de los clientes finales con todos los datos requeridos para la transferencia de la remesa, resumen de operaciones, carga de imágenes de depósitos (país de recepción/país de entrega), lista de operaciones realizadas y de revisión con check de validación de recepción de pago y de validación de los depósitos en el país de entrega de remesa." destacado />
+        <Beneficio texto="Información automatiza y en tiempo real de indicaciones de fecha y hora de las operaciones, tiempo de respuesta entre operaciones en curso, realizadas, operaciones por revisión para la confirmación de validación de depósito pro los clientes y de alarma sonora en las sesiones de operadores (país recepción /país entrega) para la eficiente gestión de las remesas." />
+        <Beneficio texto="Respuesta automáticas e inmediatas de las operaciones de remesa a los clientes (país recepción /país entrega_benficiarios) por vía WhatsApp y Telegram." destacado />
+        <Beneficio texto="Respuesta de información de enlaces para el acceso del equipo de operadores (país recepción /país entrega) por vía WhatsApp." />
+        <Beneficio texto="Resultado de estadísticas: total de operaciones realizadas, total de montos en la moneda de recepción/entrega con su total de Ganancias, resumen de operaciones por operadores (país recepción /país entrega), reporte por día, fecha específica, rango de fechas, mes, rango de meses, año y rango de años, gráficas de las operaciones resultados tipo barra, circular y lineal." destacado />
+        <Beneficio texto="Invitaciones automáticas por vía WhatsApp usando una Landing page altamente profesional con todos las funcionalidades y beneficios del servicio para la incorporación de clientes existente (migración a la plataforma) y nuevas captaciones de clientes en el país de recepción." destacado />
+        <Beneficio texto="Exportaciones en formato EXCEL y PDF: Descarga de resultado de operaciones según estadísticas seleccionadas con lista su lista respectiva, descarga de gráficos de estadísticas, descarga de clientes registrados." destacado />
+        <Beneficio texto="Soporte técnico y asesorías en línea 24/7." destacado />
+        <Beneficio texto="Herramientas para el marketing orgánico e inorgánico con uso de IA. Próximamente - en creación." destacado />
+        <Beneficio texto="Mejoras continuas en programación y desarrollo Web, usabilidad, automatizaciones y herramientas e IA. Próximamente - en creación." destacado />
         <Text style={styles.cierre}>
           Con {LIMITE_CLIENTES} clientes activos y comisión por remesa, STARTER se paga solo desde las primeras operaciones del mes.
         </Text>
