@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { DIAS_DEMO, PRECIO_STARTER_MENSUAL, LIMITE_CLIENTES, LIMITE_EQUIPO_PERU, LIMITE_EQUIPO_VENEZUELA } from '../lib/plan';
 import { colors, radius, cardShadow } from '../constants/theme';
+import { Pressable, Linking } from 'react-native';
 
 // Presentación comercial de los planes (distinta de la tarjeta "Tu plan",
 // que muestra el estado puntual del operador): explica qué incluye cada
@@ -63,10 +64,45 @@ export function PlanesInfo() {
         <Text style={styles.cierre}>
           Con {LIMITE_CLIENTES} clientes activos y comisión por remesa, STARTER se paga solo desde las primeras operaciones del mes.
         </Text>
+
+          <View style={styles.terminosBox}>
+  <Text style={styles.terminosTitulo}>
+    Términos y condiciones de uso de la plataforma Remesas PERÚ-VENEZUELA
+  </Text>
+
+  <Text style={styles.terminosTexto}>
+    Importante: antes de activar tu suscripción debes leer cuidadosamente los
+    Términos y Condiciones de Uso de la plataforma. Al marcar la aceptación
+    declaras que has leído, comprendido y aceptado íntegramente dicho
+    documento, el cual constituye el acuerdo legal que regula el uso de la
+    plataforma.
+  </Text>
+
+  <Pressable
+    onPress={() =>
+      Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')
+    }
+  >
+    <Text style={styles.linkPdf}>
+      📄 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)
+    </Text>
+  </Pressable>
+
+  <View style={styles.beneficioRow}>
+    <Text style={styles.beneficioCheck}>☐</Text>
+    <Text style={styles.beneficioTexto}>
+      He leído y acepto los Términos y Condiciones de Uso. Una vez aceptados,
+      esta autorización será registrada y no podrá deshabilitarse.
+    </Text>
+  </View>
+</View>
+        
       </View>
     </View>
   );
 }
+
+
 
 function Beneficio({ texto, destacado }: { texto: string; destacado?: boolean }) {
   return (
@@ -99,4 +135,35 @@ const styles = StyleSheet.create({
   beneficioCheckDestacado: { color: colors.success },
   beneficioTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18, flex: 1 },
   cierre: { color: colors.text, fontSize: 12, fontWeight: '700', lineHeight: 17, marginTop: 6, fontStyle: 'italic' },
+
+terminosBox: {
+  marginTop: 16,
+  padding: 14,
+  borderWidth: 1,
+  borderColor: colors.primary,
+  borderRadius: radius.sm,
+  backgroundColor: '#FFFBEA',
+},
+
+terminosTitulo: {
+  color: colors.text,
+  fontSize: 14,
+  fontWeight: '800',
+  marginBottom: 8,
+},
+
+terminosTexto: {
+  color: colors.textMuted,
+  fontSize: 13,
+  lineHeight: 18,
+  marginBottom: 12,
+},
+
+linkPdf: {
+  color: '#0066CC',
+  fontSize: 13,
+  fontWeight: '700',
+  textDecorationLine: 'underline',
+  marginBottom: 12,
+},
 });
