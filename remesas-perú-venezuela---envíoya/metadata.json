@@ -1,0 +1,6 @@
+{
+  "name": "Remesas Perú-Venezuela - EnvíoYa",
+  "description": "Plataforma de remesas instantáneas Perú-Venezuela con confirmación automática por Telegram y WhatsApp, calculadora de cambio en tiempo real y seguimiento de envíos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

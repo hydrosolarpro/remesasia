@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "app", "run", "web"],
       "port": 8081
+    },
+    {
+      "name": "landing-envioya",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "remesas-perú-venezuela---envíoya", "run", "dev"],
+      "port": 3000
     }
   ]
 }
