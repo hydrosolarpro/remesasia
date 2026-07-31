@@ -42,9 +42,26 @@ export function planPrecioLabel(plan: string, monto?: number): string {
 
 export const DIAS_DEMO = 7;
 
-export const LIMITE_CLIENTES = 100;
-export const LIMITE_EQUIPO_PERU = 1;
-export const LIMITE_EQUIPO_VENEZUELA = 2;
+export const LIMITE_CLIENTES = 1000; // Cupo amplio de clientes para todos
+
+export function obtenerLimitesEquipo(plan: string) {
+  switch (plan) {
+    case 'starter':
+      return { peru: 5, venezuela: 2 };
+    case 'pro':
+      return { peru: 8, venezuela: 3 };
+    case 'expert':
+      return { peru: 12, venezuela: 5 };
+    case 'avance':
+      return { peru: 15, venezuela: 8 };
+    case 'ultra':
+      return { peru: 20, venezuela: 10 };
+    case 'unlimited':
+      return { peru: 999, venezuela: 999 }; // Ilimitado (acordado internamente)
+    default: // demo
+      return { peru: 1, venezuela: 2 };
+  }
+}
 
 const MS_POR_DIA = 86_400_000;
 

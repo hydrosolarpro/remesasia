@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
-import { diasRestantesDemo, fechaFinDemo, PRECIO_STARTER_MENSUAL, LIMITE_EQUIPO_VENEZUELA, LIMITE_EQUIPO_PERU } from '../../lib/plan';
+import { diasRestantesDemo, fechaFinDemo, PRECIO_STARTER_MENSUAL, obtenerLimitesEquipo } from '../../lib/plan';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
 import { PlanesInfo } from '../../components/PlanesInfo';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
@@ -176,10 +176,11 @@ export default function Perfil() {
   };
 
   const agregarVe = async () => {
-    if (!negocioId) return;
+    if (!negocioId || !usuario) return;
     setErrorVe(null);
-    if (veList.length >= LIMITE_EQUIPO_VENEZUELA) {
-      setErrorVe(`Alcanzaste el límite de ${LIMITE_EQUIPO_VENEZUELA} operadores en Venezuela de tu plan.`);
+    const limites = obtenerLimitesEquipo(usuario.plan);
+    if (veList.length >= limites.venezuela) {
+      setErrorVe(`Alcanzaste el límite de ${limites.venezuela} operadores en Venezuela de tu plan ${usuario.plan.toUpperCase()}.`);
       return;
     }
     if (!veNombre.trim() || !veEmail.trim()) {
@@ -206,10 +207,11 @@ export default function Perfil() {
   };
 
   const agregarPe = async () => {
-    if (!negocioId) return;
+    if (!negocioId || !usuario) return;
     setErrorPe(null);
-    if (peList.length >= LIMITE_EQUIPO_PERU) {
-      setErrorPe(`Alcanzaste el límite de ${LIMITE_EQUIPO_PERU} miembro(s) de equipo en Perú de tu plan.`);
+    const limites = obtenerLimitesEquipo(usuario.plan);
+    if (peList.length >= limites.peru) {
+      setErrorPe(`Alcanzaste el límite de ${limites.peru} miembro(s) de equipo en Perú de tu plan ${usuario.plan.toUpperCase()}.`);
       return;
     }
     if (!peNombre.trim() || !peEmail.trim()) {
@@ -336,7 +338,7 @@ export default function Perfil() {
       {esPrincipal && (
         <View style={[styles.card, cardShadow]}>
           <Text style={styles.cardTitulo}>
-            OPERADORES EN VENEZUELA - EQUIPO ({veList.length}/{LIMITE_EQUIPO_VENEZUELA})
+            OPERADORES EN VENEZUELA - EQUIPO ({veList.length}/{obtenerLimitesEquipo(usuario.plan).venezuela})
           </Text>
           <Text style={styles.cardTexto}>Asigna a cada Operador de Venezuela los operadores de Perú que deberá atender.</Text>
           {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
@@ -387,8 +389,8 @@ export default function Perfil() {
             </View>
           ))}
 
-          {veList.length >= LIMITE_EQUIPO_VENEZUELA ? (
-            <Text style={styles.limiteTexto}>Alcanzaste el límite de {LIMITE_EQUIPO_VENEZUELA} operadores en Venezuela de tu plan.</Text>
+          {veList.length >= obtenerLimitesEquipo(usuario.plan).venezuela ? (
+            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan).venezuela} operadores en Venezuela de tu plan.</Text>
           ) : (
             <NuevoOperadorForm
               abierto={agregandoVe}
@@ -412,7 +414,7 @@ export default function Perfil() {
       {esPrincipal && (
         <View style={[styles.card, cardShadow]}>
           <Text style={styles.cardTitulo}>
-            OPERADORES EN PERÚ - EQUIPO ({peList.length}/{LIMITE_EQUIPO_PERU})
+            OPERADORES EN PERÚ - EQUIPO ({peList.length}/{obtenerLimitesEquipo(usuario.plan).peru})
           </Text>
           {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
           {peList.map((p) => {
@@ -455,8 +457,8 @@ export default function Perfil() {
             );
           })}
 
-          {peList.length >= LIMITE_EQUIPO_PERU ? (
-            <Text style={styles.limiteTexto}>Alcanzaste el límite de {LIMITE_EQUIPO_PERU} miembro(s) de equipo en Perú de tu plan.</Text>
+          {peList.length >= obtenerLimitesEquipo(usuario.plan).peru ? (
+            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan).peru} miembro(s) de equipo en Perú de tu plan.</Text>
           ) : (
             <NuevoOperadorForm
               abierto={agregandoPe}
