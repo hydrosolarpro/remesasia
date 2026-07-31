@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { RoleTag } from '../../components/RoleTag';
 import { RoundCheck } from '../../components/RoundCheck';
-import { diasRestantesDemo, demoVencido } from '../../lib/plan';
+import { diasRestantesDemo, demoVencido, LIMITE_CLIENTES } from '../../lib/plan';
 import { PlanOperador } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -28,6 +28,7 @@ interface OperadorFila {
   demo_inicio: string | null;
   perfil_negocio: { nombre_negocio: string } | null;
   pagos_suscripcion: Pago[];
+  totalClientes: number;
 }
 
 // Panel de control del admin: resumen de estadísticas arriba, y la lista
@@ -48,7 +49,20 @@ export default function PanelControl() {
       .eq('rol', 'operador_peru')
       .order('created_at', { ascending: false });
     if (error) console.error('Error cargando operadores:', error.message);
-    setOperadores((data as unknown as OperadorFila[] | null) ?? []);
+    const operadoresRaw = (data as unknown as OperadorFila[] | null) ?? [];
+
+    const { data: clientes } = await supabase
+      .from('usuarios')
+      .select('negocio_operador_peru_id')
+      .eq('rol', 'cliente')
+      .is('eliminado_at', null);
+    const conteoClientes: Record<string, number> = {};
+    (clientes ?? []).forEach((c) => {
+      if (c.negocio_operador_peru_id) {
+        conteoClientes[c.negocio_operador_peru_id] = (conteoClientes[c.negocio_operador_peru_id] ?? 0) + 1;
+      }
+    });
+    setOperadores(operadoresRaw.map((op) => ({ ...op, totalClientes: conteoClientes[op.id] ?? 0 })));
     setCargando(false);
   }, []);
 
@@ -80,6 +94,7 @@ export default function PanelControl() {
   };
 
   const totalOperadores = operadores.length;
+  const totalClientesGlobal = operadores.reduce((acc, op) => acc + op.totalClientes, 0);
   const montoTotalPagado = operadores.reduce(
     (acc, op) => acc + op.pagos_suscripcion.filter((p) => p.estado === 'verificado').reduce((s, p) => s + p.monto, 0),
     0
@@ -106,6 +121,10 @@ export default function PanelControl() {
             <Text style={styles.resumenValor}>{totalOperadores}</Text>
           </View>
           <View style={styles.resumenItem}>
+            <Text style={styles.resumenLabel}>Total clientes</Text>
+            <Text style={styles.resumenValor}>{totalClientesGlobal}</Text>
+          </View>
+          <View style={styles.resumenItem}>
             <Text style={styles.resumenLabel}>Monto total pagado</Text>
             <Text style={styles.resumenValor}>S/ {montoTotalPagado.toFixed(2)}</Text>
           </View>
@@ -118,7 +137,7 @@ export default function PanelControl() {
           <View key={op.id} style={[styles.fila, cardShadow]}>
             <View style={styles.filaHeader}>
               <Text style={styles.numero}>#{i + 1}</Text>
-              <Text style={styles.fecha}>Registrado el {new Date(op.created_at).toLocaleDateString('es-PE')}</Text>
+              <Text style={styles.fecha}>Registrado el {new Date(op.created_at).toLocaleDateString('es-PE')} · {op.totalClientes}/{LIMITE_CLIENTES} clientes</Text>
             </View>
             <Text style={styles.nombre}>{op.nombre}</Text>
             {op.perfil_negocio?.nombre_negocio ? <Text style={styles.negocio}>{op.perfil_negocio.nombre_negocio}</Text> : null}
