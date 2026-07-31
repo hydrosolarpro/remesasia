@@ -22,14 +22,20 @@ export default function Index() {
     (async () => {
       setResolviendo(true);
 
-      // 1. Intentar vincular cuenta si era un operador pre-registrado que
-      // entró como cliente (o si su vínculo se rompió).
+      // 1. Intentar vincular cuenta si era un operador pre-registrado
       try {
-        const { data: nuevoRol } = await supabase.rpc('vincular_cuenta_pendiente');
+        const { data: nuevoRol, error: rpcError } = await supabase.rpc('vincular_cuenta_pendiente');
+        console.log('Resultado vinculación:', { nuevoRol, rpcError });
+        
         if (nuevoRol && nuevoRol !== usuario.rol) {
           await refreshUsuario();
           const { data: u } = await supabase.from('usuarios').select('*').eq('id', usuario.id).single();
           if (u) usuarioActual = u as Usuario;
+        } else if (!nuevoRol && usuarioActual.rol === 'cliente') {
+           // DEBUG: Esto nos dirá si falló la vinculación
+           setDestino(`ERROR: Rol sigue como cliente. Usuario ID: ${usuario.id}. Asegúrate que tu correo coincida en la tabla "operador_peru_miembro"`);
+           setResolviendo(false);
+           return;
         }
       } catch (e) {
         console.error('Error en vinculación automática:', e);

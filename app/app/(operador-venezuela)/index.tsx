@@ -13,20 +13,40 @@ export default function PanelOperadorVenezuela() {
   const [veId, setVeId] = useState<string | null>(null);
   const [miembrosAsignados, setMiembrosAsignados] = useState<string[]>([]);
 
+  const [errorDebug, setErrorDebug] = useState<string | null>(null);
+
   useEffect(() => {
     if (!usuario) return;
-    supabase
-      .from('operador_venezuela_perfil')
-      .select('id, operador_peru_id')
-      .eq('usuario_id', usuario.id)
-      .maybeSingle()
-      .then(async ({ data }) => {
-        if (!data) return;
-        setOperadorPeruId(data.operador_peru_id);
-        setVeId(data.id);
-        setMiembrosAsignados(await obtenerMiembrosAsignadosAlVe(data.id));
-      });
+    (async () => {
+      try {
+        const { data: u, error: uErr } = await supabase.from('usuarios').select('*').eq('id', usuario.id).maybeSingle();
+        if (uErr) throw new Error('Error usuarios: ' + uErr.message);
+        if (!u) throw new Error('El usuario no existe en la tabla "usuarios"');
+
+        const { data: p, error: pErr } = await supabase
+          .from('operador_venezuela_perfil')
+          .select('id, operador_peru_id')
+          .eq('usuario_id', usuario.id)
+          .maybeSingle();
+
+        if (pErr) throw new Error('Error perfil VE: ' + pErr.message);
+        if (!p) {
+          setErrorDebug(`Rol: ${u.rol}. No se encontró tu perfil de Operador Venezuela. Verifica tu correo en el panel principal.`);
+          return;
+        }
+
+        setOperadorPeruId(p.operador_peru_id);
+        setVeId(p.id);
+        setMiembrosAsignados(await obtenerMiembrosAsignadosAlVe(p.id));
+      } catch (e: any) {
+        setErrorDebug(e.message);
+      }
+    })();
   }, [usuario]);
+
+  if (errorDebug) {
+    return <View style={styles.center}><Text style={{color: 'red', textAlign: 'center'}}>{errorDebug}</Text></View>;
+  }
 
   if (!usuario || operadorPeruId === undefined) {
     return (
@@ -40,8 +60,9 @@ export default function PanelOperadorVenezuela() {
     return (
       <View style={styles.center}>
         <Text style={styles.aviso}>
-          Tu cuenta ({usuario.email}) todavía no está vinculada a ningún negocio. Pide al Operador principal de Perú que
-          cargue tu correo en sus datos.
+          Error de vinculación: No se encontró perfil de Operador Venezuela para este correo. {"\n\n"}
+          ID de usuario: {usuario.id} {"\n\n"}
+          Si crees que esto es un error, contacta al Operador principal de Perú para que verifique que tu correo esté registrado en "OPERADORES EN VENEZUELA - EQUIPO" en su panel.
         </Text>
       </View>
     );
