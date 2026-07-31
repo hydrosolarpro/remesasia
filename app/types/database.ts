@@ -32,6 +32,8 @@ export interface Usuario {
   telegram_chat_id: string | null;
   telegram_username: string | null;
   telegram_connected: boolean;
+  /** Para clientes: qué miembro de Perú (operador_peru_miembro) los invitó. */
+  invitado_por_operador_miembro_id: string | null;
 }
 
 export interface Tasa {
@@ -88,6 +90,10 @@ export interface Solicitud {
   en_revision_at: string | null;
   revision_resuelta_at: string | null;
   revision_resuelta_por: string | null;
+  /** Qué operador de Perú miembro atiende esta operación (null = la atiende el Operador principal). */
+  operador_peru_miembro_id: string | null;
+  /** true cuando el Operador principal derivó esta operación a un miembro de Perú. */
+  derivada_de_principal: boolean;
 }
 
 export interface PerfilNegocio {
@@ -140,6 +146,8 @@ export interface OperadorPeruMiembro {
   telefono: string | null;
   email: string;
   usuario_id: string | null;
+  /** Operador de Venezuela al que el principal asignó este miembro de Perú. */
+  operador_venezuela_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -188,6 +196,8 @@ export interface Invitacion {
   usado_por: string | null;
   used_at: string | null;
   created_at: string;
+  /** Si la invitación de cliente salió de un miembro de Perú, queda registrado aquí. */
+  operador_peru_miembro_id: string | null;
 }
 
 export type EstadoPago = 'pendiente' | 'verificado' | 'rechazado';

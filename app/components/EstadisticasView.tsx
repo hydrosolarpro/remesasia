@@ -25,6 +25,7 @@ interface Punto {
 interface SolicitudConValidadores extends Solicitud {
   validador_peru_nombre: string | null;
   validador_ve_nombre: string | null;
+  operador_peru_atiende: string | null;
 }
 
 interface DesglosePorMiembro {
@@ -56,11 +57,22 @@ export function EstadisticasView({
   operadorPeruId,
   restringido = false,
   esDuenio = !restringido,
+  tipoSesion = 'principal',
+  miembroId = null,
+  veId = null,
+  miembrosAsignadosIds = [],
 }: {
   operadorPeruId: string;
   restringido?: boolean;
   /** Solo el dueño del negocio ve el desglose por miembro de equipo (Perú y Venezuela). */
   esDuenio?: boolean;
+  /** Cómo se debe recortar la vista: el miembro ve solo SUS clientes, el
+   *  Operador Venezuela solo los de los miembros que le fueron asignados,
+   *  y el principal ve todo (con el filtro "Mis clientes" disponible). */
+  tipoSesion?: 'principal' | 'miembro' | 'venezuela';
+  miembroId?: string | null;
+  veId?: string | null;
+  miembrosAsignadosIds?: string[];
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const [cargando, setCargando] = useState(false);
@@ -72,27 +84,59 @@ export function EstadisticasView({
   const [rentabilidadPct, setRentabilidadPct] = useState(0);
   const [compartirRentabilidad, setCompartirRentabilidad] = useState(false);
   const [buscado, setBuscado] = useState(false);
+  const [soloMisClientes, setSoloMisClientes] = useState(false);
 
   const puedeVerGanancia = !restringido || compartirRentabilidad;
   const esHoy = rango !== null && rango.desde === HOY();
+
+  // Nombre legible del operador de Perú que atiende cada operación: si fue
+  // derivada a un miembro del equipo, es el miembro; si no, es el
+  // operador principal de Perú.
+  const cargarMiembros = async (): Promise<Map<string, string>> => {
+    const { data } = await supabase
+      .from('operador_peru_miembro')
+      .select('id, nombre')
+      .eq('operador_peru_id', operadorPeruId);
+    const mapa = new Map<string, string>();
+    for (const m of (data as { id: string; nombre: string }[] | null) ?? []) mapa.set(m.id, m.nombre);
+    return mapa;
+  };
 
   // Trae los datos del rango sin tocar scroll ni el spinner de carga --
   // se usa tanto desde `buscar` (con esos efectos) como desde el refresco
   // silencioso por Realtime, que NO debe interrumpir al usuario si en ese
   // momento está escribiendo en el buscador o leyendo resultados.
   const cargarDatos = async (rangoConsulta: RangoFecha) => {
-    const [{ data: ops }, { data: perfil }] = await Promise.all([
-      supabase
-        .from('solicitudes')
-        .select(
-          '*, validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre)'
-        )
-        .eq('check_deposito_ve', true)
-        .eq('negocio_operador_peru_id', operadorPeruId)
-        .gte('created_at', rangoConsulta.desde)
-        .lt('created_at', rangoConsulta.hasta)
-        .order('created_at', { ascending: true }),
-      supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
+    const [miembros, [{ data: ops }, { data: perfil }]] = await Promise.all([
+      cargarMiembros(),
+      Promise.all([
+        (() => {
+          let query = supabase
+            .from('solicitudes')
+            .select(
+              '*, validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre)'
+            )
+            .eq('check_deposito_ve', true)
+            .eq('negocio_operador_peru_id', operadorPeruId)
+            .gte('created_at', rangoConsulta.desde)
+            .lt('created_at', rangoConsulta.hasta)
+            .order('created_at', { ascending: true });
+
+          // El miembro solo ve operaciones de SUS clientes; el Operador
+          // Venezuela solo las de los miembros que le fueron asignados.
+          if (tipoSesion === 'miembro' && miembroId) {
+            query = query.eq('operador_peru_miembro_id', miembroId);
+          } else if (tipoSesion === 'venezuela') {
+            if (miembrosAsignadosIds.length === 0) {
+              query = query.in('operador_peru_miembro_id', ['00000000-0000-0000-0000-000000000000']);
+            } else {
+              query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
+            }
+          }
+          return query;
+        })(),
+        supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
+      ]),
     ]);
 
     setOperaciones(
@@ -101,6 +145,9 @@ export function EstadisticasView({
         ...row,
         validador_peru_nombre: row.validador_peru?.nombre ?? null,
         validador_ve_nombre: row.validador_ve?.nombre ?? null,
+        operador_peru_atiende: row.operador_peru_miembro_id
+          ? (miembros.get(row.operador_peru_miembro_id) ?? 'Operador de Perú (equipo)')
+          : 'Operador principal de Perú',
       }))
     );
     const p = perfil as PerfilNegocio | null;
@@ -138,8 +185,15 @@ export function EstadisticasView({
 
   // Desglose de operaciones y montos por cada persona que validó — tanto
   // del lado Perú (dueño o miembros de equipo) como del lado Venezuela.
-  const desglosePeru = useMemo(() => agruparPorValidador(operaciones, 'validador_peru_nombre'), [operaciones]);
-  const desgloseVe = useMemo(() => agruparPorValidador(operaciones, 'validador_ve_nombre'), [operaciones]);
+  // Cuando el principal activa "Mis clientes", se ocultan las operaciones
+  // derivadas a miembros del equipo (ver filtro en el JSX).
+  const operacionesVisibles = useMemo(() => {
+    if (!soloMisClientes) return operaciones;
+    return operaciones.filter((o) => !o.operador_peru_miembro_id);
+  }, [operaciones, soloMisClientes]);
+
+  const desglosePeru = useMemo(() => agruparPorValidador(operacionesVisibles, 'validador_peru_nombre'), [operacionesVisibles]);
+  const desgloseVe = useMemo(() => agruparPorValidador(operacionesVisibles, 'validador_ve_nombre'), [operacionesVisibles]);
 
   // La granularidad del gráfico se adapta al tamaño del rango elegido: por
   // día si es corto, por mes si abarca varios meses, y por año si abarca
@@ -150,7 +204,7 @@ export function EstadisticasView({
     const granularidad: 'dia' | 'mes' | 'anio' = diasSpan <= 31 ? 'dia' : diasSpan <= 730 ? 'mes' : 'anio';
 
     const grupos = new Map<string, Punto>();
-    for (const op of operaciones) {
+    for (const op of operacionesVisibles) {
       const clave =
         granularidad === 'dia' ? op.created_at.slice(0, 10) : granularidad === 'mes' ? op.created_at.slice(0, 7) : op.created_at.slice(0, 4);
       const etiqueta = granularidad === 'dia' ? clave.slice(5) : clave;
@@ -160,31 +214,33 @@ export function EstadisticasView({
       grupos.set(clave, actual);
     }
     return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, p]) => p);
-  }, [operaciones, rango]);
+  }, [operacionesVisibles, rango]);
 
   const totales = useMemo(() => {
-    const montoTotal = operaciones.reduce((acc, o) => acc + o.monto_pen, 0);
-    return { nOps: operaciones.length, montoTotal, ganancia: montoTotal * (rentabilidadPct / 100) };
-  }, [operaciones, rentabilidadPct]);
+    const montoTotal = operacionesVisibles.reduce((acc, o) => acc + o.monto_pen, 0);
+    return { nOps: operacionesVisibles.length, montoTotal, ganancia: montoTotal * (rentabilidadPct / 100) };
+  }, [operacionesVisibles, rentabilidadPct]);
 
   const exportarPdf = async () => {
     if (!rango) return;
     setGenerandoPdf(true);
     try {
-      const filas = operaciones
+      const filas = operacionesVisibles
         .map(
           (o) => `<tr>
             <td>${new Date(o.created_at).toLocaleDateString('es-PE')}</td>
             <td>${o.beneficiario_nombre}</td>
+            <td>${o.operador_peru_atiende ?? '—'}</td>
             <td>S/ ${o.monto_pen.toFixed(2)}</td>
             <td>Bs ${o.monto_ves.toFixed(2)}</td>
+            ${puedeVerGanancia ? `<td>S/ ${(o.monto_pen * (rentabilidadPct / 100)).toFixed(2)}</td>` : ''}
           </tr>`
         )
         .join('');
 
       await generarYCompartirPdf(
         'Estadísticas de operaciones',
-        `Período: ${rango.etiqueta}`,
+        `Período: ${rango.etiqueta}${soloMisClientes ? ' — solo mis clientes' : ''}`,
         `
           <div class="resumen">
             <div class="resumen-item"><div class="resumen-label">Operaciones</div><div class="resumen-valor">${totales.nOps}</div></div>
@@ -192,8 +248,8 @@ export function EstadisticasView({
             ${puedeVerGanancia ? `<div class="resumen-item"><div class="resumen-label">Ganancia</div><div class="resumen-valor">S/ ${totales.ganancia.toFixed(2)}</div></div>` : ''}
           </div>
           <table>
-            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Monto</th><th>Recibido (Bs)</th></tr></thead>
-            <tbody>${filas || '<tr><td colspan="4">Sin operaciones en este período.</td></tr>'}</tbody>
+            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Monto</th><th>Recibido (Bs)</th>${puedeVerGanancia ? '<th>Ganancia</th>' : ''}</tr></thead>
+            <tbody>${filas || '<tr><td colspan="6">Sin operaciones en este período.</td></tr>'}</tbody>
           </table>
         `
       );
@@ -208,15 +264,17 @@ export function EstadisticasView({
   const exportarExcelDetalle = async () => {
     setExportandoExcel(true);
     try {
-      const filas = operaciones.map((o) => ({
+      const filas = operacionesVisibles.map((o) => ({
         'Fecha y hora generada': new Date(o.created_at).toLocaleString('es-PE'),
         'Fecha y hora atendida': o.check_deposito_ve_at ? new Date(o.check_deposito_ve_at).toLocaleString('es-PE') : '',
         Beneficiario: o.beneficiario_nombre,
         'C.I.': o.beneficiario_ci ?? '',
         'Entidad bancaria': o.beneficiario_banco,
         'N° cuenta': o.beneficiario_cuenta,
+        'Operador de Perú que atiende': o.operador_peru_atiende ?? '',
         'Monto (S/)': o.monto_pen,
         'Recibe (Bs)': o.monto_ves,
+        ...(puedeVerGanancia ? { 'Ganancia (S/)': +(o.monto_pen * (rentabilidadPct / 100)).toFixed(2) } : {}),
         'Validó en Perú': o.validador_peru_nombre ?? '',
         'Validó en Venezuela': o.validador_ve_nombre ?? '',
       }));
@@ -230,6 +288,15 @@ export function EstadisticasView({
     <ScrollView ref={scrollRef} contentContainerStyle={styles.container} style={SIN_OVERSCROLL_Y}>
       <Text style={styles.titulo}>Estadísticas de operaciones</Text>
       <DateRangeFilter onCambio={buscar} />
+
+      {esDuenio && (
+        <View style={styles.misClientesFila}>
+          <Pressable style={[styles.misClientesChip, soloMisClientes && styles.misClientesChipActivo]} onPress={() => setSoloMisClientes((v) => !v)}>
+            <Text style={[styles.misClientesChipTexto, soloMisClientes && styles.misClientesChipTextoActivo]}>Mis clientes</Text>
+          </Pressable>
+          <Text style={styles.misClientesAyuda}>Ver solo las operaciones de los clientes que atendió el Operador principal de Perú.</Text>
+        </View>
+      )}
 
       {cargando && <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />}
 
@@ -250,15 +317,15 @@ export function EstadisticasView({
 
           {puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto vs. período (S/)" />}
 
-          {operaciones.length > 0 && (
+          {operacionesVisibles.length > 0 && (
             <View style={[styles.card, cardShadow]}>
               <Pressable style={styles.detalleHeader} onPress={() => setDetalleAbierto((v) => !v)}>
-                <Text style={styles.chartTitulo}>Detalle de operaciones ({operaciones.length})</Text>
+                <Text style={styles.chartTitulo}>Detalle de operaciones ({operacionesVisibles.length})</Text>
                 <Text style={styles.detalleChevron}>{detalleAbierto ? '▲' : '▼'}</Text>
               </Pressable>
               {detalleAbierto && (
                 <>
-                  {operaciones.map((o) => (
+                  {operacionesVisibles.map((o) => (
                     <View key={o.id} style={styles.detalleFila}>
                       <Text style={styles.detalleBeneficiario} numberOfLines={1}>
                         {o.beneficiario_nombre}
@@ -270,6 +337,10 @@ export function EstadisticasView({
                       <Text style={styles.detalleDato}>
                         S/ {o.monto_pen.toFixed(2)} · Bs {o.monto_ves.toFixed(2)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
                       </Text>
+                      <Text style={styles.detalleDato}>Operador de Perú: {o.operador_peru_atiende ?? '—'}</Text>
+                      {puedeVerGanancia && (
+                        <Text style={styles.detalleDato}>Ganancia: S/ {(o.monto_pen * (rentabilidadPct / 100)).toFixed(2)}</Text>
+                      )}
                     </View>
                   ))}
                   <Pressable style={styles.excelDetalleBtn} onPress={exportarExcelDetalle} disabled={exportandoExcel}>
@@ -284,7 +355,7 @@ export function EstadisticasView({
             </View>
           )}
 
-          {esDuenio && operaciones.length > 0 && (
+          {esDuenio && operacionesVisibles.length > 0 && (
             <View style={[styles.card, cardShadow]}>
               <Text style={styles.chartTitulo}>Por miembro del equipo</Text>
               <Text style={styles.desgloseSubtitulo}>Operador Perú (validó el depósito en Perú)</Text>
@@ -316,7 +387,7 @@ export function EstadisticasView({
             {generandoPdf ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>Descargar PDF</Text>}
           </Pressable>
 
-          {operaciones.length === 0 && <Text style={styles.vacio}>No hay operaciones completadas en ese período.</Text>}
+          {operacionesVisibles.length === 0 && <Text style={styles.vacio}>No hay operaciones completadas en ese período.</Text>}
         </>
       )}
     </ScrollView>
@@ -357,4 +428,17 @@ const styles = StyleSheet.create({
   pdfBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   pdfBtnTexto: { color: colors.text, fontWeight: '700' },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic', textAlign: 'center' },
+  misClientesFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  misClientesChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.card,
+  },
+  misClientesChipActivo: { backgroundColor: colors.accent, borderColor: colors.accent },
+  misClientesChipTexto: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  misClientesChipTextoActivo: { color: colors.text },
+  misClientesAyuda: { color: colors.textMuted, fontSize: 11, flex: 1 },
 });

@@ -1,41 +1,57 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch, Image } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch, Image, Modal, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { PerfilNegocio, Tasa } from '../types/database';
+import { PerfilNegocio, Tasa, OperadorPeruMiembro } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../lib/fechaLocal';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
+import { TipoSesionOperador, etiquetaSesion } from '../lib/sesionOperador';
 import { colors, radius, cardShadow } from '../constants/theme';
 
-// Panel del Operador Perú: bienvenida + tasa + rentabilidad + eslogan,
-// "Operaciones en curso", "Operaciones realizadas" (con búsqueda) y resumen
-// del día. Lo usan tanto (operador-peru)/index.tsx (control total) como
-// (operador-venezuela)/index.tsx (`restringido`, solo puede tocar el check VE).
+// Panel de operaciones de Remesas Perú-Venezuela. Lo usan las tres
+// sesiones de operador, cada una con su alcance:
+//
+//   * 'principal'  (Operador principal de Perú): TODAS las operaciones del
+//     negocio (las suyas + las de su equipo de Perú), con el nombre del
+//     operador que atiende cada una, opción a editar/check, y puede derivar
+//     sus propias solicitudes a un miembro de Perú.
+//   * 'miembro'    (Operador de Perú miembro): SOLO las operaciones de sus
+//     clientes invitados + las que el principal le derivó.
+//   * 'venezuela'  (Operador de Venezuela): SOLO las operaciones de los
+//     miembros de Perú que el principal le asignó.
 export function PeruDashboardView({
   operadorPeruId,
   nombreUsuarioActual,
-  restringido,
-  esMiembroPe = false,
+  tipoSesion,
+  miembroId = null,
+  miembrosAsignadosIds = null,
   puedeValidarVeAunSinSerElMismo = true,
 }: {
   operadorPeruId: string;
   nombreUsuarioActual: string;
-  restringido: boolean;
-  /** Miembro de equipo del Operador Perú (no el dueño): valida ambos checks y publica tasa, pero no gestiona el negocio ni el equipo. */
-  esMiembroPe?: boolean;
+  tipoSesion: TipoSesionOperador;
+  /** Id de la fila operador_peru_miembro de la sesión (solo tipo 'miembro'). */
+  miembroId?: string | null;
+  /** Ids de los miembros de Perú asignados a este VE (solo tipo 'venezuela'). */
+  miembrosAsignadosIds?: string[] | null;
   puedeValidarVeAunSinSerElMismo?: boolean;
 }) {
-  // Solo el dueño del negocio gestiona horario/eslogan/rentabilidad/equipo.
-  const puedeGestionar = !restringido && !esMiembroPe;
+  const esPrincipal = tipoSesion === 'principal';
+  const esMiembroPe = tipoSesion === 'miembro';
+  const esVenezuela = tipoSesion === 'venezuela';
+  // Solo el Operador principal gestiona horario/eslogan/rentabilidad/equipo
+  // y publica la tasa del día.
+  const puedeGestionar = esPrincipal;
 
   const [cargando, setCargando] = useState(true);
   const [perfil, setPerfil] = useState<PerfilNegocio | null>(null);
   const [tasa, setTasa] = useState<Tasa | null>(null);
   const [operaciones, setOperaciones] = useState<OperationRowData[]>([]);
+  const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
   const [validando, setValidando] = useState<{ id: string; tipo: 'peru' | 've' } | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [exportando, setExportando] = useState(false);
@@ -43,8 +59,14 @@ export function PeruDashboardView({
   const [esloganBorrador, setEsloganBorrador] = useState('');
   const [editandoRentabilidad, setEditandoRentabilidad] = useState(false);
   const [rentabilidadBorrador, setRentabilidadBorrador] = useState('');
-  const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas' | 'por_revisar'>('en_curso');
+  const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas' | 'por_revisar' | 'derivadas'>('en_curso');
   const [resolviendoId, setResolviendoId] = useState<string | null>(null);
+
+  // Derivación de solicitudes (solo Operador principal): modal con la lista
+  // de miembros de Perú a los que puede derivar sus solicitudes de clientes.
+  const [derivandoOp, setDerivandoOp] = useState<OperationRowData | null>(null);
+  const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
+  const [derivandoEnviando, setDerivandoEnviando] = useState(false);
 
   // El corte de "realizadas" hacia solo-estadísticas es a la hora de
   // cierre del horario de atención (no a medianoche) -- este tick fuerza
@@ -57,7 +79,24 @@ export function PeruDashboardView({
   }, []);
 
   const cargar = useCallback(async () => {
-    const [{ data: perfilData }, { data: tasaData }, { data: opsData }] = await Promise.all([
+    let query = supabase
+      .from('solicitudes')
+      .select(
+        '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre), atendido_por:operador_peru_miembro!solicitudes_operador_peru_miembro_id_fkey(nombre)'
+      )
+      .eq('negocio_operador_peru_id', operadorPeruId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    // Alcance de cada sesión: miembro -> solo sus operaciones; VE -> solo
+    // las de los miembros que le asignaron; principal -> todas las del negocio.
+    if (esMiembroPe && miembroId) {
+      query = query.eq('operador_peru_miembro_id', miembroId);
+    } else if (esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length > 0) {
+      query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
+    }
+
+    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: miembrosData }] = await Promise.all([
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
       supabase
         .from('tasas')
@@ -67,18 +106,17 @@ export function PeruDashboardView({
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length === 0 ? Promise.resolve({ data: null }) : query,
       supabase
-        .from('solicitudes')
-        .select(
-          '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre)'
-        )
-        .eq('negocio_operador_peru_id', operadorPeruId)
-        .order('created_at', { ascending: false })
-        .limit(200),
+        .from('operador_peru_miembro')
+        .select('*')
+        .eq('operador_peru_id', operadorPeruId)
+        .order('created_at', { ascending: true }),
     ]);
 
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
+    setMiembros((miembrosData as OperadorPeruMiembro[] | null) ?? []);
     if (opsData) {
       setOperaciones(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,16 +127,19 @@ export function PeruDashboardView({
           cliente_email: row.cliente?.email ?? null,
           validador_peru_nombre: row.validador_peru?.nombre ?? null,
           validador_ve_nombre: row.validador_ve?.nombre ?? null,
+          operador_peru_atiende: row.atendido_por?.nombre ?? null,
         }))
       );
+    } else {
+      setOperaciones([]);
     }
     setCargando(false);
-  }, [operadorPeruId]);
+  }, [operadorPeruId, esMiembroPe, esVenezuela, miembroId, miembrosAsignadosIds]);
 
   useEffect(() => {
     cargar();
     const channel = supabase
-      .channel(`peru-dashboard-${operadorPeruId}`)
+      .channel(`peru-dashboard-${operadorPeruId}-${tipoSesion}-${miembroId ?? ''}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'solicitudes', filter: `negocio_operador_peru_id=eq.${operadorPeruId}` },
@@ -118,7 +159,8 @@ export function PeruDashboardView({
       supabase.removeChannel(channel);
       clearInterval(intervalo);
     };
-  }, [cargar, operadorPeruId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cargar, operadorPeruId, tipoSesion, miembroId]);
 
   // "En curso" no tiene fecha límite: una operación pendiente sigue
   // apareciendo aquí sin importar cuántos días pasen, hasta que se
@@ -138,6 +180,9 @@ export function PeruDashboardView({
   // beneficiario -- queda aquí hasta que un operador (Perú o Venezuela) lo
   // marque como resuelto.
   const porRevisar = useMemo(() => operaciones.filter((o) => o.en_revision), [operaciones]);
+  // Operaciones que el Operador principal derivó a este miembro de Perú:
+  // se ven en su propia lista "OPERACIONES DERIVADAS".
+  const derivadas = useMemo(() => operaciones.filter((o) => o.derivada_de_principal), [operaciones]);
 
   // Alerta sonora: suena apenas aparece una operación que necesita la
   // acción de ESTA sesión -- para Venezuela, un depósito que Perú ya
@@ -149,9 +194,9 @@ export function PeruDashboardView({
   const pendientesAccion = useMemo(
     () =>
       operaciones.filter(
-        (o) => (restringido ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru) || o.en_revision
+        (o) => (esVenezuela ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru) || o.en_revision
       ),
-    [operaciones, restringido]
+    [operaciones, esVenezuela]
   );
   const pendientesAccionRef = useRef(0);
 
@@ -175,7 +220,7 @@ export function PeruDashboardView({
   // antes de entrar a la pantalla.
   const completadosConocidosRef = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (restringido) return;
+    if (esVenezuela) return;
     const completadosAhora = new Set(operaciones.filter((o) => o.check_deposito_ve).map((o) => o.id));
     if (completadosConocidosRef.current === null) {
       completadosConocidosRef.current = completadosAhora;
@@ -184,7 +229,7 @@ export function PeruDashboardView({
     const hayNuevoCompletado = [...completadosAhora].some((id) => !completadosConocidosRef.current!.has(id));
     if (hayNuevoCompletado) reproducirAlerta();
     completadosConocidosRef.current = completadosAhora;
-  }, [operaciones, restringido, reproducirAlerta]);
+  }, [operaciones, esVenezuela, reproducirAlerta]);
 
   // Buscador único (nombre, teléfono, fecha, monto en soles o año) — un solo
   // campo de texto en vez de varios filtros separados, para no sobrecargar
@@ -217,6 +262,11 @@ export function PeruDashboardView({
     return mapa;
   }, [operaciones]);
 
+  // Nombre del operador de Perú que atiende cada operación. `null` = la
+  // atiende el Operador principal de Perú directamente.
+  const atendidoPor = (op: OperationRowData): string =>
+    op.operador_peru_miembro_id ? (op.operador_peru_atiende ?? 'Operador de Perú miembro') : 'Operador principal de Perú';
+
   const exportarExcel = async () => {
     setExportando(true);
     try {
@@ -233,6 +283,7 @@ export function PeruDashboardView({
         'Monto (S/)': op.monto_pen,
         'Forma de pago': op.metodo_pago === 'yape' ? 'Yape' : op.metodo_pago === 'plin' ? 'Plin' : 'Transferencia bancaria',
         'Recibe (Bs)': op.monto_ves,
+        'Operador de Perú que atiende': atendidoPor(op),
         'Validado en Perú': op.check_deposito_peru_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_peru_at)) : '',
         'Validado en Venezuela': op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '',
         'Tiempo de respuesta':
@@ -298,6 +349,28 @@ export function PeruDashboardView({
     cargar();
   };
 
+  const abrirDerivacion = (op: OperationRowData) => {
+    setDerivandoOp(op);
+    setDerivandoMiembroId(null);
+  };
+
+  const confirmarDerivacion = async () => {
+    if (!derivandoOp || !derivandoMiembroId) return;
+    setDerivandoEnviando(true);
+    const { error } = await supabase.rpc('derivar_solicitud', {
+      p_solicitud_id: derivandoOp.id,
+      p_operador_peru_miembro_id: derivandoMiembroId,
+    });
+    setDerivandoEnviando(false);
+    setDerivandoOp(null);
+    setDerivandoMiembroId(null);
+    if (error) {
+      Alert.alert('No se pudo derivar', error.message);
+      return;
+    }
+    cargar();
+  };
+
   const guardarEslogan = async () => {
     await supabase
       .from('perfil_negocio')
@@ -321,7 +394,7 @@ export function PeruDashboardView({
   };
 
   const puedeVerRentabilidad =
-    puedeGestionar || (restringido ? (perfil?.compartir_rentabilidad_ve ?? false) : (perfil?.compartir_rentabilidad_pe_miembros ?? false));
+    puedeGestionar || (esVenezuela ? (perfil?.compartir_rentabilidad_ve ?? false) : (perfil?.compartir_rentabilidad_pe_miembros ?? false));
 
   if (cargando) {
     return (
@@ -333,10 +406,7 @@ export function PeruDashboardView({
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <RoleTag
-        rol={restringido ? 'operador_venezuela' : 'operador_peru'}
-        etiqueta={restringido ? 'Operador Venezuela · Solo lectura' : esMiembroPe ? 'Operador Perú · Miembro de equipo' : undefined}
-      />
+      <RoleTag rol={esVenezuela ? 'operador_venezuela' : 'operador_peru'} etiqueta={etiquetaSesion(tipoSesion)} />
       {!!perfil?.nombre_negocio && (
         <View style={styles.negocioRow}>
           {!!perfil.logo_url && <Image source={{ uri: perfil.logo_url }} style={styles.negocioLogo} resizeMode="cover" />}
@@ -351,7 +421,7 @@ export function PeruDashboardView({
       <View style={[styles.card, cardShadow, styles.tasaCard]}>
         <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
         <Text style={styles.tasaValor}>{tasa ? `Bs ${tasa.tasa_pen_ves}` : 'Sin publicar'}</Text>
-        {!restringido && (
+        {puedeGestionar && (
           <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
             <Text style={styles.tasaEditar}>Actualizar tasa →</Text>
           </Pressable>
@@ -458,16 +528,16 @@ export function PeruDashboardView({
         )}
       </View>
 
-      {/* "En curso" y "Realizadas hoy" comparten una fila de pestañas: solo
-          una lista está desplegada a la vez (una debajo de la otra),
-          ahorrando espacio en vez de mostrar las dos siempre abiertas. */}
+      {/* "En curso", "Realizadas hoy", "Por revisar" y (solo miembro)
+          "Derivadas" comparten una fila de pestañas: solo una lista está
+          desplegada a la vez, ahorrando espacio. */}
       <View style={styles.opsToggleRow}>
         <Pressable
           style={[styles.opsToggleBtn, vistaOperaciones === 'en_curso' && styles.opsToggleBtnActivo]}
           onPress={() => setVistaOperaciones('en_curso')}
         >
           <Text style={[styles.opsToggleTexto, vistaOperaciones === 'en_curso' && styles.opsToggleTextoActivo]}>
-            Operaciones en curso ({enCurso.length})
+            En curso ({enCurso.length})
           </Text>
         </Pressable>
         <Pressable
@@ -475,7 +545,7 @@ export function PeruDashboardView({
           onPress={() => setVistaOperaciones('realizadas')}
         >
           <Text style={[styles.opsToggleTexto, vistaOperaciones === 'realizadas' && styles.opsToggleTextoActivo]}>
-            Operaciones realizadas (Hoy) ({realizadas.length})
+            Realizadas (Hoy) ({realizadas.length})
           </Text>
         </Pressable>
         <Pressable
@@ -487,9 +557,23 @@ export function PeruDashboardView({
           onPress={() => setVistaOperaciones('por_revisar')}
         >
           <Text style={[styles.opsToggleTexto, vistaOperaciones === 'por_revisar' && styles.opsToggleTextoActivo]}>
-            Operaciones por revisar ({porRevisar.length})
+            Por revisar ({porRevisar.length})
           </Text>
         </Pressable>
+        {esMiembroPe && (
+          <Pressable
+            style={[
+              styles.opsToggleBtn,
+              derivadas.length > 0 && styles.opsToggleBtnAlerta,
+              vistaOperaciones === 'derivadas' && styles.opsToggleBtnActivo,
+            ]}
+            onPress={() => setVistaOperaciones('derivadas')}
+          >
+            <Text style={[styles.opsToggleTexto, vistaOperaciones === 'derivadas' && styles.opsToggleTextoActivo]}>
+              Derivadas ({derivadas.length})
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {vistaOperaciones === 'en_curso' ? (
@@ -503,12 +587,15 @@ export function PeruDashboardView({
                 op={op}
                 numero={numeracion.get(op.id)}
                 nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
-                puedeValidarPeru={!restringido}
-                puedeValidarVe={!restringido || puedeValidarVeAunSinSerElMismo}
+                puedeValidarPeru={!esVenezuela}
+                puedeValidarVe={esVenezuela || (esPrincipal && puedeValidarVeAunSinSerElMismo)}
                 onValidarPeru={() => validarPeru(op)}
                 onValidarVe={(comprobanteUri, comprobanteExt) => validarVe(op, comprobanteUri, comprobanteExt)}
                 validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
                 validandoVe={validando?.id === op.id && validando.tipo === 've'}
+                atendidoPor={atendidoPor(op)}
+                derivadaDePrincipal={op.derivada_de_principal}
+                onDerivar={esPrincipal && !op.operador_peru_miembro_id ? () => abrirDerivacion(op) : undefined}
               />
             ))}
           </View>
@@ -543,6 +630,33 @@ export function PeruDashboardView({
                 onValidarVe={() => {}}
                 validandoPeru={false}
                 validandoVe={false}
+                atendidoPor={atendidoPor(op)}
+                derivadaDePrincipal={op.derivada_de_principal}
+              />
+            ))}
+          </View>
+        </>
+      ) : vistaOperaciones === 'derivadas' ? (
+        <>
+          <Text style={styles.derivadasTitulo}>OPERACIONES DERIVADAS</Text>
+          <Text style={styles.derivadasSubtitulo}>Solicitudes que el Operador principal de Perú derivó a tu sesión.</Text>
+          {derivadas.length === 0 && <Text style={styles.vacio}>No tienes operaciones derivadas.</Text>}
+          <View style={styles.grid}>
+            {derivadas.map((op) => (
+              <OperationRow
+                key={op.id}
+                style={styles.gridItem}
+                op={op}
+                numero={numeracion.get(op.id)}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
+                puedeValidarPeru={true}
+                puedeValidarVe={false}
+                onValidarPeru={() => validarPeru(op)}
+                onValidarVe={() => {}}
+                validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
+                validandoVe={false}
+                atendidoPor={atendidoPor(op)}
+                derivadaDePrincipal={op.derivada_de_principal}
               />
             ))}
           </View>
@@ -564,6 +678,7 @@ export function PeruDashboardView({
                 onValidarVe={() => {}}
                 validandoPeru={false}
                 validandoVe={false}
+                atendidoPor={atendidoPor(op)}
                 onResolverRevision={() => resolverRevision(op)}
                 resolviendoRevision={resolviendoId === op.id}
               />
@@ -580,6 +695,47 @@ export function PeruDashboardView({
           {puedeVerRentabilidad && <ResumenItem label="Ganancia" valor={`S/ ${resumenHoy.ganancia.toFixed(2)}`} destacado />}
         </View>
       </View>
+
+      {/* Modal de derivación: solo lo usa el Operador principal sobre sus
+          propias solicitudes (las que todavía no atiende un miembro). */}
+      <Modal visible={!!derivandoOp} transparent animationType="fade" onRequestClose={() => setDerivandoOp(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitulo}>Derivar solicitud</Text>
+            <Text style={styles.modalTexto}>
+              {derivandoOp
+                ? `¿A qué operador de Perú quieres derivar la solicitud de ${derivandoOp.cliente_nombre} (S/ ${derivandoOp.monto_pen.toFixed(2)})?`
+                : ''}
+            </Text>
+            {miembros.length === 0 ? (
+              <Text style={styles.vacio}>Todavía no tienes operadores de Perú en tu equipo para derivar.</Text>
+            ) : (
+              miembros.map((m) => {
+                const seleccionado = derivandoMiembroId === m.id;
+                return (
+                  <Pressable key={m.id} style={[styles.miembroOpcion, seleccionado && styles.miembroOpcionActivo]} onPress={() => setDerivandoMiembroId(m.id)}>
+                    <Text style={[styles.miembroOpcionNombre, seleccionado && { color: colors.text }]}>{m.nombre}</Text>
+                    <Text style={styles.miembroOpcionDato}>{m.email}</Text>
+                    {seleccionado && <Text style={styles.miembroOpcionCheck}>✓</Text>}
+                  </Pressable>
+                );
+              })
+            )}
+            <View style={styles.modalAcciones}>
+              <Pressable style={styles.modalCancelar} onPress={() => setDerivandoOp(null)}>
+                <Text style={styles.modalCancelarTexto}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirmar, (!derivandoMiembroId || derivandoEnviando) && styles.modalConfirmarDeshabilitado]}
+                disabled={!derivandoMiembroId || derivandoEnviando}
+                onPress={confirmarDerivacion}
+              >
+                {derivandoEnviando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.modalConfirmarTexto}>Derivar</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -618,20 +774,24 @@ const styles = StyleSheet.create({
   esloganInput: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 },
   seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
   seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  opsToggleRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  opsToggleRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   opsToggleBtn: {
     flex: 1,
+    minWidth: 110,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     paddingVertical: 12,
+    paddingHorizontal: 4,
     alignItems: 'center',
     backgroundColor: colors.card,
   },
   opsToggleBtnActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
   opsToggleBtnAlerta: { borderColor: colors.danger },
-  opsToggleTexto: { color: colors.textMuted, fontWeight: '800', fontSize: 16, textTransform: 'uppercase' },
+  opsToggleTexto: { color: colors.textMuted, fontWeight: '800', fontSize: 13, textTransform: 'uppercase', textAlign: 'center' },
   opsToggleTextoActivo: { color: colors.text },
+  derivadasTitulo: { color: colors.warning, fontSize: 16, fontWeight: '900', marginTop: 10, letterSpacing: 0.5 },
+  derivadasSubtitulo: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
   excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
@@ -653,4 +813,27 @@ const styles = StyleSheet.create({
   resumenItem: { alignItems: 'center', flex: 1 },
   resumenLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
   resumenValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10 },
+  modalTitulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  modalTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  miembroOpcion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 8,
+  },
+  miembroOpcionActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  miembroOpcionNombre: { color: colors.text, fontSize: 14, fontWeight: '700', flex: 1 },
+  miembroOpcionDato: { color: colors.textMuted, fontSize: 11 },
+  miembroOpcionCheck: { color: colors.success, fontWeight: '900' },
+  modalAcciones: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  modalCancelar: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  modalCancelarTexto: { color: colors.textMuted, fontWeight: '700' },
+  modalConfirmar: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  modalConfirmarDeshabilitado: { opacity: 0.4 },
+  modalConfirmarTexto: { color: colors.text, fontWeight: '700' },
 });

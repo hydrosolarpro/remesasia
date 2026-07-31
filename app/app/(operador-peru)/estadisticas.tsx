@@ -1,26 +1,28 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../lib/auth';
-import { supabase } from '../../lib/supabase';
+import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { EstadisticasView } from '../../components/EstadisticasView';
 import { colors } from '../../constants/theme';
 
 export default function EstadisticasOperador() {
   const { usuario } = useAuth();
   const [negocioId, setNegocioId] = useState<string | null | undefined>(undefined);
+  const [tipoSesion, setTipoSesion] = useState<'principal' | 'miembro'>('principal');
+  const [miembroId, setMiembroId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!usuario) return;
-    if (usuario.rol === 'operador_peru') {
-      setNegocioId(usuario.id);
-      return;
-    }
-    supabase
-      .from('operador_peru_miembro')
-      .select('operador_peru_id')
-      .eq('usuario_id', usuario.id)
-      .maybeSingle()
-      .then(({ data }) => setNegocioId(data?.operador_peru_id ?? null));
+    resolverContextoOperador(usuario).then((ctx) => {
+      setNegocioId(ctx.negocioId);
+      if (ctx.tipo === 'principal') {
+        setTipoSesion('principal');
+        setMiembroId(null);
+      } else {
+        setTipoSesion('miembro');
+        setMiembroId(ctx.miembroId);
+      }
+    });
   }, [usuario]);
 
   if (!usuario || negocioId === undefined) {
@@ -33,5 +35,7 @@ export default function EstadisticasOperador() {
 
   if (!negocioId) return null;
 
-  return <EstadisticasView operadorPeruId={negocioId} esDuenio={usuario.rol === 'operador_peru'} />;
+  return (
+    <EstadisticasView operadorPeruId={negocioId} esDuenio={tipoSesion === 'principal'} tipoSesion={tipoSesion} miembroId={miembroId} />
+  );
 }

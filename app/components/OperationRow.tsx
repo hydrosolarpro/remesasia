@@ -28,6 +28,8 @@ export interface OperationRowData extends Solicitud {
   cliente_email: string | null;
   validador_peru_nombre: string | null;
   validador_ve_nombre: string | null;
+  /** Nombre del operador de Perú miembro que atiende la operación (null = el Operador principal). */
+  operador_peru_atiende?: string | null;
 }
 
 const ETIQUETA_METODO_PAGO: Record<OperationRowData['metodo_pago'], string> = {
@@ -79,6 +81,9 @@ export function OperationRow({
   validandoVe,
   onResolverRevision,
   resolviendoRevision,
+  atendidoPor,
+  derivadaDePrincipal,
+  onDerivar,
   style,
 }: {
   op: OperationRowData;
@@ -96,6 +101,12 @@ export function OperationRow({
   /** Solo relevante cuando op.en_revision=true (lista "Operaciones por revisar"). */
   onResolverRevision?: () => void;
   resolviendoRevision?: boolean;
+  /** Nombre del operador de Perú que atiende esta operación (p.ej. "Operador principal de Perú"). */
+  atendidoPor?: string;
+  /** Marca visual: operación derivada del Operador principal a un miembro de Perú. */
+  derivadaDePrincipal?: boolean;
+  /** Botón "Derivar" (solo lo usa el Operador principal sobre sus propias operaciones). */
+  onDerivar?: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -149,6 +160,12 @@ export function OperationRow({
 
       {abierto && (
         <View style={styles.detalle}>
+          {derivadaDePrincipal && (
+            <View style={styles.derivadaBadge}>
+              <Text style={styles.derivadaBadgeTexto}>Derivada del Operador principal de Perú</Text>
+            </View>
+          )}
+          {!!atendidoPor && <CopyField label="Atendido por" value={atendidoPor} />}
           {/* Todos los campos son copiables (CopyField): el operador los
               necesita para pegarlos al hacer la transferencia. */}
           <CopyField label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
@@ -216,6 +233,12 @@ export function OperationRow({
           {enlaceWhatsApp && (
             <Pressable style={styles.whatsappBtn} onPress={notificarWhatsApp}>
               <Text style={styles.whatsappBtnTexto}>Notificar por WhatsApp al beneficiario</Text>
+            </Pressable>
+          )}
+
+          {onDerivar && (
+            <Pressable style={styles.derivarBtn} onPress={onDerivar}>
+              <Text style={styles.derivarBtnTexto}>Derivar a un operador de Perú →</Text>
             </Pressable>
           )}
         </View>
@@ -288,6 +311,19 @@ const styles = StyleSheet.create({
   checkValidador: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 1 },
   whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
   whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  derivadaBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: `${colors.warning}22`,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  derivadaBadgeTexto: { color: colors.warning, fontSize: 12, fontWeight: '800' },
+  derivarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 4 },
+  derivarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
   revisionCard: {
     backgroundColor: `${colors.danger}18`,
     borderWidth: 1,

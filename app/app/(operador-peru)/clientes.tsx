@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, Alert, Linking } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
-import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
+import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { LIMITE_CLIENTES } from '../../lib/plan';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function ClientesRegistrados() {
   const { usuario } = useAuth();
-  // Para un miembro de equipo el negocio es el del dueño que lo agregó,
-  // no el suyo propio (mismo criterio que (operador-peru)/index.tsx).
   const [negocioId, setNegocioId] = useState<string | null | undefined>(undefined);
+  const [miembroId, setMiembroId] = useState<string | null>(null);
+  const [esPrincipal, setEsPrincipal] = useState(true);
   const [clientes, setClientes] = useState<Usuario[]>([]);
   const [cargandoClientes, setCargandoClientes] = useState(true);
   const [generandoPdf, setGenerandoPdf] = useState(false);
@@ -26,36 +28,45 @@ export default function ClientesRegistrados() {
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [nombreNegocio, setNombreNegocio] = useState('Remesas Perú-Venezuela');
+  const [telefonoOperador, setTelefonoOperador] = useState<string | null>(null);
 
   useEffect(() => {
     if (!usuario) return;
-    if (usuario.rol === 'operador_peru') {
-      setNegocioId(usuario.id);
-      return;
-    }
-    supabase
-      .from('operador_peru_miembro')
-      .select('operador_peru_id')
-      .eq('usuario_id', usuario.id)
-      .maybeSingle()
-      .then(({ data }) => setNegocioId(data?.operador_peru_id ?? null));
+    resolverContextoOperador(usuario).then(async (ctx) => {
+      if (!ctx.negocioId) return;
+      setNegocioId(ctx.negocioId);
+      setMiembroId(ctx.miembroId);
+      setEsPrincipal(ctx.tipo === 'principal');
+      const { data: perfil } = await supabase.from('perfil_negocio').select('nombre_negocio').eq('operador_peru_id', ctx.negocioId).maybeSingle();
+      if (perfil?.nombre_negocio) setNombreNegocio(perfil.nombre_negocio);
+      if (ctx.tipo === 'miembro' && ctx.miembroId) {
+        const { data: m } = await supabase.from('operador_peru_miembro').select('telefono').eq('id', ctx.miembroId).maybeSingle();
+        setTelefonoOperador(m?.telefono ?? null);
+      } else {
+        setTelefonoOperador(usuario.telefono ?? null);
+      }
+    });
   }, [usuario]);
 
   const cargarClientes = useCallback(() => {
     if (!negocioId) return;
     setCargandoClientes(true);
-    supabase
+    let query = supabase
       .from('usuarios')
       .select('*')
       .eq('rol', 'cliente')
       .eq('negocio_operador_peru_id', negocioId)
-      .is('eliminado_at', null)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setClientes((data as Usuario[] | null) ?? []);
-        setCargandoClientes(false);
-      });
-  }, [negocioId]);
+      .is('eliminado_at', null);
+    // Un miembro de Perú solo ve los clientes que él mismo invitó.
+    if (!esPrincipal && miembroId) {
+      query = query.eq('invitado_por_operador_miembro_id', miembroId);
+    }
+    query.order('created_at', { ascending: false }).then(({ data }) => {
+      setClientes((data as Usuario[] | null) ?? []);
+      setCargandoClientes(false);
+    });
+  }, [negocioId, esPrincipal, miembroId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -116,16 +127,33 @@ export default function ClientesRegistrados() {
   useEffect(() => {
     if (!negocioId) return;
     setCargandoEnlace(true);
-    obtenerOCrearInvitacionCliente(negocioId)
+    obtenerOCrearInvitacionCliente(negocioId, miembroId)
       .then((inv) => setEnlaceCliente(construirEnlaceLandingCliente(inv.token)))
       .finally(() => setCargandoEnlace(false));
-  }, [negocioId]);
+  }, [negocioId, miembroId]);
 
   const copiarEnlace = async () => {
     if (!enlaceCliente) return;
     await Clipboard.setStringAsync(enlaceCliente);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 1500);
+  };
+
+  const abrirLanding = () => {
+    if (enlaceCliente) Linking.openURL(enlaceCliente);
+  };
+
+  const abrirWhatsAppInvitacion = () => {
+    if (!enlaceCliente) return;
+    const token = enlaceCliente.split('?op=')[1] ?? '';
+    const enlaceSesionCliente = construirEnlaceInvitacion(decodeURIComponent(token));
+    const mensaje = `Bienvenid@ [Nombre del cliente] a ${nombreNegocio} donde prestamos el servicio de remesas de Perú a Venezuela. Accede ${enlaceSesionCliente} para disfrutar de una experiencia digital y de eficiencia en tus remesas a tus familiares y amigos en Venezuela`;
+    const enlace = construirEnlaceWhatsAppGenerico(telefonoOperador, mensaje);
+    if (!enlace) {
+      Alert.alert('Sin teléfono', 'Completa tu teléfono en tu perfil para poder enviar la invitación por WhatsApp.');
+      return;
+    }
+    Linking.openURL(enlace);
   };
 
   // El buscador solo filtra lo que se ve en pantalla (nombre o teléfono);
@@ -184,14 +212,18 @@ export default function ClientesRegistrados() {
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
       <View style={[styles.card, cardShadow]}>
-        <Text style={styles.cardTitulo}>Comparte tu página de clientes</Text>
-        <Text style={styles.cardTexto}>
-          Un solo enlace para todos tus clientes — compártelo por WhatsApp. Quien lo abra entra directo como tu cliente.
-        </Text>
+        <Text style={styles.cardTitulo}>Invitación a tus clientes</Text>
+        <Text style={styles.cardTexto}>Envía los siguientes enlaces</Text>
         {cargandoEnlace ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
         ) : (
-          enlaceCliente && (
+          <>
+            <Pressable style={styles.botonLanding} onPress={abrirLanding}>
+              <Text style={styles.botonLandingTexto}>🌐 Información de servicio - Landing page cliente</Text>
+            </Pressable>
+            <Pressable style={styles.botonWhatsApp} onPress={abrirWhatsAppInvitacion}>
+              <Text style={styles.botonWhatsAppTexto}>💬 Acceso por vía WhatsApp</Text>
+            </Pressable>
             <View style={styles.enlaceRow}>
               <Text style={styles.enlaceTexto} numberOfLines={1}>
                 {enlaceCliente}
@@ -200,7 +232,7 @@ export default function ClientesRegistrados() {
                 <Text style={styles.copiarBtnTexto}>{copiado ? '✓ Copiado' : 'Copiar'}</Text>
               </Pressable>
             </View>
-          )
+          </>
         )}
       </View>
 
@@ -273,7 +305,11 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
   cardTitulo: { color: colors.text, fontSize: 15, fontWeight: '800' },
   cardTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
-  enlaceRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  botonLanding: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 6 },
+  botonLandingTexto: { color: colors.text, fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  botonWhatsApp: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 6 },
+  botonWhatsAppTexto: { color: '#fff', fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  enlaceRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 6 },
   enlaceTexto: { flex: 1, color: colors.accent, fontSize: 12 },
   copiarBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
   copiarBtnTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },

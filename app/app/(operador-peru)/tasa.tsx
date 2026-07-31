@@ -2,26 +2,30 @@ import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { Tasa } from '../../types/database';
 import { colors } from '../../constants/theme';
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-/** F1 — Publicación de la tasa del día (Soles -> Bolívares Soberanos). Base de la calculadora del cliente. */
+/** F1 — Tasa del día (Soles -> Bolívares Soberanos). Solo el Operador
+ *  principal de Perú puede publicarla/actualizarla; un miembro o el
+ *  Operador de Venezuela la ven solo lectura (en su Panel). */
 export default function TasaDelDia() {
   const { usuario } = useAuth();
   const [tasaActual, setTasaActual] = useState<Tasa | null>(null);
   const [penVes, setPenVes] = useState('');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [esPrincipal, setEsPrincipal] = useState(false);
+  const [cargandoCtx, setCargandoCtx] = useState(true);
 
-  const cargar = async () => {
-    if (!usuario) return;
+  const cargar = async (negocioId: string) => {
     const { data } = await supabase
       .from('tasas')
       .select('*')
       .eq('fecha', HOY())
-      .eq('publicada_por', usuario.id)
+      .eq('publicada_por', negocioId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -32,57 +36,79 @@ export default function TasaDelDia() {
   };
 
   useEffect(() => {
-    cargar();
+    if (!usuario) return;
+    resolverContextoOperador(usuario).then((ctx) => {
+      setEsPrincipal(ctx.tipo === 'principal');
+      if (ctx.negocioId) cargar(ctx.negocioId);
+      setCargandoCtx(false);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario?.id]);
 
   const publicar = async () => {
-    if (!usuario) return;
+    if (!usuario || !esPrincipal) return;
     setMensaje(null);
     if (!penVes) {
       setMensaje('Ingresa la tasa antes de publicar.');
       return;
     }
     setLoading(true);
-    const { error } = await supabase.from('tasas').insert({
-      fecha: HOY(),
-      tasa_pen_ves: Number(penVes),
-      publicada_por: usuario.id,
+    const { error } = await supabase.rpc('publicar_tasa_del_dia', {
+      p_fecha: HOY(),
+      p_tasa_pen_ves: Number(penVes),
     });
     setLoading(false);
     if (error) {
       setMensaje(error.message);
       return;
     }
-    setMensaje('Tasa publicada. Ya está visible para los clientes.');
-    cargar();
+    setMensaje('Tasa publicada. Ya está visible para los clientes y para todo el equipo.');
+    const ctx = await resolverContextoOperador(usuario);
+    if (ctx.negocioId) cargar(ctx.negocioId);
   };
+
+  if (cargandoCtx) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Tasa del día — {HOY()}</Text>
       {tasaActual && <Text style={styles.hint}>Última publicada: S/1 = Bs {tasaActual.tasa_pen_ves}</Text>}
 
-      <Text style={styles.label}>Tasa Soles → Bolívares Soberanos (Bs por S/1)</Text>
-      <TextInput
-        style={styles.input}
-        value={penVes}
-        onChangeText={setPenVes}
-        keyboardType="decimal-pad"
-        placeholder="34.20"
-        placeholderTextColor={colors.textMuted}
-      />
+      {esPrincipal ? (
+        <>
+          <Text style={styles.label}>Tasa Soles → Bolívares Soberanos (Bs por S/1)</Text>
+          <TextInput
+            style={styles.input}
+            value={penVes}
+            onChangeText={setPenVes}
+            keyboardType="decimal-pad"
+            placeholder="34.20"
+            placeholderTextColor={colors.textMuted}
+          />
 
-      {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
+          {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
 
-      <Pressable style={styles.button} onPress={publicar} disabled={loading}>
-        {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Publicar tasa</Text>}
-      </Pressable>
+          <Pressable style={styles.button} onPress={publicar} disabled={loading}>
+            {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar tasa</Text>}
+          </Pressable>
+        </>
+      ) : (
+        <Text style={styles.soloLectura}>
+          La tasa del día solo puede ser actualizada por el Operador principal de Perú. Tú la ves en tu Panel, sin opción a editar.
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flex: 1, backgroundColor: colors.bg, padding: 20, gap: 10 },
   title: { color: colors.text, fontSize: 20, fontWeight: '800' },
   hint: { color: colors.textMuted, fontSize: 13, marginBottom: 12 },
@@ -91,4 +117,5 @@ const styles = StyleSheet.create({
   mensaje: { color: colors.accent, fontSize: 13, marginTop: 8 },
   button: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
   buttonText: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  soloLectura: { color: colors.textMuted, fontSize: 14, lineHeight: 20, marginTop: 16 },
 });

@@ -1,31 +1,20 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../lib/auth';
-import { supabase } from '../../lib/supabase';
 import { PeruDashboardView } from '../../components/PeruDashboardView';
+import { resolverContextoOperador, ContextoOperador } from '../../lib/sesionOperador';
 import { colors } from '../../constants/theme';
 
 export default function PanelOperadorPeru() {
   const { usuario } = useAuth();
-  const [negocioId, setNegocioId] = useState<string | null | undefined>(undefined);
+  const [ctx, setCtx] = useState<ContextoOperador | null>(null);
 
   useEffect(() => {
     if (!usuario) return;
-    if (usuario.rol === 'operador_peru') {
-      setNegocioId(usuario.id);
-      return;
-    }
-    // Miembro de equipo: su negocio es el del dueño que lo agregó, no el
-    // suyo propio.
-    supabase
-      .from('operador_peru_miembro')
-      .select('operador_peru_id')
-      .eq('usuario_id', usuario.id)
-      .maybeSingle()
-      .then(({ data }) => setNegocioId(data?.operador_peru_id ?? null));
+    resolverContextoOperador(usuario).then(setCtx);
   }, [usuario]);
 
-  if (!usuario || negocioId === undefined) {
+  if (!usuario || !ctx) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
@@ -33,14 +22,14 @@ export default function PanelOperadorPeru() {
     );
   }
 
-  if (!negocioId) return null;
+  if (!ctx.negocioId) return null;
 
   return (
     <PeruDashboardView
-      operadorPeruId={negocioId}
+      operadorPeruId={ctx.negocioId}
       nombreUsuarioActual={usuario.nombre}
-      restringido={false}
-      esMiembroPe={usuario.rol === 'operador_peru_miembro'}
+      tipoSesion={ctx.tipo}
+      miembroId={ctx.miembroId}
     />
   );
 }
