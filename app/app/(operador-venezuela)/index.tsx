@@ -4,11 +4,9 @@ import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { PeruDashboardView } from '../../components/PeruDashboardView';
 import { obtenerMiembrosAsignadosAlVe } from '../../lib/sesionOperador';
+import { AccesoNegocioGate } from '../../components/AccesoNegocioGate';
 import { colors } from '../../constants/theme';
 
-// El Operador Venezuela ve SOLO las operaciones de los operadores de Perú
-// (miembros) que el Operador principal le asignó. Puede tocar el check
-// verde de "depósito efectuado en Venezuela" de esas operaciones.
 export default function PanelOperadorVenezuela() {
   const { usuario } = useAuth();
   const [operadorPeruId, setOperadorPeruId] = useState<string | null | undefined>(undefined);
@@ -61,12 +59,14 @@ export default function PanelOperadorVenezuela() {
   }
 
   return (
-    <PeruDashboardView
-      operadorPeruId={operadorPeruId}
-      nombreUsuarioActual={usuario.nombre}
-      tipoSesion="venezuela"
-      miembrosAsignadosIds={miembrosAsignados}
-    />
+    <AccesoNegocioGate operadorPeruId={operadorPeruId} rolParaAviso="operador_venezuela">
+      <PeruDashboardView
+        operadorPeruId={operadorPeruId}
+        nombreUsuarioActual={usuario.nombre}
+        tipoSesion="venezuela"
+        miembrosAsignadosIds={miembrosAsignados}
+      />
+    </AccesoNegocioGate>
   );
 }
 

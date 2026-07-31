@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { PeruDashboardView } from '../../components/PeruDashboardView';
 import { resolverContextoOperador, ContextoOperador } from '../../lib/sesionOperador';
+import { AccesoNegocioGate } from '../../components/AccesoNegocioGate';
 import { colors } from '../../constants/theme';
 
 export default function PanelOperadorPeru() {
@@ -25,11 +26,13 @@ export default function PanelOperadorPeru() {
   if (!ctx.negocioId) return null;
 
   return (
-    <PeruDashboardView
-      operadorPeruId={ctx.negocioId}
-      nombreUsuarioActual={usuario.nombre}
-      tipoSesion={ctx.tipo}
-      miembroId={ctx.miembroId}
-    />
+    <AccesoNegocioGate operadorPeruId={ctx.negocioId} rolParaAviso="operador_peru">
+      <PeruDashboardView
+        operadorPeruId={ctx.negocioId}
+        nombreUsuarioActual={usuario.nombre}
+        tipoSesion={ctx.tipo}
+        miembroId={ctx.miembroId}
+      />
+    </AccesoNegocioGate>
   );
 }
