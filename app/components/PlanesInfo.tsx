@@ -1,8 +1,10 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { DIAS_DEMO, PRECIO_STARTER_MENSUAL, LIMITE_CLIENTES, LIMITE_EQUIPO_PERU, LIMITE_EQUIPO_VENEZUELA } from '../lib/plan';
+import { DIAS_DEMO, PRECIO_STARTER_MENSUAL, LIMITE_CLIENTES, obtenerLimitesEquipo } from '../lib/plan';
 import { colors, radius, cardShadow } from '../constants/theme';
 import { Pressable, Linking } from 'react-native';
-import { useState } from 'react'; 
+import { useState } from 'react';
+
+const { peru: LIMITE_EQUIPO_PERU, venezuela: LIMITE_EQUIPO_VENEZUELA } = obtenerLimitesEquipo('starter');
 
 // Presentación comercial de los planes (distinta de la tarjeta "Tu plan",
 // que muestra el estado puntual del operador): explica qué incluye cada
@@ -141,7 +143,7 @@ function Beneficio({ texto, destacado }: { texto: string; destacado?: boolean })
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
     padding: 16,
   },
   card: {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
 import { PeruDashboardView } from '../../components/PeruDashboardView';
 import { resolverContextoOperador, ContextoOperador } from '../../lib/sesionOperador';
 import { AccesoNegocioGate } from '../../components/AccesoNegocioGate';

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Modal } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Modal, Linking, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -9,6 +9,7 @@ import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPla
 import { PlanesInfo } from '../../components/PlanesInfo';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
+import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 const FORMATTER_FECHA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -237,6 +238,22 @@ export default function Perfil() {
     cargarEquipos(negocioId);
   };
 
+  // Mensaje de bienvenida por WhatsApp para un operador recién agregado
+  // (VE o miembro de Perú): le confirma su rol y el correo Gmail exacto con
+  // el que debe iniciar sesión, ya que la vinculación a su sesión es por
+  // ese correo (ver handle_new_user / vincular_cuenta_pendiente).
+  const enviarBienvenidaWhatsApp = (nombre: string, telefono: string | null, email: string | null, rolTexto: string) => {
+    const mensaje = `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Perú'} te registró como ${rolTexto} en Remesas PERU-VENEZUELA. Ingresa a la app y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
+    const enlace = construirEnlaceWhatsAppGenerico(telefono, mensaje);
+    if (!enlace) {
+      const aviso = 'Agrega un teléfono válido para poder enviar el mensaje de bienvenida por WhatsApp.';
+      if (Platform.OS === 'web') window.alert(aviso);
+      else Alert.alert('Sin teléfono', aviso);
+      return;
+    }
+    Linking.openURL(enlace);
+  };
+
   // Asignar/desasignar un miembro de Perú a un Operador de Venezuela
   const alternarAsignacion = async (miembroIdAsig: string, activar: boolean) => {
     if (!asignandoVe) return;
@@ -383,9 +400,17 @@ export default function Perfil() {
                     ))}
                 </View>
               )}
-              <Pressable style={styles.asignarBtn} onPress={() => setAsignandoVe(v)}>
-                <Text style={styles.asignarBtnTexto}>Asignar operadores de Perú →</Text>
-              </Pressable>
+              <View style={styles.filaBotonesFinales}>
+                <Pressable style={styles.asignarBtn} onPress={() => setAsignandoVe(v)}>
+                  <Text style={styles.asignarBtnTexto}>Asignar operadores de Perú →</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.whatsappBtn}
+                  onPress={() => enviarBienvenidaWhatsApp(v.nombre, v.telefono, v.email, 'Operador de Venezuela')}
+                >
+                  <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
+                </Pressable>
+              </View>
             </View>
           ))}
 
@@ -453,6 +478,12 @@ export default function Perfil() {
                   <Text style={styles.clientesContadorLabel}>clientes</Text>
                 </View>
                 <Text style={styles.asignadoVe}>{veAsignado ? `Asignado a: ${veAsignado.nombre}` : 'Sin Operador de Venezuela asignado'}</Text>
+                <Pressable
+                  style={styles.whatsappBtn}
+                  onPress={() => enviarBienvenidaWhatsApp(p.nombre, p.telefono, p.email, 'Operador de Perú')}
+                >
+                  <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
+                </Pressable>
               </View>
             );
           })}
@@ -647,6 +678,9 @@ const styles = StyleSheet.create({
   asignadosItem: { color: colors.accent, fontSize: 12, fontWeight: '600' },
   asignarBtn: { alignSelf: 'flex-start', marginTop: 8 },
   asignarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  filaBotonesFinales: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
+  whatsappBtn: { alignSelf: 'flex-start', marginTop: 8 },
+  whatsappBtnTexto: { color: colors.success, fontWeight: '700', fontSize: 13 },
   clientesContador: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 6 },
   clientesContadorValor: { color: colors.text, fontSize: 26, fontWeight: '900' },
   clientesContadorLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
