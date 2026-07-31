@@ -47,6 +47,7 @@ export const LIMITE_CLIENTES = 1000; // Cupo amplio de clientes para todos
 export function obtenerLimitesEquipo(plan: string) {
   switch (plan) {
     case 'starter':
+    case 'demo':
       return { peru: 5, venezuela: 2 };
     case 'pro':
       return { peru: 8, venezuela: 3 };
@@ -58,8 +59,8 @@ export function obtenerLimitesEquipo(plan: string) {
       return { peru: 20, venezuela: 10 };
     case 'unlimited':
       return { peru: 999, venezuela: 999 }; // Ilimitado (acordado internamente)
-    default: // demo
-      return { peru: 1, venezuela: 2 };
+    default:
+      return { peru: 5, venezuela: 2 };
   }
 }
 
