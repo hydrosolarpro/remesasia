@@ -22,10 +22,21 @@ export default function Index() {
     (async () => {
       setResolviendo(true);
 
-      // Si veníamos de un enlace de invitación (token guardado antes del
-      // login con Google), canjéalo ahora que ya hay sesión, y lee el
-      // usuario en fresco (el rol/negocio pudo haber cambiado) antes de
-      // decidir a dónde enrutar.
+      // 1. Intentar vincular cuenta si era un operador pre-registrado que
+      // entró como cliente (o si su vínculo se rompió).
+      try {
+        const { data: nuevoRol } = await supabase.rpc('vincular_cuenta_pendiente');
+        if (nuevoRol && nuevoRol !== usuario.rol) {
+          await refreshUsuario();
+          const { data: u } = await supabase.from('usuarios').select('*').eq('id', usuario.id).single();
+          if (u) usuarioActual = u as Usuario;
+        }
+      } catch (e) {
+        console.error('Error en vinculación automática:', e);
+      }
+
+      // 2. Si veníamos de un enlace de invitación (token guardado antes del
+      // login con Google), canjéalo ahora que ya hay sesión...
       const tokenPendiente = await leerYLimpiarTokenPendiente();
       let usuarioActual = usuario;
       if (tokenPendiente) {
