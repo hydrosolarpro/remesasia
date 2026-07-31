@@ -135,22 +135,51 @@ export default function PanelControl() {
         const pagoPeriodo = op.pagos_suscripcion.find((p) => p.periodo === periodoActual());
         return (
           <View key={op.id} style={[styles.fila, cardShadow]}>
-            <View style={styles.filaHeader}>
-              <Text style={styles.numero}>#{i + 1}</Text>
-              <Text style={styles.fecha}>Registrado el {new Date(op.created_at).toLocaleDateString('es-PE')} · {op.totalClientes}/{LIMITE_CLIENTES} clientes</Text>
-            </View>
-            <Text style={styles.nombre}>{op.nombre}</Text>
-            {op.perfil_negocio?.nombre_negocio ? <Text style={styles.negocio}>{op.perfil_negocio.nombre_negocio}</Text> : null}
-            <Text style={styles.dato}>{op.email ?? 'Sin correo'}</Text>
-            <Text style={styles.dato}>{op.telefono ?? 'Sin teléfono'}</Text>
-            <View style={[styles.planPill, op.plan === 'starter' ? styles.planPillStarter : styles.planPillDemo]}>
-              <Text style={styles.planPillTexto}>
-                {op.plan === 'starter'
-                  ? 'STARTER'
-                  : demoVencido(op.demo_inicio)
-                    ? 'DEMO — vencido'
-                    : `DEMO — ${diasRestantesDemo(op.demo_inicio)} días restantes`}
-              </Text>
+            <View style={styles.filaRow}>
+              <View style={styles.filaLeft}>
+                <View style={styles.filaHeader}>
+                  <Text style={styles.numero}>#{i + 1}</Text>
+                  <Text style={styles.fecha}>Registrado el {new Date(op.created_at).toLocaleDateString('es-PE')}</Text>
+                </View>
+                <Text style={styles.nombre}>{op.nombre}</Text>
+                {op.perfil_negocio?.nombre_negocio ? <Text style={styles.negocio}>{op.perfil_negocio.nombre_negocio}</Text> : null}
+                <Text style={styles.dato}>{op.email ?? 'Sin correo'}</Text>
+                <Text style={styles.dato}>{op.telefono ?? 'Sin teléfono'}</Text>
+                <View style={[styles.planPill, op.plan === 'starter' ? styles.planPillStarter : styles.planPillDemo]}>
+                  <Text style={styles.planPillTexto}>
+                    {op.plan === 'starter'
+                      ? 'STARTER'
+                      : demoVencido(op.demo_inicio)
+                        ? 'DEMO — vencido'
+                        : `DEMO — ${diasRestantesDemo(op.demo_inicio)} días restantes`}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.clienteBox}>
+                <Text style={styles.clienteNum}>{op.totalClientes}</Text>
+                <Text style={styles.clienteLabel}>clientes</Text>
+                <View style={styles.clienteCupoRow}>
+                  <Text style={styles.clienteCupo}>{LIMITE_CLIENTES}</Text>
+                  <Text style={styles.clienteCupoLabel}>cupo</Text>
+                </View>
+                <View style={[styles.clienteBarraBg]}>
+                  <View
+                    style={[
+                      styles.clienteBarraFill,
+                      {
+                        width: `${Math.min(100, (op.totalClientes / LIMITE_CLIENTES) * 100)}%`,
+                        backgroundColor:
+                          op.totalClientes >= LIMITE_CLIENTES
+                            ? colors.danger
+                            : op.totalClientes >= LIMITE_CLIENTES * 0.8
+                              ? colors.warning
+                              : colors.accent,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
             </View>
 
             <View style={styles.checksRow}>
@@ -207,6 +236,16 @@ const styles = StyleSheet.create({
   planPillDemo: { backgroundColor: `${colors.warning}33` },
   planPillStarter: { backgroundColor: `${colors.success}33` },
   planPillTexto: { color: colors.text, fontSize: 11, fontWeight: '800' },
+  filaRow: { flexDirection: 'row' },
+  filaLeft: { flex: 1, gap: 2, minWidth: 0 },
+  clienteBox: { backgroundColor: colors.cardAlt, borderRadius: radius.md, padding: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 14, minWidth: 120 },
+  clienteNum: { color: colors.accent, fontSize: 36, fontWeight: '900', lineHeight: 42 },
+  clienteLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginTop: -2 },
+  clienteCupoRow: { flexDirection: 'row', gap: 4, marginTop: 4 },
+  clienteCupo: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  clienteCupoLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  clienteBarraBg: { height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 8, width: '100%', overflow: 'hidden' },
+  clienteBarraFill: { height: 4, borderRadius: 2 },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   checkCol: { alignItems: 'center', gap: 6, flex: 1, paddingHorizontal: 4 },
   checkLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
