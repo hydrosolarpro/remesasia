@@ -1,15 +1,47 @@
-// Plan DEMO (gratis, 15 días desde `demo_inicio`) vs STARTER (pagado,
-// S/ {PRECIO_STARTER_MENSUAL}/mes, vía pagos_suscripcion + aprobación del
-// admin). Antes el monto era editable desde el panel del admin
-// (`configuracion_pagos_admin.monto_suscripcion`) — ahora es un precio fijo
-// de la plataforma, así que vive acá como constante.
 export const PRECIO_STARTER_MENSUAL = 100;
+export const PRECIO_PRO_MENSUAL = 200;
+export const PRECIO_EXPERT_MENSUAL = 300;
+export const PRECIO_AVANCE_MENSUAL = 500;
+
+export const PRECIO_PLAN: Record<string, number> = {
+  demo: 0,
+  starter: PRECIO_STARTER_MENSUAL,
+  pro: PRECIO_PRO_MENSUAL,
+  expert: PRECIO_EXPERT_MENSUAL,
+  avance: PRECIO_AVANCE_MENSUAL,
+};
+
+export const NOMBRE_PLAN: Record<string, string> = {
+  demo: 'DEMO',
+  starter: 'STARTER',
+  pro: 'PRO',
+  expert: 'EXPERT',
+  avance: 'AVANCE',
+  ultra: 'ULTRA',
+};
+
+export function planDesdeMonto(monto: number): string {
+  if (monto === 0) return 'demo';
+  if (monto === 100) return 'starter';
+  if (monto === 200) return 'pro';
+  if (monto === 300) return 'expert';
+  if (monto === 500) return 'avance';
+  return 'ultra';
+}
+
+export function planLabel(plan: string, monto?: number): string {
+  if (plan === 'ultra' && monto) return `ULTRA (S/ ${monto})`;
+  return NOMBRE_PLAN[plan] ?? plan.toUpperCase();
+}
+
+export function planPrecioLabel(plan: string, monto?: number): string {
+  if (plan === 'ultra' && monto) return `S/ ${monto}/mes`;
+  const p = PRECIO_PLAN[plan];
+  return p !== undefined ? `S/ ${p}/mes` : '';
+}
 
 export const DIAS_DEMO = 7;
 
-// Límites por negocio (mismos en DEMO y STARTER, para que el operador no
-// se encuentre con una sorpresa al pasar de uno a otro): clientes propios,
-// miembros de equipo en Perú (aparte del dueño) y operadores en Venezuela.
 export const LIMITE_CLIENTES = 100;
 export const LIMITE_EQUIPO_PERU = 1;
 export const LIMITE_EQUIPO_VENEZUELA = 2;

@@ -1,0 +1,6 @@
+{
+  "name": "Remesas Perú-Venezuela",
+  "description": "Plataforma digital y automatizada de remesas entre Perú y Venezuela. Mapa 3D interactivo, simulador de tasa, carrusel interactivo de sesiones de operador y cliente, y planes de suscripción.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

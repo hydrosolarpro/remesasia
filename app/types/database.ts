@@ -12,7 +12,7 @@ export type EstadoSolicitud =
 
 export type MetodoPago = 'yape' | 'plin' | 'banco';
 export type TipoTransferencia = 'transferencia_bancaria' | 'pago_movil';
-export type PlanOperador = 'demo' | 'starter';
+export type PlanOperador = 'demo' | 'starter' | 'pro' | 'expert' | 'avance' | 'ultra';
 
 export interface Usuario {
   id: string;

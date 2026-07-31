@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+@layer utilities {
+  @keyframes gradient-rotate {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes float-gentle {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
+  }
+
+  @keyframes shimmer-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+
+  @keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(1000%); }
+  }
+
+  .animate-gradient-rotate {
+    background-size: 200% 200%;
+    animation: gradient-rotate 6s ease infinite;
+  }
+
+  .animate-float {
+    animation: float-gentle 4s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  .shimmer-effect {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer-effect::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.08),
+      transparent
+    );
+    transform: translateX(-100%);
+  }
+
+  .group:hover .shimmer-effect::after {
+    animation: shimmer-slide 1.2s ease-in-out infinite;
+  }
+
+  .glow-card-blue {
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glow-card-blue:hover {
+    box-shadow: 0 0 30px -5px rgba(59, 130, 246, 0.4), 0 0 15px -2px rgba(59, 130, 246, 0.25);
+    transform: translateY(-4px);
+  }
+
+  .glow-card-purple {
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glow-card-purple:hover {
+    box-shadow: 0 0 30px -5px rgba(168, 85, 247, 0.4), 0 0 15px -2px rgba(168, 85, 247, 0.25);
+    transform: translateY(-4px);
+  }
+
+  .glow-card-emerald {
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glow-card-emerald:hover {
+    box-shadow: 0 0 30px -5px rgba(16, 185, 129, 0.4), 0 0 15px -2px rgba(16, 185, 129, 0.25);
+    transform: translateY(-4px);
+  }
+
+  /* Dynamic Card Top Highlight Beam */
+  .card-beam-highlight {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-beam-highlight::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #3b82f6, #06b6d4, #3b82f6, transparent);
+    transition: all 0.5s ease;
+    z-index: 20;
+  }
+
+  .card-beam-highlight:hover::before {
+    left: 100%;
+    transition: all 1s ease-in-out;
+  }
+
+  .info-card-interactive {
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .info-card-interactive:hover {
+    transform: translateY(-5px) scale(1.015);
+    border-color: rgba(59, 130, 246, 0.6);
+    box-shadow: 0 12px 35px -10px rgba(14, 165, 233, 0.25), 0 0 20px 0 rgba(59, 130, 246, 0.15);
+  }
+}
+
