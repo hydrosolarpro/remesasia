@@ -153,7 +153,7 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
         </View>
       )}
 
-      <FormularioSolicitudPlan onEnviado={cargar} />
+      <FormularioSolicitudPlan plan="starter" onEnviado={cargar} />
     </ScrollView>
   );
 }

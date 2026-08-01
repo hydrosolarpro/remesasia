@@ -9,7 +9,7 @@ import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
-import { LIMITE_CLIENTES } from '../../lib/plan';
+import { obtenerLimiteClientes } from '../../lib/plan';
 import { Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -30,6 +30,7 @@ export default function ClientesRegistrados() {
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [nombreNegocio, setNombreNegocio] = useState('Remesas Perú-Venezuela');
   const [telefonoOperador, setTelefonoOperador] = useState<string | null>(null);
+  const [planNegocio, setPlanNegocio] = useState('demo');
 
   useEffect(() => {
     if (!usuario) return;
@@ -40,6 +41,10 @@ export default function ClientesRegistrados() {
       setEsPrincipal(ctx.tipo === 'principal');
       const { data: perfil } = await supabase.from('perfil_negocio').select('nombre_negocio').eq('operador_peru_id', ctx.negocioId).maybeSingle();
       if (perfil?.nombre_negocio) setNombreNegocio(perfil.nombre_negocio);
+      // El cupo de clientes es del negocio (dueño), no de la sesión actual
+      // -- un miembro de equipo no tiene su propio "plan".
+      const { data: principalData } = await supabase.from('usuarios').select('plan').eq('id', ctx.negocioId).maybeSingle();
+      if (principalData?.plan) setPlanNegocio(principalData.plan);
       if (ctx.tipo === 'miembro' && ctx.miembroId) {
         const { data: m } = await supabase.from('operador_peru_miembro').select('telefono').eq('id', ctx.miembroId).maybeSingle();
         setTelefonoOperador(m?.telefono ?? null);
@@ -239,7 +244,11 @@ export default function ClientesRegistrados() {
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.cardTitulo}>Cupo de clientes</Text>
         <Text style={styles.cardTexto}>
-          {clientes.length} de {LIMITE_CLIENTES} clientes usados — te quedan {Math.max(0, LIMITE_CLIENTES - clientes.length)} cupos.
+          {(() => {
+            const cupo = obtenerLimiteClientes(planNegocio);
+            if (cupo === Infinity) return `${clientes.length} clientes — plan ${planNegocio.toUpperCase()} sin límite.`;
+            return `${clientes.length} de ${cupo} clientes usados — te quedan ${Math.max(0, cupo - clientes.length)} cupos.`;
+          })()}
         </Text>
       </View>
 

@@ -1,19 +1,21 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useEstadoPlanNegocio } from '../lib/useEstadoPlanNegocio';
-import { diasRestantesDemo } from '../lib/plan';
+import { diasRestantesDemo, diasRestantesPeriodo, NOMBRE_PLAN } from '../lib/plan';
 import { colors, radius } from '../constants/theme';
 
-// Insignia de plan (DEMO con días restantes, o STARTER) para el header de
-// Operador Perú y Operador Venezuela, debajo de las banderas.
+// Insignia de plan (nombre + días restantes del ciclo mensual vigente) para
+// el header de Operador Perú y Operador Venezuela, debajo de las banderas.
 export function PlanBadge({ operadorPeruId }: { operadorPeruId: string | null | undefined }) {
-  const { cargando, plan, demoInicio } = useEstadoPlanNegocio(operadorPeruId);
+  const { cargando, plan, demoInicio, periodoVerificado } = useEstadoPlanNegocio(operadorPeruId);
   if (cargando || !plan) return null;
 
   const esDemo = plan === 'demo';
+  const dias = esDemo ? diasRestantesDemo(demoInicio) : diasRestantesPeriodo(periodoVerificado);
+  const nombre = NOMBRE_PLAN[plan] ?? plan.toUpperCase();
 
   return (
     <View style={[styles.pill, esDemo ? styles.pillDemo : styles.pillStarter]}>
-      <Text style={styles.texto}>{esDemo ? `DEMO · ${diasRestantesDemo(demoInicio)}d` : 'STARTER'}</Text>
+      <Text style={styles.texto}>{periodoVerificado || esDemo ? `${nombre} · ${dias}d` : nombre}</Text>
     </View>
   );
 }

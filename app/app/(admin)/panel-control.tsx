@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { RoleTag } from '../../components/RoleTag';
 import { RoundCheck } from '../../components/RoundCheck';
-import { diasRestantesDemo, LIMITE_CLIENTES, planDesdeMonto, planLabel } from '../../lib/plan';
+import { diasRestantesDemo, obtenerLimiteClientes, planDesdeMonto, planLabel } from '../../lib/plan';
 import { PlanOperador } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -211,6 +211,7 @@ export default function PanelControl() {
         const planMonto = pagoPeriodo?.estado === 'verificado' ? pagoPeriodo.monto : undefined;
         const esDemo = op.plan === 'demo' || planActual === 'demo';
         const extendido = demoExtendido[op.id];
+        const cupoClientes = obtenerLimiteClientes(planActual);
 
         return (
           <View key={op.id} style={[styles.fila, cardShadow]}>
@@ -256,7 +257,7 @@ export default function PanelControl() {
                 <Text style={styles.clienteNum}>{op.totalClientes}</Text>
                 <Text style={styles.clienteLabel}>clientes</Text>
                 <View style={styles.clienteCupoRow}>
-                  <Text style={styles.clienteCupo}>{LIMITE_CLIENTES}</Text>
+                  <Text style={styles.clienteCupo}>{cupoClientes === Infinity ? '∞' : cupoClientes}</Text>
                   <Text style={styles.clienteCupoLabel}>cupo</Text>
                 </View>
                 <View style={styles.clienteBarraBg}>
@@ -264,11 +265,11 @@ export default function PanelControl() {
                     style={[
                       styles.clienteBarraFill,
                       {
-                        width: `${Math.min(100, (op.totalClientes / LIMITE_CLIENTES) * 100)}%`,
+                        width: `${Math.min(100, (op.totalClientes / cupoClientes) * 100)}%`,
                         backgroundColor:
-                          op.totalClientes >= LIMITE_CLIENTES
+                          op.totalClientes >= cupoClientes
                             ? colors.danger
-                            : op.totalClientes >= LIMITE_CLIENTES * 0.8
+                            : op.totalClientes >= cupoClientes * 0.8
                               ? colors.warning
                               : colors.accent,
                       },

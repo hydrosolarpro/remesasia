@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Image, ActivityIndicator, Alert, Linking, TouchableOpacity } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { CopyField } from './CopyField';
 import { extensionDeImagen } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin } from '../types/database';
-import { PRECIO_STARTER_MENSUAL } from '../lib/plan';
+import { PRECIO_PLAN, planLabel } from '../lib/plan';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
@@ -15,10 +15,13 @@ type FormaPago = 'yape' | 'transferencia';
 
 // Formulario de solicitud de pago de la suscripción (upsert en
 // pagos_suscripcion, a la espera de aprobación del admin). Se usa tanto
-// dentro de SuscripcionGate (cuando el DEMO ya venció) como desde el botón
-// proactivo "Solicitar plan STARTER" en Perfil (operador todavía en DEMO
-// vigente, adelantando el upgrade antes de que se le cierre el acceso).
-export function FormularioSolicitudPlan({ onEnviado }: { onEnviado?: () => void }) {
+// dentro de SuscripcionGate (cuando el DEMO ya venció, siempre para
+// STARTER) como desde "Próxima Meta" en Perfil (operador solicitando
+// subir a un plan superior específico). El monto define qué plan asigna
+// el admin al aprobar (ver planDesdeMonto) -- para ULTRA/UNLIMITED, cuyo
+// precio se acuerda directamente con el administrador, se pide un monto
+// manual en vez de uno fijo.
+export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onEnviado?: () => void }) {
   const { usuario, refreshUsuario } = useAuth();
   const [config, setConfig] = useState<ConfiguracionPagosAdmin | null>(null);
   const [formaPago, setFormaPago] = useState<FormaPago>('yape');
@@ -28,6 +31,12 @@ export function FormularioSolicitudPlan({ onEnviado }: { onEnviado?: () => void 
   const [comprobanteExt, setComprobanteExt] = useState('jpg');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [montoManual, setMontoManual] = useState('');
+
+  const montoFijo = PRECIO_PLAN[plan];
+  const requiereMontoManual = montoFijo === undefined; // ultra / unlimited
+  const monto = requiereMontoManual ? Number(montoManual.replace(',', '.')) || 0 : montoFijo;
 
   useEffect(() => {
     supabase
@@ -53,8 +62,16 @@ export function FormularioSolicitudPlan({ onEnviado }: { onEnviado?: () => void 
   const enviarSolicitud = async () => {
     setError(null);
     if (!usuario) return;
+    if (!aceptaTerminos) {
+      setError('Debes leer y aceptar los Términos y Condiciones para enviar la solicitud.');
+      return;
+    }
     if (!nombre.trim() || !telefono.trim()) {
       setError('Completa tu nombre completo y teléfono.');
+      return;
+    }
+    if (requiereMontoManual && monto <= 0) {
+      setError('Ingresa el monto acordado con el administrador.');
       return;
     }
     if (!comprobanteUri) {
@@ -77,7 +94,7 @@ export function FormularioSolicitudPlan({ onEnviado }: { onEnviado?: () => void 
         {
           operador_peru_id: usuario.id,
           periodo,
-          monto: PRECIO_STARTER_MENSUAL,
+          monto,
           comprobante_url: publicUrl.publicUrl,
           estado: 'pendiente',
         },
@@ -99,8 +116,23 @@ export function FormularioSolicitudPlan({ onEnviado }: { onEnviado?: () => void 
   return (
     <View style={{ gap: 12 }}>
       <Text style={styles.subtitulo}>
-        Suscripción S/ {PRECIO_STARTER_MENSUAL.toFixed(2)} / mes — período {periodoActual()}
+        Solicitud de plan {planLabel(plan)} {requiereMontoManual ? '' : `— S/ ${monto.toFixed(2)} / mes`} — período {periodoActual()}
       </Text>
+
+      {requiereMontoManual && (
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.seccionTitulo}>Monto acordado con el administrador</Text>
+          <Text style={styles.label}>Monto mensual (S/)</Text>
+          <TextInput
+            style={styles.input}
+            value={montoManual}
+            onChangeText={setMontoManual}
+            keyboardType="decimal-pad"
+            placeholder="Ej. 800.00"
+            placeholderTextColor={colors.textMuted}
+          />
+        </View>
+      )}
 
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.seccionTitulo}>Formas de pago</Text>
@@ -153,9 +185,31 @@ export function FormularioSolicitudPlan({ onEnviado }: { onEnviado?: () => void 
         </View>
       </View>
 
+      <View style={[styles.card, cardShadow, styles.terminosBox]}>
+        <Text style={styles.terminosTitulo}>Términos y condiciones de uso de la plataforma Remesas PERÚ-VENEZUELA</Text>
+        <Text style={styles.terminosTexto}>
+          Importante: antes de enviar tu solicitud de plan {planLabel(plan)} debes leer los Términos y Condiciones de Uso. Al
+          marcar la aceptación declaras que los leíste, comprendiste y aceptas íntegramente. No se puede enviar la solicitud sin
+          aceptarlos.
+        </Text>
+        <Pressable onPress={() => Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')}>
+          <Text style={styles.linkPdf}>📁 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)</Text>
+        </Pressable>
+        <View style={styles.terminosAceptacion}>
+          <TouchableOpacity onPress={() => setAceptaTerminos((v) => !v)} style={styles.checkboxContainer}>
+            <Text style={[styles.checkbox, aceptaTerminos && styles.checkboxActivo]}>{aceptaTerminos ? '☑' : '☐'}</Text>
+          </TouchableOpacity>
+          <Text style={[styles.terminosTexto, styles.terminosTextoFlex, aceptaTerminos && styles.terminosTextoAceptado]}>
+            {aceptaTerminos
+              ? '✅ Términos y Condiciones aceptados.'
+              : 'He leído y acepto los Términos y Condiciones de Uso.'}
+          </Text>
+        </View>
+      </View>
+
       {error && <Text style={styles.error}>{error}</Text>}
 
-      <Pressable style={styles.enviarBtn} onPress={enviarSolicitud} disabled={enviando}>
+      <Pressable style={[styles.enviarBtn, !aceptaTerminos && styles.enviarBtnDeshabilitado]} onPress={enviarSolicitud} disabled={enviando || !aceptaTerminos}>
         {enviando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.enviarBtnTexto}>Enviar solicitud</Text>}
       </Pressable>
     </View>
@@ -219,5 +273,16 @@ const styles = StyleSheet.create({
   inputDisabledText: { color: colors.textMuted, fontSize: 15 },
   error: { color: colors.danger, fontSize: 13 },
   enviarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
+  enviarBtnDeshabilitado: { opacity: 0.5 },
   enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  terminosBox: { borderColor: colors.primary, gap: 8 },
+  terminosTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  terminosTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  terminosTextoFlex: { flex: 1 },
+  terminosTextoAceptado: { color: colors.success, fontWeight: '700' },
+  linkPdf: { color: colors.accent, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+  terminosAceptacion: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  checkboxContainer: { padding: 4 },
+  checkbox: { fontSize: 20, color: colors.textMuted },
+  checkboxActivo: { color: colors.success },
 });

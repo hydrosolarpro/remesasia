@@ -4,9 +4,20 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
-import { diasRestantesDemo, fechaFinDemo, PRECIO_STARTER_MENSUAL, obtenerLimitesEquipo } from '../../lib/plan';
+import {
+  diasRestantesDemo,
+  fechaFinDemo,
+  diasRestantesPeriodo,
+  fechaVencimientoPeriodo,
+  obtenerLimitesEquipo,
+  obtenerLimitesPlan,
+  siguientesPlanes,
+  planLabel,
+} from '../../lib/plan';
+import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
 import { PlanesInfo } from '../../components/PlanesInfo';
+import { Collapsible } from '../../components/Collapsible';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
@@ -54,7 +65,8 @@ export default function Perfil() {
   // VE asignado al miembro (se muestra solo lectura)
   const [miVe, setMiVe] = useState<OperadorVenezuelaPerfil | null>(null);
 
-  const [solicitandoStarter, setSolicitandoStarter] = useState(false);
+  const [solicitandoPlan, setSolicitandoPlan] = useState<string | null>(null);
+  const { periodoVerificado } = useEstadoPlanNegocio(negocioId);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -150,11 +162,21 @@ export default function Perfil() {
     setTimeout(() => setGuardadoMi(false), 2000);
   };
 
+  // El vínculo a la sesión real se hace por correo (ver
+  // vincular_cuenta_pendiente): si esta fila ya estaba vinculada
+  // (usuario_id) y se le cambia el correo, hay que desvincularla también,
+  // o la fila queda mostrando un correo distinto al de la cuenta que
+  // realmente tiene la sesión (el bug de "operadores invertidos").
   const editarVe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
-    setVeList((prev) => prev.map((v) => (v.id === id ? { ...v, [campo]: valor } : v)));
+    const filaActual = veList.find((v) => v.id === id);
+    const valorNormalizado = campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null;
+    const desvincular = campo === 'email' && !!filaActual?.usuario_id && valorNormalizado !== filaActual.email;
+    setVeList((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) } : v))
+    );
     await supabase
       .from('operador_venezuela_perfil')
-      .update({ [campo]: campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null })
+      .update({ [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) })
       .eq('id', id);
   };
 
@@ -164,10 +186,15 @@ export default function Perfil() {
   };
 
   const editarPe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
-    setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, [campo]: valor } : p)));
+    const filaActual = peList.find((p) => p.id === id);
+    const valorNormalizado = campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null;
+    const desvincular = campo === 'email' && !!filaActual?.usuario_id && valorNormalizado !== filaActual.email;
+    setPeList((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) } : p))
+    );
     await supabase
       .from('operador_peru_miembro')
-      .update({ [campo]: campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null })
+      .update({ [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) })
       .eq('id', id);
   };
 
@@ -243,7 +270,7 @@ export default function Perfil() {
   // el que debe iniciar sesión, ya que la vinculación a su sesión es por
   // ese correo (ver handle_new_user / vincular_cuenta_pendiente).
   const enviarBienvenidaWhatsApp = (nombre: string, telefono: string | null, email: string | null, rolTexto: string) => {
-    const mensaje = `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Perú'} te registró como ${rolTexto} en Remesas PERU-VENEZUELA. Ingresa a la app y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
+    const mensaje = `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Perú'} te registró como ${rolTexto} en Remesas PERU-VENEZUELA. Ingresa a https://remesasia.vercel.app/ y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
     const enlace = construirEnlaceWhatsAppGenerico(telefono, mensaje);
     if (!enlace) {
       const aviso = 'Agrega un teléfono válido para poder enviar el mensaje de bienvenida por WhatsApp.';
@@ -327,51 +354,86 @@ export default function Perfil() {
         </>
       )}
 
-      {esPrincipal && <PlanesInfo />}
-
       {esPrincipal && usuario && (
-        <View style={[styles.card, cardShadow]}>
+        <View style={[styles.card, cardShadow, styles.planCardGrande]}>
           <Text style={styles.cardTitulo}>TU PLAN</Text>
-          {usuario.plan === 'starter' ? (
-            <Text style={styles.cardTexto}>Plan STARTER activo — S/ {PRECIO_STARTER_MENSUAL.toFixed(2)} / mes.</Text>
-          ) : (
-            <>
-              <Text style={styles.cardTexto}>
-                Plan DEMO — quedan {diasRestantesDemo(usuario.demo_inicio)} días
-                {usuario.demo_inicio ? ` (vence el ${FORMATTER_FECHA.format(fechaFinDemo(usuario.demo_inicio))})` : ''}.
-              </Text>
-              {solicitandoStarter ? (
-                <FormularioSolicitudPlan onEnviado={() => setSolicitandoStarter(false)} />
-              ) : (
-                <Pressable style={styles.agregarBtn} onPress={() => setSolicitandoStarter(true)}>
-                  <Text style={styles.agregarBtnTexto}>Solicitar plan STARTER (S/ {PRECIO_STARTER_MENSUAL.toFixed(2)} / mes)</Text>
+          <Text style={styles.planNombreGrande}>{planLabel(usuario.plan)}</Text>
+          <Text style={styles.cardTexto}>
+            {usuario.plan === 'demo'
+              ? `Quedan ${diasRestantesDemo(usuario.demo_inicio)} días${
+                  usuario.demo_inicio ? ` — vence el ${FORMATTER_FECHA.format(fechaFinDemo(usuario.demo_inicio))}` : ''
+                }.`
+              : periodoVerificado
+                ? `Quedan ${diasRestantesPeriodo(periodoVerificado)} días — vence el ${FORMATTER_FECHA.format(fechaVencimientoPeriodo(periodoVerificado))}.`
+                : 'Esperando la verificación de tu primer pago.'}
+          </Text>
+
+          {siguientesPlanes(usuario.plan).length > 0 && (
+            <View style={styles.metaBloque}>
+              <Text style={styles.metaTitulo}>Próxima Meta</Text>
+              {siguientesPlanes(usuario.plan).map((planSiguiente) => {
+                const limites = obtenerLimitesPlan(planSiguiente);
+                return (
+                  <View key={planSiguiente} style={styles.metaFila}>
+                    <View style={styles.metaFilaDatos}>
+                      <Text style={styles.metaFilaNombre}>{planLabel(planSiguiente)}</Text>
+                      <Text style={styles.metaFilaDato}>
+                        {limites.clientes === Infinity ? 'Clientes a acordar' : `${limites.clientes} clientes`} ·{' '}
+                        {limites.peru === Infinity ? 'operadores PE a acordar' : `${limites.peru} operador(es) Perú`} ·{' '}
+                        {limites.venezuela === Infinity ? 'operadores VE a acordar' : `${limites.venezuela} en Venezuela`}
+                      </Text>
+                    </View>
+                    <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(planSiguiente)}>
+                      <Text style={styles.metaSolicitarBtnTexto}>Solicitar →</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {solicitandoPlan && (
+            <View style={styles.metaFormulario}>
+              <View style={styles.metaFormularioHeader}>
+                <Text style={styles.metaTitulo}>Solicitar {planLabel(solicitandoPlan)}</Text>
+                <Pressable onPress={() => setSolicitandoPlan(null)}>
+                  <Text style={styles.miembroEliminarTexto}>✕</Text>
                 </Pressable>
-              )}
-            </>
+              </View>
+              <FormularioSolicitudPlan plan={solicitandoPlan} onEnviado={() => setSolicitandoPlan(null)} />
+            </View>
           )}
         </View>
       )}
 
+      {esPrincipal && <PlanesInfo />}
+
       {esPrincipal && (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>
-            OPERADORES EN VENEZUELA - EQUIPO ({veList.length}/{obtenerLimitesEquipo(usuario.plan).venezuela})
-          </Text>
-          <Text style={styles.cardTexto}>Asigna a cada Operador de Venezuela los operadores de Perú que deberá atender.</Text>
+        <Collapsible
+          abiertoPorDefecto
+          titulo={`OPERADORES EN VENEZUELA - EQUIPO (${veList.length}/${obtenerLimitesEquipo(usuario.plan).venezuela})`}
+          subtitulo="Asigna a cada Operador de Venezuela los operadores de Perú que deberá atender."
+        >
           {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
           {veList.map((v) => (
-            <View key={v.id} style={styles.miembroFila}>
-              <View style={styles.miembroHeaderRow}>
-                <TextInput
-                  style={[styles.input, styles.miembroInputNombre]}
-                  value={v.nombre}
-                  onChangeText={(t) => editarVe(v.id, 'nombre', t)}
-                  placeholderTextColor={colors.textMuted}
-                />
+            <Collapsible
+              key={v.id}
+              titulo={v.nombre}
+              subtitulo={v.email ?? 'Sin correo'}
+              extra={
                 <Pressable onPress={() => eliminarVe(v.id)} style={styles.miembroEliminarBtn}>
                   <Text style={styles.miembroEliminarTexto}>✕</Text>
                 </Pressable>
-              </View>
+              }
+            >
+              <Text style={styles.label}>Nombre</Text>
+              <TextInput
+                style={styles.input}
+                value={v.nombre}
+                onChangeText={(t) => editarVe(v.id, 'nombre', t)}
+                placeholderTextColor={colors.textMuted}
+              />
+              <Text style={styles.label}>Teléfono</Text>
               <TextInput
                 style={styles.input}
                 value={v.telefono ?? ''}
@@ -380,6 +442,7 @@ export default function Perfil() {
                 placeholder="Teléfono"
                 placeholderTextColor={colors.textMuted}
               />
+              <Text style={styles.label}>Correo</Text>
               <TextInput
                 style={styles.input}
                 value={v.email ?? ''}
@@ -411,7 +474,7 @@ export default function Perfil() {
                   <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
                 </Pressable>
               </View>
-            </View>
+            </Collapsible>
           ))}
 
           {veList.length >= obtenerLimitesEquipo(usuario.plan).venezuela ? (
@@ -433,30 +496,36 @@ export default function Perfil() {
               onGuardar={agregarVe}
             />
           )}
-        </View>
+        </Collapsible>
       )}
 
       {esPrincipal && (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>
-            OPERADORES EN PERÚ - EQUIPO ({peList.length}/{obtenerLimitesEquipo(usuario.plan).peru})
-          </Text>
+        <Collapsible
+          abiertoPorDefecto
+          titulo={`OPERADORES EN PERÚ - EQUIPO (${peList.length}/${obtenerLimitesEquipo(usuario.plan).peru})`}
+        >
           {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
           {peList.map((p) => {
             const veAsignado = veList.find((v) => v.id === p.operador_venezuela_id);
             return (
-              <View key={p.id} style={styles.miembroFila}>
-                <View style={styles.miembroHeaderRow}>
-                  <TextInput
-                    style={[styles.input, styles.miembroInputNombre]}
-                    value={p.nombre}
-                    onChangeText={(t) => editarPe(p.id, 'nombre', t)}
-                    placeholderTextColor={colors.textMuted}
-                  />
+              <Collapsible
+                key={p.id}
+                titulo={p.nombre}
+                subtitulo={`${p.email} · ${clientesPorMiembro[p.id] ?? 0} clientes`}
+                extra={
                   <Pressable onPress={() => eliminarPe(p.id)} style={styles.miembroEliminarBtn}>
                     <Text style={styles.miembroEliminarTexto}>✕</Text>
                   </Pressable>
-                </View>
+                }
+              >
+                <Text style={styles.label}>Nombre</Text>
+                <TextInput
+                  style={styles.input}
+                  value={p.nombre}
+                  onChangeText={(t) => editarPe(p.id, 'nombre', t)}
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.label}>Teléfono</Text>
                 <TextInput
                   style={styles.input}
                   value={p.telefono ?? ''}
@@ -465,6 +534,7 @@ export default function Perfil() {
                   placeholder="Teléfono"
                   placeholderTextColor={colors.textMuted}
                 />
+                <Text style={styles.label}>Correo</Text>
                 <TextInput
                   style={styles.input}
                   value={p.email ?? ''}
@@ -484,7 +554,7 @@ export default function Perfil() {
                 >
                   <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
                 </Pressable>
-              </View>
+              </Collapsible>
             );
           })}
 
@@ -507,7 +577,7 @@ export default function Perfil() {
               onGuardar={agregarPe}
             />
           )}
-        </View>
+        </Collapsible>
       )}
 
       {!esPrincipal && miVe && (
@@ -647,6 +717,26 @@ const styles = StyleSheet.create({
   nombre: { color: colors.text, fontSize: 22, fontWeight: '800' },
   email: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
   telefono: { color: colors.textMuted, fontSize: 14, marginBottom: 4 },
+  planCardGrande: { gap: 10 },
+  planNombreGrande: { color: colors.text, fontSize: 28, fontWeight: '900' },
+  metaBloque: { marginTop: 8, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
+  metaTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  metaFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 10,
+  },
+  metaFilaDatos: { flex: 1, gap: 2 },
+  metaFilaNombre: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  metaFilaDato: { color: colors.textMuted, fontSize: 12 },
+  metaSolicitarBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
+  metaSolicitarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  metaFormulario: { marginTop: 12, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
+  metaFormularioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
   cardTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
   cardTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
