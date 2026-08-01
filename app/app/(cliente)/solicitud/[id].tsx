@@ -61,7 +61,7 @@ export default function DetalleSolicitud() {
         <View style={[styles.avisoCompletado, cardShadow]}>
           <Text style={styles.avisoTitulo}>✓ ¡Operación completada!</Text>
           <Text style={styles.avisoTexto}>
-            Confirmamos que {solicitud.beneficiario_nombre} recibió Bs {formatearBs(solicitud.monto_ves)} en Venezuela.
+            Confirmamos que {solicitud.beneficiario_nombre} recibió VES {formatearBs(solicitud.monto_ves)} en Venezuela.
           </Text>
         </View>
       )}
@@ -77,8 +77,8 @@ export default function DetalleSolicitud() {
         <Row label="C.I." value={solicitud.beneficiario_ci ?? '—'} />
         <Row label="Banco" value={solicitud.beneficiario_banco} />
         <Row label="Cuenta / teléfono" value={solicitud.beneficiario_cuenta} />
-        <Row label="Envías" value={`S/ ${solicitud.monto_pen.toFixed(2)}`} />
-        <Row label="Recibe" value={`Bs ${formatearBs(solicitud.monto_ves)}`} />
+        <Row label="Envías" value={`PEN ${solicitud.monto_pen.toFixed(2)}`} />
+        <Row label="Recibe" value={`VES ${formatearBs(solicitud.monto_ves)}`} />
         <Row
           label="Método de pago"
           value={solicitud.metodo_pago === 'yape' ? 'Yape' : solicitud.metodo_pago === 'plin' ? 'Plin' : 'Transferencia bancaria'}

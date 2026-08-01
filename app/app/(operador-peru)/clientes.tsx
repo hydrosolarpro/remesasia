@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, Alert, Linking } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, Alert, Linking, Modal } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
-import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { obtenerLimiteClientes } from '../../lib/plan';
-import { Usuario } from '../../types/database';
+import { Usuario, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
+
+const MENSAJE_INVITACION_CLIENTE =
+  'Hola!!!, te comparto información importante sobre una plataforma para facilitar tu remesa a Venezuela. Desde esta pagina web podrás acceder de forma segura a una plataforma donde podrás realizar tus envíos, info de Tasa del día, horario de atención, calculadora de conversión SOLES A BS, Tasas del BCV (USD y EURO) con sus conversiones de tus envíos, notificaciones del estado de tus depósitos y envíos por Telegram-ChatBot, registrar los datos personales y bancarios para el envío de remesas a tus familiares y amigos.';
 
 export default function ClientesRegistrados() {
   const { usuario } = useAuth();
@@ -26,11 +28,13 @@ export default function ClientesRegistrados() {
 
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
-  const [copiado, setCopiado] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
-  const [nombreNegocio, setNombreNegocio] = useState('Remesas Perú-Venezuela');
   const [telefonoOperador, setTelefonoOperador] = useState<string | null>(null);
   const [planNegocio, setPlanNegocio] = useState('demo');
+  const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
+  const [derivandoCliente, setDerivandoCliente] = useState<Usuario | null>(null);
+  const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
+  const [derivandoEnviando, setDerivandoEnviando] = useState(false);
 
   useEffect(() => {
     if (!usuario) return;
@@ -39,8 +43,6 @@ export default function ClientesRegistrados() {
       setNegocioId(ctx.negocioId);
       setMiembroId(ctx.miembroId);
       setEsPrincipal(ctx.tipo === 'principal');
-      const { data: perfil } = await supabase.from('perfil_negocio').select('nombre_negocio').eq('operador_peru_id', ctx.negocioId).maybeSingle();
-      if (perfil?.nombre_negocio) setNombreNegocio(perfil.nombre_negocio);
       // El cupo de clientes es del negocio (dueño), no de la sesión actual
       // -- un miembro de equipo no tiene su propio "plan".
       const { data: principalData } = await supabase.from('usuarios').select('plan').eq('id', ctx.negocioId).maybeSingle();
@@ -72,6 +74,39 @@ export default function ClientesRegistrados() {
       setCargandoClientes(false);
     });
   }, [negocioId, esPrincipal, miembroId]);
+
+  // Solo el principal puede derivar clientes a un miembro de su equipo.
+  useEffect(() => {
+    if (!negocioId || !esPrincipal) return;
+    supabase
+      .from('operador_peru_miembro')
+      .select('*')
+      .eq('operador_peru_id', negocioId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setMiembros((data as OperadorPeruMiembro[] | null) ?? []));
+  }, [negocioId, esPrincipal]);
+
+  const abrirDerivacion = (cliente: Usuario) => {
+    setDerivandoCliente(cliente);
+    setDerivandoMiembroId(cliente.invitado_por_operador_miembro_id ?? null);
+  };
+
+  const confirmarDerivacion = async () => {
+    if (!derivandoCliente || !derivandoMiembroId) return;
+    setDerivandoEnviando(true);
+    const { error } = await supabase.rpc('derivar_cliente', {
+      p_cliente_id: derivandoCliente.id,
+      p_operador_peru_miembro_id: derivandoMiembroId,
+    });
+    setDerivandoEnviando(false);
+    setDerivandoCliente(null);
+    setDerivandoMiembroId(null);
+    if (error) {
+      Alert.alert('No se pudo derivar', error.message);
+      return;
+    }
+    cargarClientes();
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -137,22 +172,12 @@ export default function ClientesRegistrados() {
       .finally(() => setCargandoEnlace(false));
   }, [negocioId, miembroId]);
 
-  const copiarEnlace = async () => {
+  // Un solo botón: comparte la landing page (información del servicio) por
+  // WhatsApp con un mensaje fijo -- sin mostrar la URL cruda en pantalla ni
+  // botones separados para "ver landing" / "copiar enlace".
+  const compartirInvitacionWhatsApp = () => {
     if (!enlaceCliente) return;
-    await Clipboard.setStringAsync(enlaceCliente);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 1500);
-  };
-
-  const abrirLanding = () => {
-    if (enlaceCliente) Linking.openURL(enlaceCliente);
-  };
-
-  const abrirWhatsAppInvitacion = () => {
-    if (!enlaceCliente) return;
-    const token = enlaceCliente.split('?op=')[1] ?? '';
-    const enlaceSesionCliente = construirEnlaceInvitacion(decodeURIComponent(token));
-    const mensaje = `Bienvenid@ [Nombre del cliente] a ${nombreNegocio} donde prestamos el servicio de remesas de Perú a Venezuela. Accede ${enlaceSesionCliente} para disfrutar de una experiencia digital y de eficiencia en tus remesas a tus familiares y amigos en Venezuela`;
+    const mensaje = `${MENSAJE_INVITACION_CLIENTE} ${enlaceCliente}`;
     const enlace = construirEnlaceWhatsAppGenerico(telefonoOperador, mensaje);
     if (!enlace) {
       Alert.alert('Sin teléfono', 'Completa tu teléfono en tu perfil para poder enviar la invitación por WhatsApp.');
@@ -218,26 +243,13 @@ export default function ClientesRegistrados() {
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.cardTitulo}>Invitación a tus clientes</Text>
-        <Text style={styles.cardTexto}>Envía los siguientes enlaces</Text>
+        <Text style={styles.cardTexto}>Comparte la landing page con tu cliente por WhatsApp.</Text>
         {cargandoEnlace ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
         ) : (
-          <>
-            <Pressable style={styles.botonLanding} onPress={abrirLanding}>
-              <Text style={styles.botonLandingTexto}>🌐 Información de servicio - Landing page cliente</Text>
-            </Pressable>
-            <Pressable style={styles.botonWhatsApp} onPress={abrirWhatsAppInvitacion}>
-              <Text style={styles.botonWhatsAppTexto}>💬 Acceso por vía WhatsApp</Text>
-            </Pressable>
-            <View style={styles.enlaceRow}>
-              <Text style={styles.enlaceTexto} numberOfLines={1}>
-                {enlaceCliente}
-              </Text>
-              <Pressable style={styles.copiarBtn} onPress={copiarEnlace}>
-                <Text style={styles.copiarBtnTexto}>{copiado ? '✓ Copiado' : 'Copiar'}</Text>
-              </Pressable>
-            </View>
-          </>
+          <Pressable style={styles.botonWhatsApp} onPress={compartirInvitacionWhatsApp}>
+            <Text style={styles.botonWhatsAppTexto}>💬 Compartir por WhatsApp</Text>
+          </Pressable>
         )}
       </View>
 
@@ -278,32 +290,75 @@ export default function ClientesRegistrados() {
         <Text style={styles.vacio}>Sin resultados.</Text>
       ) : (
         <View style={styles.lista}>
-          {clientesFiltrados.map((item) => (
-            <View key={item.id} style={[styles.card, cardShadow]}>
-              <View style={styles.clienteHeader}>
-                <View style={styles.clienteDatos}>
-                  <Text style={styles.nombre}>{item.nombre}</Text>
-                  <Text style={styles.dato}>{item.email}</Text>
-                  <Text style={styles.dato}>
-                    {item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}
-                  </Text>
+          {clientesFiltrados.map((item) => {
+            const atiende = miembros.find((m) => m.id === item.invitado_por_operador_miembro_id);
+            return (
+              <View key={item.id} style={[styles.card, cardShadow]}>
+                <View style={styles.clienteHeader}>
+                  <View style={styles.clienteDatos}>
+                    <Text style={styles.nombre}>{item.nombre}</Text>
+                    <Text style={styles.dato}>{item.email}</Text>
+                    <Text style={styles.dato}>
+                      {item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}
+                    </Text>
+                    {esPrincipal && <Text style={styles.dato}>Atendido por: {atiende ? atiende.nombre : 'Tú (principal)'}</Text>}
+                  </View>
+                  <Pressable
+                    style={styles.eliminarBtn}
+                    onPress={() => eliminarCliente(item)}
+                    disabled={eliminandoId === item.id}
+                  >
+                    {eliminandoId === item.id ? (
+                      <ActivityIndicator size="small" color={colors.danger} />
+                    ) : (
+                      <Text style={styles.eliminarBtnTexto}>Eliminar</Text>
+                    )}
+                  </Pressable>
                 </View>
-                <Pressable
-                  style={styles.eliminarBtn}
-                  onPress={() => eliminarCliente(item)}
-                  disabled={eliminandoId === item.id}
-                >
-                  {eliminandoId === item.id ? (
-                    <ActivityIndicator size="small" color={colors.danger} />
-                  ) : (
-                    <Text style={styles.eliminarBtnTexto}>Eliminar</Text>
-                  )}
-                </Pressable>
+                {esPrincipal && miembros.length > 0 && (
+                  <Pressable style={styles.derivarBtn} onPress={() => abrirDerivacion(item)}>
+                    <Text style={styles.derivarBtnTexto}>Derivar a un operador de Perú →</Text>
+                  </Pressable>
+                )}
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
+
+      {/* Modal de derivación: solo lo usa el Operador principal. */}
+      <Modal visible={!!derivandoCliente} transparent animationType="fade" onRequestClose={() => setDerivandoCliente(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitulo}>Derivar cliente</Text>
+            <Text style={styles.modalTexto}>
+              {derivandoCliente ? `¿A qué operador de Perú quieres derivar a ${derivandoCliente.nombre}?` : ''}
+            </Text>
+            {miembros.map((m) => {
+              const seleccionado = derivandoMiembroId === m.id;
+              return (
+                <Pressable key={m.id} style={[styles.miembroOpcion, seleccionado && styles.miembroOpcionActivo]} onPress={() => setDerivandoMiembroId(m.id)}>
+                  <Text style={[styles.miembroOpcionNombre, seleccionado && { color: colors.text }]}>{m.nombre}</Text>
+                  <Text style={styles.miembroOpcionDato}>{m.email}</Text>
+                  {seleccionado && <Text style={styles.miembroOpcionCheck}>✓</Text>}
+                </Pressable>
+              );
+            })}
+            <View style={styles.modalAcciones}>
+              <Pressable style={styles.modalCancelar} onPress={() => setDerivandoCliente(null)}>
+                <Text style={styles.modalCancelarTexto}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirmar, (!derivandoMiembroId || derivandoEnviando) && styles.modalConfirmarDeshabilitado]}
+                disabled={!derivandoMiembroId || derivandoEnviando}
+                onPress={confirmarDerivacion}
+              >
+                {derivandoEnviando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.modalConfirmarTexto}>Derivar</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -314,14 +369,8 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
   cardTitulo: { color: colors.text, fontSize: 15, fontWeight: '800' },
   cardTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
-  botonLanding: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 6 },
-  botonLandingTexto: { color: colors.text, fontWeight: '700', fontSize: 13, textAlign: 'center' },
   botonWhatsApp: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 6 },
   botonWhatsAppTexto: { color: '#fff', fontWeight: '700', fontSize: 13, textAlign: 'center' },
-  enlaceRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 6 },
-  enlaceTexto: { flex: 1, color: colors.accent, fontSize: 12 },
-  copiarBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
-  copiarBtnTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   headerBotones: { flexDirection: 'row', gap: 8 },
   titulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
@@ -346,4 +395,29 @@ const styles = StyleSheet.create({
   clienteDatos: { flex: 1, gap: 2 },
   eliminarBtn: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
   eliminarBtnTexto: { color: colors.danger, fontSize: 12, fontWeight: '700' },
+  derivarBtn: { alignSelf: 'flex-start', marginTop: 8 },
+  derivarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10 },
+  modalTitulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  modalTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  miembroOpcion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 8,
+  },
+  miembroOpcionActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  miembroOpcionNombre: { color: colors.text, fontSize: 14, fontWeight: '700', flex: 1 },
+  miembroOpcionDato: { color: colors.textMuted, fontSize: 11 },
+  miembroOpcionCheck: { color: colors.success, fontWeight: '900' },
+  modalAcciones: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  modalCancelar: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  modalCancelarTexto: { color: colors.textMuted, fontWeight: '700' },
+  modalConfirmar: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  modalConfirmarDeshabilitado: { opacity: 0.4 },
+  modalConfirmarTexto: { color: colors.text, fontWeight: '700' },
 });

@@ -12,7 +12,7 @@ export type EstadoSolicitud =
 
 export type MetodoPago = 'yape' | 'plin' | 'banco';
 export type TipoTransferencia = 'transferencia_bancaria' | 'pago_movil';
-export type PlanOperador = 'demo' | 'starter' | 'pro' | 'expert' | 'avance' | 'ultra';
+export type PlanOperador = 'demo' | 'starter' | 'pro' | 'expert' | 'avance' | 'ultra' | 'unlimited';
 
 export interface Usuario {
   id: string;
@@ -40,6 +40,8 @@ export interface Tasa {
   id: string;
   fecha: string; // YYYY-MM-DD
   tasa_pen_ves: number;
+  /** Tasa de adquisición (Ta) del día -- usada junto a tasa_pen_ves (Tv) para calcular Ganancia Bruta/Neta. */
+  tasa_adquisicion: number | null;
   publicada_por: string;
   created_at: string;
 }
@@ -135,6 +137,8 @@ export interface OperadorVenezuelaPerfil {
   telefono: string | null;
   email: string | null;
   usuario_id: string | null;
+  /** % de comisión individual asignado por el principal (C2 en las fórmulas de ganancia). */
+  comision_pct: number;
   created_at: string;
   updated_at: string;
 }
@@ -148,6 +152,8 @@ export interface OperadorPeruMiembro {
   usuario_id: string | null;
   /** Operador de Venezuela al que el principal asignó este miembro de Perú. */
   operador_venezuela_id: string | null;
+  /** % de comisión individual asignado por el principal (C1 en las fórmulas de ganancia). */
+  comision_pct: number;
   created_at: string;
   updated_at: string;
 }

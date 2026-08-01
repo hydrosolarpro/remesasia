@@ -8,13 +8,15 @@ import { colors } from '../../constants/theme';
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
-/** F1 — Tasa del día (Soles -> Bolívares Soberanos). Solo el Operador
- *  principal de Perú puede publicarla/actualizarla; un miembro o el
- *  Operador de Venezuela la ven solo lectura (en su Panel). */
+/** F1 — Tasa del día (Tv, Soles -> Bolívares Soberanos) y Tasa de
+ *  adquisición (Ta, usada para calcular Ganancia Bruta/Neta). Solo el
+ *  Operador principal de Perú puede publicarlas; un miembro o el Operador
+ *  de Venezuela las ven solo lectura (en su Panel). */
 export default function TasaDelDia() {
   const { usuario } = useAuth();
   const [tasaActual, setTasaActual] = useState<Tasa | null>(null);
   const [penVes, setPenVes] = useState('');
+  const [tasaAdquisicion, setTasaAdquisicion] = useState('');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [esPrincipal, setEsPrincipal] = useState(false);
@@ -32,6 +34,7 @@ export default function TasaDelDia() {
     setTasaActual(data as Tasa | null);
     if (data) {
       setPenVes(String(data.tasa_pen_ves));
+      setTasaAdquisicion(data.tasa_adquisicion != null ? String(data.tasa_adquisicion) : '');
     }
   };
 
@@ -48,14 +51,15 @@ export default function TasaDelDia() {
   const publicar = async () => {
     if (!usuario || !esPrincipal) return;
     setMensaje(null);
-    if (!penVes) {
-      setMensaje('Ingresa la tasa antes de publicar.');
+    if (!penVes || !tasaAdquisicion) {
+      setMensaje('Ingresa la tasa de venta y la tasa de adquisición antes de publicar.');
       return;
     }
     setLoading(true);
     const { error } = await supabase.rpc('publicar_tasa_del_dia', {
       p_fecha: HOY(),
       p_tasa_pen_ves: Number(penVes),
+      p_tasa_adquisicion: Number(tasaAdquisicion),
     });
     setLoading(false);
     if (error) {
@@ -78,11 +82,26 @@ export default function TasaDelDia() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Tasa del día — {HOY()}</Text>
-      {tasaActual && <Text style={styles.hint}>Última publicada: S/1 = Bs {tasaActual.tasa_pen_ves}</Text>}
+      {tasaActual && (
+        <Text style={styles.hint}>
+          Última publicada: venta S/1 = Bs {tasaActual.tasa_pen_ves}
+          {tasaActual.tasa_adquisicion != null ? ` · adquisición S/1 = Bs ${tasaActual.tasa_adquisicion}` : ''}
+        </Text>
+      )}
 
       {esPrincipal ? (
         <>
-          <Text style={styles.label}>Tasa Soles → Bolívares Soberanos (Bs por S/1)</Text>
+          <Text style={styles.label}>Tasa de adquisición (Ta) — cuánto pagas tú por cada bolívar</Text>
+          <TextInput
+            style={styles.input}
+            value={tasaAdquisicion}
+            onChangeText={setTasaAdquisicion}
+            keyboardType="decimal-pad"
+            placeholder="33.50"
+            placeholderTextColor={colors.textMuted}
+          />
+
+          <Text style={styles.label}>Tasa de venta al cliente (Tv) — Soles → Bolívares Soberanos</Text>
           <TextInput
             style={styles.input}
             value={penVes}
@@ -95,12 +114,13 @@ export default function TasaDelDia() {
           {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
 
           <Pressable style={styles.button} onPress={publicar} disabled={loading}>
-            {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar tasa</Text>}
+            {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar tasas</Text>}
           </Pressable>
         </>
       ) : (
         <Text style={styles.soloLectura}>
-          La tasa del día solo puede ser actualizada por el Operador principal de Perú. Tú la ves en tu Panel, sin opción a editar.
+          Las tasas del día solo pueden ser actualizadas por el Operador principal de Perú. Tú las ves en tu Panel, sin opción a
+          editar.
         </Text>
       )}
     </View>

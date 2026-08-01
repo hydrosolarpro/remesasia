@@ -135,7 +135,7 @@ export function EstadisticaGraficos({ puntos, tituloBase }: { puntos: PuntoGrafi
                 centerLabelComponent={() => (
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ color: colors.textMuted, fontSize: 10 }}>Total</Text>
-                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>S/ {totalMonto.toFixed(0)}</Text>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>PEN {totalMonto.toFixed(0)}</Text>
                   </View>
                 )}
               />
@@ -147,7 +147,7 @@ export function EstadisticaGraficos({ puntos, tituloBase }: { puntos: PuntoGrafi
                   <Text style={styles.leyendaTexto} numberOfLines={1}>
                     {p.etiqueta}
                   </Text>
-                  <Text style={styles.leyendaValor}>S/ {p.monto.toFixed(2)}</Text>
+                  <Text style={styles.leyendaValor}>PEN {p.monto.toFixed(2)}</Text>
                 </View>
               ))}
             </View>

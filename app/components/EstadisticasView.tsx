@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { DateRangeFilter } from './DateRangeFilter';
 import { EstadisticaGraficos } from './EstadisticaGraficos';
 import { generarYCompartirPdf } from '../lib/pdfReporte';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { RangoFecha, calcularRango } from '../lib/dateRange';
-import { PerfilNegocio, Solicitud } from '../types/database';
+import { Solicitud } from '../types/database';
+import { calcularGananciaOperacion } from '../lib/tasaCalculo';
+import { construirEnlaceWhatsAppGenerico } from '../lib/whatsapp';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const HOY = () => new Date().toISOString().slice(0, 10);
@@ -26,24 +28,33 @@ interface SolicitudConValidadores extends Solicitud {
   validador_peru_nombre: string | null;
   validador_ve_nombre: string | null;
   operador_peru_atiende: string | null;
+  /** Operador Venezuela asignado (vía el miembro de Perú que atiende), null si no se pudo determinar. */
+  operador_ve_atiende: string | null;
+  cliente_nombre: string;
+  cliente_telefono: string | null;
+  /** Ganancia/comisión calculada para esta operación (null si falta la tasa de adquisición del día en que se hizo). */
+  ganancia: ReturnType<typeof calcularGananciaOperacion>;
 }
 
 interface DesglosePorMiembro {
   nombre: string;
   nOps: number;
   monto: number;
+  comision: number;
 }
 
 function agruparPorValidador(
   operaciones: SolicitudConValidadores[],
-  campo: 'validador_peru_nombre' | 'validador_ve_nombre'
+  campo: 'validador_peru_nombre' | 'validador_ve_nombre',
+  comisionDe: (op: SolicitudConValidadores) => number
 ): DesglosePorMiembro[] {
   const grupos = new Map<string, DesglosePorMiembro>();
   for (const op of operaciones) {
     const nombre = op[campo] ?? 'Sin registrar';
-    const actual = grupos.get(nombre) ?? { nombre, nOps: 0, monto: 0 };
+    const actual = grupos.get(nombre) ?? { nombre, nOps: 0, monto: 0, comision: 0 };
     actual.nOps += 1;
     actual.monto += op.monto_pen;
+    actual.comision += comisionDe(op);
     grupos.set(nombre, actual);
   }
   return [...grupos.values()].sort((a, b) => b.monto - a.monto);
@@ -81,25 +92,40 @@ export function EstadisticasView({
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [rango, setRango] = useState<RangoFecha | null>(null);
   const [operaciones, setOperaciones] = useState<SolicitudConValidadores[]>([]);
-  const [rentabilidadPct, setRentabilidadPct] = useState(0);
-  const [compartirRentabilidad, setCompartirRentabilidad] = useState(false);
   const [buscado, setBuscado] = useState(false);
   const [soloMisClientes, setSoloMisClientes] = useState(false);
+  const [telefonosAbiertos, setTelefonosAbiertos] = useState<Set<string>>(new Set());
 
-  const puedeVerGanancia = !restringido || compartirRentabilidad;
   const esHoy = rango !== null && rango.desde === HOY();
 
-  // Nombre legible del operador de Perú que atiende cada operación: si fue
-  // derivada a un miembro del equipo, es el miembro; si no, es el
-  // operador principal de Perú.
-  const cargarMiembros = async (): Promise<Map<string, string>> => {
-    const { data } = await supabase
-      .from('operador_peru_miembro')
-      .select('id, nombre')
-      .eq('operador_peru_id', operadorPeruId);
-    const mapa = new Map<string, string>();
-    for (const m of (data as { id: string; nombre: string }[] | null) ?? []) mapa.set(m.id, m.nombre);
-    return mapa;
+  interface MiembroInfo {
+    nombre: string;
+    comisionPct: number;
+    veId: string | null;
+  }
+  interface VeInfo {
+    nombre: string;
+    comisionPct: number;
+  }
+
+  // Datos de cada miembro de Perú (nombre, % comisión, VE asignado) y de
+  // cada Operador Venezuela (nombre, % comisión) -- se usan para calcular
+  // la ganancia/comisión de cada operación y para mostrar quién la atendió.
+  const cargarEquipo = async (): Promise<{ miembros: Map<string, MiembroInfo>; ves: Map<string, VeInfo> }> => {
+    const [{ data: miembrosData }, { data: vesData }] = await Promise.all([
+      supabase
+        .from('operador_peru_miembro')
+        .select('id, nombre, comision_pct, operador_venezuela_id')
+        .eq('operador_peru_id', operadorPeruId),
+      supabase.from('operador_venezuela_perfil').select('id, nombre, comision_pct').eq('operador_peru_id', operadorPeruId),
+    ]);
+    const miembros = new Map<string, MiembroInfo>();
+    for (const m of (miembrosData as { id: string; nombre: string; comision_pct: number; operador_venezuela_id: string | null }[] | null) ?? [])
+      miembros.set(m.id, { nombre: m.nombre, comisionPct: m.comision_pct, veId: m.operador_venezuela_id });
+    const ves = new Map<string, VeInfo>();
+    for (const v of (vesData as { id: string; nombre: string; comision_pct: number }[] | null) ?? [])
+      ves.set(v.id, { nombre: v.nombre, comisionPct: v.comision_pct });
+    return { miembros, ves };
   };
 
   // Trae los datos del rango sin tocar scroll ni el spinner de carga --
@@ -107,52 +133,62 @@ export function EstadisticasView({
   // silencioso por Realtime, que NO debe interrumpir al usuario si en ese
   // momento está escribiendo en el buscador o leyendo resultados.
   const cargarDatos = async (rangoConsulta: RangoFecha) => {
-    const [miembros, [{ data: ops }, { data: perfil }]] = await Promise.all([
-      cargarMiembros(),
-      Promise.all([
-        (() => {
-          let query = supabase
-            .from('solicitudes')
-            .select(
-              '*, validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre)'
-            )
-            .eq('check_deposito_ve', true)
-            .eq('negocio_operador_peru_id', operadorPeruId)
-            .gte('created_at', rangoConsulta.desde)
-            .lt('created_at', rangoConsulta.hasta)
-            .order('created_at', { ascending: true });
+    const [{ miembros, ves }, { data: ops }] = await Promise.all([
+      cargarEquipo(),
+      (() => {
+        let query = supabase
+          .from('solicitudes')
+          .select(
+            '*, validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre), cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono)'
+          )
+          // "Realizadas" (check_deposito_ve) y "por revisar" (en_revision)
+          // quedan disponibles acá aunque ya se hayan borrado de la vista
+          // del Panel al cerrar el horario de atención -- nada se pierde.
+          .or('check_deposito_ve.eq.true,en_revision.eq.true')
+          .eq('negocio_operador_peru_id', operadorPeruId)
+          .gte('created_at', rangoConsulta.desde)
+          .lt('created_at', rangoConsulta.hasta)
+          .order('created_at', { ascending: true });
 
-          // El miembro solo ve operaciones de SUS clientes; el Operador
-          // Venezuela solo las de los miembros que le fueron asignados.
-          if (tipoSesion === 'miembro' && miembroId) {
-            query = query.eq('operador_peru_miembro_id', miembroId);
-          } else if (tipoSesion === 'venezuela') {
-            if (miembrosAsignadosIds.length === 0) {
-              query = query.in('operador_peru_miembro_id', ['00000000-0000-0000-0000-000000000000']);
-            } else {
-              query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
-            }
+        // El miembro solo ve operaciones de SUS clientes; el Operador
+        // Venezuela solo las de los miembros que le fueron asignados.
+        if (tipoSesion === 'miembro' && miembroId) {
+          query = query.eq('operador_peru_miembro_id', miembroId);
+        } else if (tipoSesion === 'venezuela') {
+          if (miembrosAsignadosIds.length === 0) {
+            query = query.in('operador_peru_miembro_id', ['00000000-0000-0000-0000-000000000000']);
+          } else {
+            query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
           }
-          return query;
-        })(),
-        supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
-      ]),
+        }
+        return query;
+      })(),
     ]);
 
     setOperaciones(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((ops as any[]) ?? []).map((row) => ({
-        ...row,
-        validador_peru_nombre: row.validador_peru?.nombre ?? null,
-        validador_ve_nombre: row.validador_ve?.nombre ?? null,
-        operador_peru_atiende: row.operador_peru_miembro_id
-          ? (miembros.get(row.operador_peru_miembro_id) ?? 'Operador de Perú (equipo)')
-          : 'Operador principal de Perú',
-      }))
+      ((ops as any[]) ?? []).map((row) => {
+        const miembro = row.operador_peru_miembro_id ? miembros.get(row.operador_peru_miembro_id) : null;
+        const ve = miembro?.veId ? ves.get(miembro.veId) : null;
+        const ganancia = calcularGananciaOperacion(
+          row.monto_pen,
+          row.tasa_pen_ves,
+          row.tasa_real_compra,
+          (miembro?.comisionPct ?? 0) / 100,
+          (ve?.comisionPct ?? 0) / 100
+        );
+        return {
+          ...row,
+          validador_peru_nombre: row.validador_peru?.nombre ?? null,
+          validador_ve_nombre: row.validador_ve?.nombre ?? null,
+          cliente_nombre: row.cliente?.nombre ?? 'Cliente',
+          cliente_telefono: row.cliente?.telefono ?? null,
+          operador_peru_atiende: miembro?.nombre ?? 'Operador principal de Perú',
+          operador_ve_atiende: ve?.nombre ?? null,
+          ganancia,
+        };
+      })
     );
-    const p = perfil as PerfilNegocio | null;
-    setRentabilidadPct(p?.rentabilidad_pct ?? 0);
-    setCompartirRentabilidad(p?.compartir_rentabilidad_ve ?? false);
   };
 
   // Búsqueda iniciada por el usuario (chips + botón "Buscar"): esta sí
@@ -192,8 +228,14 @@ export function EstadisticasView({
     return operaciones.filter((o) => !o.operador_peru_miembro_id);
   }, [operaciones, soloMisClientes]);
 
-  const desglosePeru = useMemo(() => agruparPorValidador(operacionesVisibles, 'validador_peru_nombre'), [operacionesVisibles]);
-  const desgloseVe = useMemo(() => agruparPorValidador(operacionesVisibles, 'validador_ve_nombre'), [operacionesVisibles]);
+  const desglosePeru = useMemo(
+    () => agruparPorValidador(operacionesVisibles, 'validador_peru_nombre', (o) => o.ganancia?.comisionPeruPen ?? 0),
+    [operacionesVisibles]
+  );
+  const desgloseVe = useMemo(
+    () => agruparPorValidador(operacionesVisibles, 'validador_ve_nombre', (o) => o.ganancia?.comisionVenezuelaPen ?? 0),
+    [operacionesVisibles]
+  );
 
   // La granularidad del gráfico se adapta al tamaño del rango elegido: por
   // día si es corto, por mes si abarca varios meses, y por año si abarca
@@ -216,10 +258,22 @@ export function EstadisticasView({
     return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, p]) => p);
   }, [operacionesVisibles, rango]);
 
+  // "Ganancia total" (bruta) es visible para todos los roles -- es
+  // informativa del negocio. La Ganancia Neta (lo que le queda al
+  // principal después de pagar comisiones) SOLO la ve el dueño.
   const totales = useMemo(() => {
-    const montoTotal = operacionesVisibles.reduce((acc, o) => acc + o.monto_pen, 0);
-    return { nOps: operacionesVisibles.length, montoTotal, ganancia: montoTotal * (rentabilidadPct / 100) };
-  }, [operacionesVisibles, rentabilidadPct]);
+    const montoTotalPen = operacionesVisibles.reduce((acc, o) => acc + o.monto_pen, 0);
+    const montoTotalVes = operacionesVisibles.reduce((acc, o) => acc + o.monto_ves, 0);
+    const gananciaBrutaTotal = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.gananciaBrutaPen ?? 0), 0);
+    const gananciaNetaTotal = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.gananciaNetaPen ?? 0), 0);
+    return {
+      nOps: operacionesVisibles.length,
+      montoTotalPen,
+      montoTotalVes,
+      gananciaBrutaTotal,
+      gananciaNetaTotal,
+    };
+  }, [operacionesVisibles]);
 
   const exportarPdf = async () => {
     if (!rango) return;
@@ -231,9 +285,11 @@ export function EstadisticasView({
             <td>${new Date(o.created_at).toLocaleDateString('es-PE')}</td>
             <td>${o.beneficiario_nombre}</td>
             <td>${o.operador_peru_atiende ?? '—'}</td>
-            <td>S/ ${o.monto_pen.toFixed(2)}</td>
-            <td>Bs ${o.monto_ves.toFixed(2)}</td>
-            ${puedeVerGanancia ? `<td>S/ ${(o.monto_pen * (rentabilidadPct / 100)).toFixed(2)}</td>` : ''}
+            <td>${o.operador_ve_atiende ?? '—'}</td>
+            <td>PEN ${o.monto_pen.toFixed(2)}</td>
+            <td>VES ${o.monto_ves.toFixed(2)}</td>
+            <td>PEN ${(o.ganancia?.gananciaBrutaPen ?? 0).toFixed(2)}</td>
+            ${esDuenio ? `<td>PEN ${(o.ganancia?.gananciaNetaPen ?? 0).toFixed(2)}</td>` : ''}
           </tr>`
         )
         .join('');
@@ -244,12 +300,14 @@ export function EstadisticasView({
         `
           <div class="resumen">
             <div class="resumen-item"><div class="resumen-label">Operaciones</div><div class="resumen-valor">${totales.nOps}</div></div>
-            <div class="resumen-item"><div class="resumen-label">Monto recibido</div><div class="resumen-valor">S/ ${totales.montoTotal.toFixed(2)}</div></div>
-            ${puedeVerGanancia ? `<div class="resumen-item"><div class="resumen-label">Ganancia</div><div class="resumen-valor">S/ ${totales.ganancia.toFixed(2)}</div></div>` : ''}
+            <div class="resumen-item"><div class="resumen-label">Monto recibido</div><div class="resumen-valor">PEN ${totales.montoTotalPen.toFixed(2)}</div></div>
+            <div class="resumen-item"><div class="resumen-label">Enviado a Venezuela</div><div class="resumen-valor">VES ${totales.montoTotalVes.toFixed(2)}</div></div>
+            <div class="resumen-item"><div class="resumen-label">Ganancia total</div><div class="resumen-valor">PEN ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>
+            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia Neta</div><div class="resumen-valor">PEN ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
           </div>
           <table>
-            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Monto</th><th>Recibido (Bs)</th>${puedeVerGanancia ? '<th>Ganancia</th>' : ''}</tr></thead>
-            <tbody>${filas || '<tr><td colspan="6">Sin operaciones en este período.</td></tr>'}</tbody>
+            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th><th>Ganancia</th>${esDuenio ? '<th>Ganancia Neta</th>' : ''}</tr></thead>
+            <tbody>${filas || '<tr><td colspan="8">Sin operaciones en este período.</td></tr>'}</tbody>
           </table>
         `
       );
@@ -267,14 +325,19 @@ export function EstadisticasView({
       const filas = operacionesVisibles.map((o) => ({
         'Fecha y hora generada': new Date(o.created_at).toLocaleString('es-PE'),
         'Fecha y hora atendida': o.check_deposito_ve_at ? new Date(o.check_deposito_ve_at).toLocaleString('es-PE') : '',
+        Cliente: o.cliente_nombre,
         Beneficiario: o.beneficiario_nombre,
         'C.I.': o.beneficiario_ci ?? '',
         'Entidad bancaria': o.beneficiario_banco,
         'N° cuenta': o.beneficiario_cuenta,
         'Operador de Perú que atiende': o.operador_peru_atiende ?? '',
-        'Monto (S/)': o.monto_pen,
-        'Recibe (Bs)': o.monto_ves,
-        ...(puedeVerGanancia ? { 'Ganancia (S/)': +(o.monto_pen * (rentabilidadPct / 100)).toFixed(2) } : {}),
+        'Operador Venezuela': o.operador_ve_atiende ?? '',
+        'Monto (PEN)': o.monto_pen,
+        'Recibe (VES)': o.monto_ves,
+        'Comisión Perú (PEN)': o.ganancia?.comisionPeruPen ?? 0,
+        'Comisión Venezuela (VES)': o.ganancia?.comisionVenezuelaVes ?? 0,
+        'Ganancia bruta (PEN)': o.ganancia?.gananciaBrutaPen ?? 0,
+        ...(esDuenio ? { 'Ganancia neta (PEN)': o.ganancia?.gananciaNetaPen ?? 0 } : {}),
         'Validó en Perú': o.validador_peru_nombre ?? '',
         'Validó en Venezuela': o.validador_ve_nombre ?? '',
       }));
@@ -309,13 +372,14 @@ export function EstadisticasView({
             </Text>
             <View style={styles.resumenFila}>
               <ResumenItem label="Operaciones" valor={String(totales.nOps)} />
-              <ResumenItem label="Monto" valor={`S/ ${totales.montoTotal.toFixed(2)}`} />
-              {puedeVerGanancia && <ResumenItem label="% Rentabilidad" valor={`${rentabilidadPct}%`} />}
-              {puedeVerGanancia && <ResumenItem label="Ganancia" valor={`S/ ${totales.ganancia.toFixed(2)}`} destacado />}
+              <ResumenItem label="Monto" valor={`PEN ${totales.montoTotalPen.toFixed(2)}`} />
+              <ResumenItem label="Enviado a Venezuela" valor={`VES ${totales.montoTotalVes.toFixed(2)}`} />
+              <ResumenItem label="Ganancia total" valor={`PEN ${totales.gananciaBrutaTotal.toFixed(2)}`} />
+              {esDuenio && <ResumenItem label="Ganancia Neta" valor={`PEN ${totales.gananciaNetaTotal.toFixed(2)}`} destacado />}
             </View>
           </View>
 
-          {puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto vs. período (S/)" />}
+          {puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto vs. período (PEN)" />}
 
           {operacionesVisibles.length > 0 && (
             <View style={[styles.card, cardShadow]}>
@@ -325,24 +389,69 @@ export function EstadisticasView({
               </Pressable>
               {detalleAbierto && (
                 <>
-                  {operacionesVisibles.map((o) => (
-                    <View key={o.id} style={styles.detalleFila}>
-                      <Text style={styles.detalleBeneficiario} numberOfLines={1}>
-                        {o.beneficiario_nombre}
-                      </Text>
-                      <Text style={styles.detalleDato}>Generada: {new Date(o.created_at).toLocaleString('es-PE')}</Text>
-                      <Text style={styles.detalleDato}>
-                        Atendida: {o.check_deposito_ve_at ? new Date(o.check_deposito_ve_at).toLocaleString('es-PE') : '—'}
-                      </Text>
-                      <Text style={styles.detalleDato}>
-                        S/ {o.monto_pen.toFixed(2)} · Bs {o.monto_ves.toFixed(2)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
-                      </Text>
-                      <Text style={styles.detalleDato}>Operador de Perú: {o.operador_peru_atiende ?? '—'}</Text>
-                      {puedeVerGanancia && (
-                        <Text style={styles.detalleDato}>Ganancia: S/ {(o.monto_pen * (rentabilidadPct / 100)).toFixed(2)}</Text>
-                      )}
-                    </View>
-                  ))}
+                  {operacionesVisibles.map((o) => {
+                    const telefonosVisibles = telefonosAbiertos.has(o.id);
+                    const waCliente = construirEnlaceWhatsAppGenerico(o.cliente_telefono, `Hola ${o.cliente_nombre}, te escribo por tu remesa.`);
+                    const waBeneficiario = construirEnlaceWhatsAppGenerico(
+                      o.beneficiario_telefono,
+                      `Hola ${o.beneficiario_nombre}, te escribo por tu remesa.`
+                    );
+                    return (
+                      <View key={o.id} style={styles.detalleFila}>
+                        <Text style={styles.detalleBeneficiario} numberOfLines={1}>
+                          Cliente: {o.cliente_nombre} → Beneficiario: {o.beneficiario_nombre}
+                        </Text>
+                        <Text style={styles.detalleDato}>Generada: {new Date(o.created_at).toLocaleString('es-PE')}</Text>
+                        <Text style={styles.detalleDato}>
+                          Atendida: {o.check_deposito_ve_at ? new Date(o.check_deposito_ve_at).toLocaleString('es-PE') : '—'}
+                        </Text>
+                        <Text style={styles.detalleDato}>
+                          PEN {o.monto_pen.toFixed(2)} · VES {o.monto_ves.toFixed(2)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
+                        </Text>
+                        <Text style={styles.detalleDato}>Operador de Perú: {o.operador_peru_atiende ?? '—'}</Text>
+                        <Text style={styles.detalleDato}>Operador Venezuela: {o.operador_ve_atiende ?? '—'}</Text>
+                        {o.ganancia && (
+                          <>
+                            <Text style={styles.detalleDato}>
+                              Comisión Perú ({o.operador_peru_atiende ?? '—'}): PEN {o.ganancia.comisionPeruPen.toFixed(2)}
+                            </Text>
+                            <Text style={styles.detalleDato}>
+                              Comisión Venezuela ({o.operador_ve_atiende ?? '—'}): VES {o.ganancia.comisionVenezuelaVes.toFixed(2)} · PEN{' '}
+                              {o.ganancia.comisionVenezuelaPen.toFixed(2)}
+                            </Text>
+                            <Text style={styles.detalleDato}>Ganancia: PEN {o.ganancia.gananciaBrutaPen.toFixed(2)}</Text>
+                            {esDuenio && <Text style={styles.detalleDato}>Ganancia Neta: PEN {o.ganancia.gananciaNetaPen.toFixed(2)}</Text>}
+                          </>
+                        )}
+                        <Pressable
+                          onPress={() =>
+                            setTelefonosAbiertos((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(o.id)) next.delete(o.id);
+                              else next.add(o.id);
+                              return next;
+                            })
+                          }
+                        >
+                          <Text style={styles.telefonosToggle}>{telefonosVisibles ? '▲ Ocultar teléfonos' : '▼ Ver teléfonos (WhatsApp)'}</Text>
+                        </Pressable>
+                        {telefonosVisibles && (
+                          <View style={styles.telefonosBloque}>
+                            <Pressable disabled={!waCliente} onPress={() => waCliente && Linking.openURL(waCliente)}>
+                              <Text style={styles.telefonoLink}>
+                                Cliente ({o.cliente_nombre}): {o.cliente_telefono ?? 'sin teléfono'}
+                              </Text>
+                            </Pressable>
+                            <Pressable disabled={!waBeneficiario} onPress={() => waBeneficiario && Linking.openURL(waBeneficiario)}>
+                              <Text style={styles.telefonoLink}>
+                                Beneficiario ({o.beneficiario_nombre}): {o.beneficiario_telefono ?? 'sin teléfono'}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
                   <Pressable style={styles.excelDetalleBtn} onPress={exportarExcelDetalle} disabled={exportandoExcel}>
                     {exportandoExcel ? (
                       <ActivityIndicator color="#fff" />
@@ -357,26 +466,26 @@ export function EstadisticasView({
 
           {esDuenio && operacionesVisibles.length > 0 && (
             <View style={[styles.card, cardShadow]}>
-              <Text style={styles.chartTitulo}>Por miembro del equipo</Text>
-              <Text style={styles.desgloseSubtitulo}>Operador Perú (validó el depósito en Perú)</Text>
+              <Text style={styles.chartTitulo}>Por operador — clasificado por Perú y Venezuela</Text>
+              <Text style={styles.desgloseSubtitulo}>Operadores de Perú</Text>
               {desglosePeru.map((d) => (
                 <View key={d.nombre} style={styles.desgloseFila}>
                   <Text style={styles.desgloseNombre} numberOfLines={1}>
                     {d.nombre}
                   </Text>
                   <Text style={styles.desgloseValor}>
-                    {d.nOps} op. · S/ {d.monto.toFixed(2)}
+                    {d.nOps} op. · PEN {d.monto.toFixed(2)} · comisión PEN {d.comision.toFixed(2)}
                   </Text>
                 </View>
               ))}
-              <Text style={[styles.desgloseSubtitulo, styles.desgloseSubtituloVe]}>Operador Venezuela (validó el depósito en VE)</Text>
+              <Text style={[styles.desgloseSubtitulo, styles.desgloseSubtituloVe]}>Operadores de Venezuela</Text>
               {desgloseVe.map((d) => (
                 <View key={d.nombre} style={styles.desgloseFila}>
                   <Text style={styles.desgloseNombre} numberOfLines={1}>
                     {d.nombre}
                   </Text>
                   <Text style={styles.desgloseValor}>
-                    {d.nOps} op. · S/ {d.monto.toFixed(2)}
+                    {d.nOps} op. · PEN {d.monto.toFixed(2)} · comisión PEN {d.comision.toFixed(2)}
                   </Text>
                 </View>
               ))}
@@ -418,6 +527,9 @@ const styles = StyleSheet.create({
   detalleFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 8, gap: 2 },
   detalleBeneficiario: { color: colors.text, fontSize: 13, fontWeight: '700' },
   detalleDato: { color: colors.textMuted, fontSize: 11 },
+  telefonosToggle: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 4 },
+  telefonosBloque: { gap: 4, marginTop: 4 },
+  telefonoLink: { color: colors.success, fontSize: 11, fontWeight: '600' },
   excelDetalleBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
   excelDetalleBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   desgloseSubtitulo: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 10, marginBottom: 4 },

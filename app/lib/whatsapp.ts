@@ -48,5 +48,5 @@ export function construirEnlaceWhatsAppGenerico(telefono: string | null | undefi
 // (tanto el de Perú -> cliente, como el de Venezuela -> beneficiario): el
 // mismo texto para ambos casos, a pedido explícito del negocio.
 export function mensajeConfirmacionDeposito(nombreNegocio: string, entidadBancaria: string, montoVesFormateado: string): string {
-  return `Gracias por su confianza en Remesas PERU-VENEZUELA - ${nombreNegocio}, se ha transferido a su cuenta ${entidadBancaria} la cantidad de Bs ${montoVesFormateado}, por favor revisar y verificar el depósito en cuenta. Muchas Gracias !!!!.`;
+  return `Gracias por su confianza en Remesas PERU-VENEZUELA - ${nombreNegocio}, se ha transferido a su cuenta ${entidadBancaria} la cantidad de VES ${montoVesFormateado}, por favor revisar y verificar el depósito en cuenta. Muchas Gracias !!!!.`;
 }

@@ -85,6 +85,7 @@ export default function PanelOperadorVenezuela() {
         operadorPeruId={operadorPeruId}
         nombreUsuarioActual={usuario.nombre}
         tipoSesion="venezuela"
+        veId={veId}
         miembrosAsignadosIds={miembrosAsignados}
       />
     </AccesoNegocioGate>

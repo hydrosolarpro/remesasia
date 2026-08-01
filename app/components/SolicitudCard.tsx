@@ -20,8 +20,8 @@ export function SolicitudCard({ solicitud, onPress }: { solicitud: Solicitud; on
       </View>
       <Text style={styles.beneficiario}>{solicitud.beneficiario_nombre}</Text>
       <View style={styles.row}>
-        <Text style={styles.monto}>S/ {solicitud.monto_pen.toFixed(2)}</Text>
-        <Text style={styles.montoVes}>Bs {formatearBs(solicitud.monto_ves)}</Text>
+        <Text style={styles.monto}>PEN {solicitud.monto_pen.toFixed(2)}</Text>
+        <Text style={styles.montoVes}>VES {formatearBs(solicitud.monto_ves)}</Text>
       </View>
     </Pressable>
   );

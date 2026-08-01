@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Switch, Image, Modal, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image, Modal, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { PerfilNegocio, Tasa, OperadorPeruMiembro } from '../types/database';
+import { PerfilNegocio, Tasa, OperadorPeruMiembro, OperadorVenezuelaPerfil } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../lib/fechaLocal';
+import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
@@ -28,6 +29,7 @@ export function PeruDashboardView({
   nombreUsuarioActual,
   tipoSesion,
   miembroId = null,
+  veId = null,
   miembrosAsignadosIds = null,
   puedeValidarVeAunSinSerElMismo = true,
 }: {
@@ -36,6 +38,8 @@ export function PeruDashboardView({
   tipoSesion: TipoSesionOperador;
   /** Id de la fila operador_peru_miembro de la sesión (solo tipo 'miembro'). */
   miembroId?: string | null;
+  /** Id de la fila operador_venezuela_perfil de la sesión (solo tipo 'venezuela'). */
+  veId?: string | null;
   /** Ids de los miembros de Perú asignados a este VE (solo tipo 'venezuela'). */
   miembrosAsignadosIds?: string[] | null;
   puedeValidarVeAunSinSerElMismo?: boolean;
@@ -52,13 +56,12 @@ export function PeruDashboardView({
   const [tasa, setTasa] = useState<Tasa | null>(null);
   const [operaciones, setOperaciones] = useState<OperationRowData[]>([]);
   const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
+  const [vePerfiles, setVePerfiles] = useState<OperadorVenezuelaPerfil[]>([]);
   const [validando, setValidando] = useState<{ id: string; tipo: 'peru' | 've' } | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [exportando, setExportando] = useState(false);
   const [editandoEslogan, setEditandoEslogan] = useState(false);
   const [esloganBorrador, setEsloganBorrador] = useState('');
-  const [editandoRentabilidad, setEditandoRentabilidad] = useState(false);
-  const [rentabilidadBorrador, setRentabilidadBorrador] = useState('');
   const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas' | 'por_revisar' | 'derivadas'>('en_curso');
   const [resolviendoId, setResolviendoId] = useState<string | null>(null);
 
@@ -96,7 +99,7 @@ export function PeruDashboardView({
       query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
     }
 
-    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: miembrosData }] = await Promise.all([
+    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: miembrosData }, { data: vePerfilesData }] = await Promise.all([
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
       supabase
         .from('tasas')
@@ -112,11 +115,13 @@ export function PeruDashboardView({
         .select('*')
         .eq('operador_peru_id', operadorPeruId)
         .order('created_at', { ascending: true }),
+      supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId),
     ]);
 
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
     setMiembros((miembrosData as OperadorPeruMiembro[] | null) ?? []);
+    setVePerfiles((vePerfilesData as OperadorVenezuelaPerfil[] | null) ?? []);
     if (opsData) {
       setOperaciones(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -297,17 +302,73 @@ export function PeruDashboardView({
     }
   };
 
-  // `realizadas` ya está acotado a hoy (ver arriba), así que el resumen es
-  // directamente sobre esa lista.
-  const resumenHoy = useMemo(() => {
-    const montoTotal = realizadas.reduce((acc, o) => acc + o.monto_pen, 0);
-    const rentabilidadPct = perfil?.rentabilidad_pct ?? 0;
+  // Totales en tiempo real por estado (En curso / Realizadas hoy / Por
+  // revisar): cantidad + monto en ambas monedas, visibles para todos los
+  // roles.
+  const totalesPorEstado = useMemo(() => {
+    const sumar = (lista: OperationRowData[]) => ({
+      n: lista.length,
+      montoPen: lista.reduce((acc, o) => acc + o.monto_pen, 0),
+      montoVes: lista.reduce((acc, o) => acc + o.monto_ves, 0),
+    });
+    return { enCurso: sumar(enCurso), realizadas: sumar(realizadas), porRevisar: sumar(porRevisar) };
+  }, [enCurso, realizadas, porRevisar]);
+
+  // Ganancia Bruta/Neta y comisiones del día (solo sobre `realizadas`, ver
+  // Calculos-tasas-dinero-comisiones.md). Se usa la tasa de venta y la tasa
+  // de adquisición GUARDADAS EN CADA OPERACIÓN (no la tasa vigente ahora),
+  // para que el cálculo sea correcto sin importar cuándo se consulte.
+  const gananciaHoy = useMemo(() => {
+    let montoEnviadoVes = 0;
+    let comisionPeruTotalPen = 0;
+    let comisionVeTotalVes = 0;
+    let comisionVeTotalPen = 0;
+    let gananciaBrutaTotal = 0;
+    let gananciaNetaTotal = 0;
+    let miComisionPen = 0;
+    let miComisionVes = 0;
+
+    realizadas.forEach((op) => {
+      const miembroOp = op.operador_peru_miembro_id ? miembros.find((m) => m.id === op.operador_peru_miembro_id) : null;
+      // La solicitud no guarda directamente a qué Operador Venezuela
+      // pertenece -- se deriva de a quién el principal asignó el miembro de
+      // Perú que la atiende (operador_peru_miembro.operador_venezuela_id).
+      // Si el principal atiende el cliente directamente (sin miembro), no
+      // hay un VE asignado y esa comisión queda en 0.
+      const veIdDeLaOp = miembroOp?.operador_venezuela_id ?? null;
+      const veOp = veIdDeLaOp ? vePerfiles.find((v) => v.id === veIdDeLaOp) : null;
+      const comisionPeruPct = (miembroOp?.comision_pct ?? 0) / 100;
+      const comisionVePct = (veOp?.comision_pct ?? 0) / 100;
+      const g = calcularGananciaOperacion(op.monto_pen, op.tasa_pen_ves, op.tasa_real_compra, comisionPeruPct, comisionVePct);
+      if (!g) return;
+
+      montoEnviadoVes += g.beneficiarioVes;
+      comisionPeruTotalPen += g.comisionPeruPen;
+      comisionVeTotalVes += g.comisionVenezuelaVes;
+      comisionVeTotalPen += g.comisionVenezuelaPen;
+      gananciaBrutaTotal += g.gananciaBrutaPen;
+      gananciaNetaTotal += g.gananciaNetaPen;
+
+      if (esMiembroPe && op.operador_peru_miembro_id === miembroId) miComisionPen += g.comisionPeruPen;
+      if (esVenezuela && veIdDeLaOp === veId) {
+        miComisionVes += g.comisionVenezuelaVes;
+        miComisionPen += g.comisionVenezuelaPen;
+      }
+    });
+
     return {
-      nOps: realizadas.length,
-      montoTotal,
-      ganancia: montoTotal * (rentabilidadPct / 100),
+      montoEnviadoVes,
+      comisionPeruTotalPen,
+      comisionVeTotalVes,
+      comisionVeTotalPen,
+      gananciaBrutaTotal,
+      gananciaNetaTotal,
+      porcentajeBruta: totalesPorEstado.realizadas.montoPen ? (gananciaBrutaTotal / totalesPorEstado.realizadas.montoPen) * 100 : 0,
+      porcentajeNeta: totalesPorEstado.realizadas.montoPen ? (gananciaNetaTotal / totalesPorEstado.realizadas.montoPen) * 100 : 0,
+      miComisionPen,
+      miComisionVes,
     };
-  }, [realizadas, perfil]);
+  }, [realizadas, miembros, vePerfiles, esMiembroPe, esVenezuela, miembroId, veId, totalesPorEstado.realizadas.montoPen]);
 
   // El aviso al cliente/beneficiario ya no se abre acá manualmente: al
   // marcar cada check, un trigger en la base de datos dispara el envío
@@ -380,22 +441,6 @@ export function PeruDashboardView({
     cargar();
   };
 
-  const guardarRentabilidad = async () => {
-    const valor = Number(rentabilidadBorrador.replace(',', '.'));
-    if (!Number.isFinite(valor) || valor < 0) return;
-    await supabase.from('perfil_negocio').update({ rentabilidad_pct: valor }).eq('operador_peru_id', operadorPeruId);
-    setEditandoRentabilidad(false);
-    cargar();
-  };
-
-  const guardarCompartirRentabilidad = async (campo: 'compartir_rentabilidad_ve' | 'compartir_rentabilidad_pe_miembros', valor: boolean) => {
-    await supabase.from('perfil_negocio').update({ [campo]: valor }).eq('operador_peru_id', operadorPeruId);
-    cargar();
-  };
-
-  const puedeVerRentabilidad =
-    puedeGestionar || (esVenezuela ? (perfil?.compartir_rentabilidad_ve ?? false) : (perfil?.compartir_rentabilidad_pe_miembros ?? false));
-
   if (cargando) {
     return (
       <View style={styles.center}>
@@ -418,75 +463,35 @@ export function PeruDashboardView({
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
       <LiveClock />
 
-      <View style={[styles.card, cardShadow, styles.tasaCard]}>
-        <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
-        <Text style={styles.tasaValor}>{tasa ? `Bs ${tasa.tasa_pen_ves}` : 'Sin publicar'}</Text>
-        {puedeGestionar && (
-          <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
-            <Text style={styles.tasaEditar}>Actualizar tasa →</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <View style={styles.filaDos}>
-        <View style={[styles.card, cardShadow, styles.miniCard]}>
-          <Text style={styles.miniLabel}>Rentabilidad</Text>
-          {!puedeVerRentabilidad ? (
-            <Text style={styles.miniValor}>— Privado</Text>
-          ) : editandoRentabilidad ? (
-            <View style={styles.editRow}>
-              <TextInput
-                style={styles.editInput}
-                value={rentabilidadBorrador}
-                onChangeText={setRentabilidadBorrador}
-                keyboardType="decimal-pad"
-                autoFocus
-                onBlur={guardarRentabilidad}
-                onSubmitEditing={guardarRentabilidad}
-              />
-              <Text style={styles.miniValor}>%</Text>
-            </View>
-          ) : (
+      <View style={[styles.card, cardShadow, styles.esloganCard]}>
+        <View style={styles.esloganHeaderRow}>
+          <Text style={styles.miniLabel}>Eslogan (sesión cliente)</Text>
+          {puedeGestionar && !editandoEslogan && (
             <Pressable
-              disabled={!puedeGestionar}
               onPress={() => {
-                setRentabilidadBorrador(String(perfil?.rentabilidad_pct ?? 0));
-                setEditandoRentabilidad(true);
+                setEsloganBorrador(perfil?.eslogan ?? '');
+                setEditandoEslogan(true);
               }}
             >
-              <Text style={styles.miniValor}>{perfil?.rentabilidad_pct ?? 0}%</Text>
+              <Text style={styles.tasaEditar}>Editar</Text>
             </Pressable>
           )}
         </View>
-        <View style={[styles.card, cardShadow, styles.miniCard]}>
-          <Text style={styles.miniLabel}>Operaciones hoy</Text>
-          <Text style={styles.miniValor}>{resumenHoy.nOps}</Text>
-        </View>
+        {editandoEslogan ? (
+          <TextInput
+            style={styles.esloganInput}
+            value={esloganBorrador}
+            onChangeText={setEsloganBorrador}
+            autoFocus
+            onBlur={guardarEslogan}
+            onSubmitEditing={guardarEslogan}
+            placeholder="Ej: Tu remesa segura, hoy mismo."
+            placeholderTextColor={colors.textMuted}
+          />
+        ) : (
+          <Text style={styles.eslogan}>{perfil?.eslogan || (puedeGestionar ? 'Toca "Editar" para escribir un eslogan' : '—')}</Text>
+        )}
       </View>
-
-      {puedeGestionar && (
-        <View style={[styles.card, cardShadow, styles.horarioCard]}>
-          <Text style={styles.switchLabelCompartir}>Compartir rentabilidad con el Operador Venezuela</Text>
-          <Switch
-            value={perfil?.compartir_rentabilidad_ve ?? false}
-            onValueChange={(v) => guardarCompartirRentabilidad('compartir_rentabilidad_ve', v)}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor={colors.text}
-          />
-        </View>
-      )}
-
-      {puedeGestionar && (
-        <View style={[styles.card, cardShadow, styles.horarioCard]}>
-          <Text style={styles.switchLabelCompartir}>Compartir rentabilidad con los miembros Operador Perú</Text>
-          <Switch
-            value={perfil?.compartir_rentabilidad_pe_miembros ?? false}
-            onValueChange={(v) => guardarCompartirRentabilidad('compartir_rentabilidad_pe_miembros', v)}
-            trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor={colors.text}
-          />
-        </View>
-      )}
 
       <View style={[styles.card, cardShadow, styles.horarioCard]}>
         <View>
@@ -502,31 +507,54 @@ export function PeruDashboardView({
         )}
       </View>
 
-      <View style={[styles.card, cardShadow]}>
-        <Text style={styles.miniLabel}>Eslogan (sesión cliente)</Text>
-        {editandoEslogan ? (
-          <TextInput
-            style={styles.esloganInput}
-            value={esloganBorrador}
-            onChangeText={setEsloganBorrador}
-            autoFocus
-            onBlur={guardarEslogan}
-            onSubmitEditing={guardarEslogan}
-            placeholder="Ej: Tu remesa segura, hoy mismo."
-            placeholderTextColor={colors.textMuted}
-          />
-        ) : (
-          <Pressable
-            disabled={!puedeGestionar}
-            onPress={() => {
-              setEsloganBorrador(perfil?.eslogan ?? '');
-              setEditandoEslogan(true);
-            }}
-          >
-            <Text style={styles.eslogan}>{perfil?.eslogan || (puedeGestionar ? 'Toca para escribir un eslogan' : '—')}</Text>
+      {puedeGestionar && (
+        <View style={[styles.card, cardShadow, styles.tasaCard]}>
+          <Text style={styles.tasaLabel}>Tasa de adquisición (lo que pagas tú por cada bolívar)</Text>
+          <Text style={styles.tasaValor}>{tasa?.tasa_adquisicion ? `VES ${tasa.tasa_adquisicion}` : 'Sin publicar'}</Text>
+          <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
+            <Text style={styles.tasaEditar}>Actualizar tasa →</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <View style={[styles.card, cardShadow, styles.tasaCard]}>
+        <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
+        <Text style={styles.tasaValor}>{tasa ? `VES ${tasa.tasa_pen_ves}` : 'Sin publicar'}</Text>
+        {puedeGestionar && (
+          <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
+            <Text style={styles.tasaEditar}>Actualizar tasa →</Text>
           </Pressable>
         )}
       </View>
+
+      <View style={[styles.card, cardShadow, styles.tiempoRealCard]}>
+        <Text style={styles.seccionTitulo}>Operaciones en tiempo real</Text>
+        <View style={styles.tiempoRealFila}>
+          <EstadoResumenItem titulo="En curso" n={totalesPorEstado.enCurso.n} montoPen={totalesPorEstado.enCurso.montoPen} montoVes={totalesPorEstado.enCurso.montoVes} />
+          <EstadoResumenItem titulo="Realizadas (hoy)" n={totalesPorEstado.realizadas.n} montoPen={totalesPorEstado.realizadas.montoPen} montoVes={totalesPorEstado.realizadas.montoVes} />
+          <EstadoResumenItem titulo="Por revisar" n={totalesPorEstado.porRevisar.n} montoPen={totalesPorEstado.porRevisar.montoPen} montoVes={totalesPorEstado.porRevisar.montoVes} alerta={totalesPorEstado.porRevisar.n > 0} />
+        </View>
+      </View>
+
+      {puedeGestionar ? (
+        <View style={[styles.card, cardShadow, styles.financieroCard]}>
+          <Text style={styles.seccionTitulo}>Resumen financiero (hoy)</Text>
+          <FinancieroItem label="Enviado a Venezuela" valor={`VES ${gananciaHoy.montoEnviadoVes.toFixed(2)}`} />
+          <FinancieroItem label="Comisión equipo Perú" valor={`PEN ${gananciaHoy.comisionPeruTotalPen.toFixed(2)}`} />
+          <FinancieroItem label="Comisión equipo Venezuela" valor={`VES ${gananciaHoy.comisionVeTotalVes.toFixed(2)} · PEN ${gananciaHoy.comisionVeTotalPen.toFixed(2)}`} />
+          <FinancieroItem label="Ganancia Bruta" valor={`PEN ${gananciaHoy.gananciaBrutaTotal.toFixed(2)} (${gananciaHoy.porcentajeBruta.toFixed(1)}%)`} />
+          <FinancieroItem label="Ganancia Neta" valor={`PEN ${gananciaHoy.gananciaNetaTotal.toFixed(2)} (${gananciaHoy.porcentajeNeta.toFixed(1)}%)`} destacado />
+        </View>
+      ) : (
+        <View style={[styles.card, cardShadow, styles.financieroCard]}>
+          <Text style={styles.seccionTitulo}>Mi comisión (hoy)</Text>
+          <FinancieroItem
+            label="Comisión ganada"
+            valor={esVenezuela ? `VES ${gananciaHoy.miComisionVes.toFixed(2)} · PEN ${gananciaHoy.miComisionPen.toFixed(2)}` : `PEN ${gananciaHoy.miComisionPen.toFixed(2)}`}
+            destacado
+          />
+        </View>
+      )}
 
       {/* "En curso", "Realizadas hoy", "Por revisar" y (solo miembro)
           "Derivadas" comparten una fila de pestañas: solo una lista está
@@ -687,15 +715,6 @@ export function PeruDashboardView({
         </>
       )}
 
-      <View style={[styles.card, cardShadow, styles.resumenCard]}>
-        <Text style={styles.seccionTitulo}>Resumen de hoy</Text>
-        <View style={styles.resumenRow}>
-          <ResumenItem label="Operaciones" valor={String(resumenHoy.nOps)} />
-          <ResumenItem label="Monto recibido" valor={`S/ ${resumenHoy.montoTotal.toFixed(2)}`} />
-          {puedeVerRentabilidad && <ResumenItem label="Ganancia" valor={`S/ ${resumenHoy.ganancia.toFixed(2)}`} destacado />}
-        </View>
-      </View>
-
       {/* Modal de derivación: solo lo usa el Operador principal sobre sus
           propias solicitudes (las que todavía no atiende un miembro). */}
       <Modal visible={!!derivandoOp} transparent animationType="fade" onRequestClose={() => setDerivandoOp(null)}>
@@ -704,7 +723,7 @@ export function PeruDashboardView({
             <Text style={styles.modalTitulo}>Derivar solicitud</Text>
             <Text style={styles.modalTexto}>
               {derivandoOp
-                ? `¿A qué operador de Perú quieres derivar la solicitud de ${derivandoOp.cliente_nombre} (S/ ${derivandoOp.monto_pen.toFixed(2)})?`
+                ? `¿A qué operador de Perú quieres derivar la solicitud de ${derivandoOp.cliente_nombre} (PEN ${derivandoOp.monto_pen.toFixed(2)})?`
                 : ''}
             </Text>
             {miembros.length === 0 ? (
@@ -740,11 +759,34 @@ export function PeruDashboardView({
   );
 }
 
-function ResumenItem({ label, valor, destacado }: { label: string; valor: string; destacado?: boolean }) {
+function FinancieroItem({ label, valor, destacado }: { label: string; valor: string; destacado?: boolean }) {
   return (
-    <View style={styles.resumenItem}>
+    <View style={styles.financieroFila}>
       <Text style={styles.resumenLabel}>{label}</Text>
       <Text style={[styles.resumenValor, destacado && { color: colors.accent }]}>{valor}</Text>
+    </View>
+  );
+}
+
+function EstadoResumenItem({
+  titulo,
+  n,
+  montoPen,
+  montoVes,
+  alerta,
+}: {
+  titulo: string;
+  n: number;
+  montoPen: number;
+  montoVes: number;
+  alerta?: boolean;
+}) {
+  return (
+    <View style={[styles.estadoResumenItem, alerta && styles.estadoResumenItemAlerta]}>
+      <Text style={styles.miniLabel}>{titulo}</Text>
+      <Text style={styles.miniValor}>{n}</Text>
+      <Text style={styles.estadoResumenMonto}>PEN {montoPen.toFixed(2)}</Text>
+      <Text style={styles.estadoResumenMonto}>VES {montoVes.toFixed(2)}</Text>
     </View>
   );
 }
@@ -761,17 +803,21 @@ const styles = StyleSheet.create({
   tasaLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   tasaValor: { color: colors.text, fontSize: 34, fontWeight: '900', letterSpacing: -0.5 },
   tasaEditar: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 4 },
-  filaDos: { flexDirection: 'row', gap: 12 },
-  miniCard: { flex: 1, gap: 4 },
   miniLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   miniValor: { color: colors.text, fontSize: 20, fontWeight: '800' },
   horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   horarioValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
-  switchLabelCompartir: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 8 },
-  editRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  editInput: { color: colors.text, fontSize: 20, fontWeight: '800', borderBottomWidth: 1, borderBottomColor: colors.primary, minWidth: 50 },
+  esloganCard: { gap: 4 },
+  esloganHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   eslogan: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },
   esloganInput: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 },
+  tiempoRealCard: { gap: 8 },
+  tiempoRealFila: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  estadoResumenItem: { flex: 1, minWidth: 100, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, gap: 2 },
+  estadoResumenItemAlerta: { borderColor: colors.danger },
+  estadoResumenMonto: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  financieroCard: { gap: 6 },
+  financieroFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
   seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   opsToggleRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
@@ -808,9 +854,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: colors.cardAlt,
   },
-  resumenCard: { marginTop: 8, gap: 8 },
-  resumenRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  resumenItem: { alignItems: 'center', flex: 1 },
   resumenLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
   resumenValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },

@@ -57,7 +57,7 @@ export function ClienteSolicitudRow({
   const enlaceWhatsApp = solicitud.comprobante_vz_url
     ? construirEnlaceWhatsApp(
         solicitud.beneficiario_telefono,
-        `Hola ${solicitud.beneficiario_nombre}, aquí está el comprobante de tu remesa de Bs ${formatearBs(solicitud.monto_ves)}: ${solicitud.comprobante_vz_url}`
+        `Hola ${solicitud.beneficiario_nombre}, aquí está el comprobante de tu remesa de VES ${formatearBs(solicitud.monto_ves)}: ${solicitud.comprobante_vz_url}`
       )
     : null;
 
@@ -82,7 +82,7 @@ export function ClienteSolicitudRow({
           <Text style={styles.beneficiario} numberOfLines={1}>
             {solicitud.beneficiario_nombre}
           </Text>
-          <Text style={styles.monto}>S/ {solicitud.monto_pen.toFixed(2)}</Text>
+          <Text style={styles.monto}>PEN {solicitud.monto_pen.toFixed(2)}</Text>
         </View>
         <Text style={styles.chevron}>{abierto ? '▲' : '▼'}</Text>
       </Pressable>
@@ -95,7 +95,7 @@ export function ClienteSolicitudRow({
           <Row label="Entidad bancaria" value={solicitud.beneficiario_banco} />
           <Row label="N° cuenta" value={solicitud.beneficiario_cuenta} />
           <Row label="Forma de pago" value={ETIQUETA_METODO_PAGO[solicitud.metodo_pago]} />
-          <Row label="Recibe" value={`Bs ${formatearBs(solicitud.monto_ves)}`} />
+          <Row label="Recibe" value={`VES ${formatearBs(solicitud.monto_ves)}`} />
           {solicitud.monto_usd_bcv != null && <Row label="≈ USD (BCV al enviar)" value={`$${solicitud.monto_usd_bcv.toFixed(2)}`} />}
           {solicitud.monto_eur_bcv != null && <Row label="≈ EUR (BCV al enviar)" value={`€${solicitud.monto_eur_bcv.toFixed(2)}`} />}
 

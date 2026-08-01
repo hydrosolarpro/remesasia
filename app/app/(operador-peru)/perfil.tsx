@@ -185,6 +185,16 @@ export default function Perfil() {
     if (negocioId) cargarEquipos(negocioId);
   };
 
+  // % de comisión: solo lo introduce/edita el operador principal (ver
+  // Calculos-tasas-dinero-comisiones.md, C1/C2). Se guarda como número
+  // (0-100), aceptando coma o punto decimal.
+  const editarComisionVe = async (id: string, valor: string) => {
+    const pct = Number(valor.replace(',', '.'));
+    if (!Number.isFinite(pct)) return;
+    setVeList((prev) => prev.map((v) => (v.id === id ? { ...v, comision_pct: pct } : v)));
+    await supabase.from('operador_venezuela_perfil').update({ comision_pct: pct }).eq('id', id);
+  };
+
   const editarPe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
     const filaActual = peList.find((p) => p.id === id);
     const valorNormalizado = campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null;
@@ -201,6 +211,13 @@ export default function Perfil() {
   const eliminarPe = async (id: string) => {
     await supabase.from('operador_peru_miembro').delete().eq('id', id);
     if (negocioId) cargarEquipos(negocioId);
+  };
+
+  const editarComisionPe = async (id: string, valor: string) => {
+    const pct = Number(valor.replace(',', '.'));
+    if (!Number.isFinite(pct)) return;
+    setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, comision_pct: pct } : p)));
+    await supabase.from('operador_peru_miembro').update({ comision_pct: pct }).eq('id', id);
   };
 
   const agregarVe = async () => {
@@ -342,6 +359,12 @@ export default function Perfil() {
             </Pressable>
           </View>
 
+          {/* % de comisión: lo asigna el Operador principal, acá solo se ve. */}
+          <View style={[styles.card, cardShadow]}>
+            <Text style={styles.cardTitulo}>% Comisión asignada</Text>
+            <Text style={styles.miembroNombre}>{miembroRow?.comision_pct ?? 0}%</Text>
+          </View>
+
           {/* Datos del Operador principal de Perú: solo lectura */}
           {principal && (
             <View style={[styles.card, cardShadow]}>
@@ -451,6 +474,14 @@ export default function Perfil() {
                 autoCapitalize="none"
                 placeholderTextColor={colors.textMuted}
               />
+              <Text style={styles.label}>% Comisión</Text>
+              <TextInput
+                style={styles.input}
+                value={String(v.comision_pct ?? 0)}
+                onChangeText={(t) => editarComisionVe(v.id, t)}
+                keyboardType="decimal-pad"
+                placeholderTextColor={colors.textMuted}
+              />
               {peList.filter((p) => p.operador_venezuela_id === v.id).length > 0 && (
                 <View style={styles.asignadosBloque}>
                   <Text style={styles.asignadosLabel}>Operadores de Perú asignados:</Text>
@@ -541,6 +572,14 @@ export default function Perfil() {
                   onChangeText={(t) => editarPe(p.id, 'email', t)}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.label}>% Comisión</Text>
+                <TextInput
+                  style={styles.input}
+                  value={String(p.comision_pct ?? 0)}
+                  onChangeText={(t) => editarComisionPe(p.id, t)}
+                  keyboardType="decimal-pad"
                   placeholderTextColor={colors.textMuted}
                 />
                 <View style={styles.clientesContador}>

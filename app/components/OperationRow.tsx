@@ -149,7 +149,7 @@ export function OperationRow({
           <Text style={styles.cliente} numberOfLines={1}>
             {op.cliente_nombre}
           </Text>
-          <Text style={styles.monto}>S/ {op.monto_pen.toFixed(2)}</Text>
+          <Text style={styles.monto}>PEN {op.monto_pen.toFixed(2)}</Text>
         </View>
         <View style={styles.headerChecks}>
           <MiniCheck label="PE" checked={op.check_deposito_peru} />
@@ -176,9 +176,9 @@ export function OperationRow({
           <CopyField label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]} />
           <CopyField label="Entidad bancaria" value={op.beneficiario_banco} />
           <CopyField label="N° cuenta" value={op.beneficiario_cuenta} />
-          <CopyField label="Monto depositado" value={`S/ ${op.monto_pen.toFixed(2)}`} />
+          <CopyField label="Monto depositado" value={`PEN ${op.monto_pen.toFixed(2)}`} />
           <CopyField label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
-          <CopyField label="Recibe" value={`Bs ${op.monto_ves.toFixed(2)}`} />
+          <CopyField label="Recibe" value={`VES ${op.monto_ves.toFixed(2)}`} />
           {op.check_deposito_peru_at && op.check_deposito_ve_at && (
             <CopyField label="Tiempo de respuesta" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
           )}

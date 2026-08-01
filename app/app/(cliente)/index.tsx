@@ -172,6 +172,7 @@ export default function InicioCliente() {
           monto_pen: conversion.montoPen,
           tasa_pen_ves: conversion.tasaPenVes,
           monto_ves: conversion.montoVes,
+          tasa_real_compra: tasa.tasa_adquisicion,
           monto_usd_bcv: equivalenteUsd,
           monto_eur_bcv: equivalenteEur,
           beneficiario_nombre: beneficiarioNombre.trim(),
@@ -262,7 +263,7 @@ export default function InicioCliente() {
       <View style={styles.filaTasas}>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
           <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
-          <Text style={styles.tasaValor}>{tasa ? `Bs ${tasa.tasa_pen_ves}` : '—'}</Text>
+          <Text style={styles.tasaValor}>{tasa ? `VES ${tasa.tasa_pen_ves}` : '—'}</Text>
         </View>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
           <Text style={styles.tasaLabel}>BCV — USD / EUR</Text>
@@ -270,8 +271,8 @@ export default function InicioCliente() {
             <ActivityIndicator color={colors.primary} />
           ) : bcv ? (
             <>
-              <Text style={styles.bcvValor}>${bcv.usd_ves.toFixed(2)} Bs</Text>
-              <Text style={styles.bcvValor}>€{bcv.eur_ves.toFixed(2)} Bs</Text>
+              <Text style={styles.bcvValor}>${bcv.usd_ves.toFixed(2)} VES</Text>
+              <Text style={styles.bcvValor}>€{bcv.eur_ves.toFixed(2)} VES</Text>
             </>
           ) : (
             <Text style={styles.bcvValor}>No disponible</Text>
@@ -294,7 +295,7 @@ export default function InicioCliente() {
 
         {conversion && (
           <View style={styles.resultado}>
-            <Text style={styles.resultadoBs}>Bs {formatearBs(conversion.montoVes)}</Text>
+            <Text style={styles.resultadoBs}>VES {formatearBs(conversion.montoVes)}</Text>
             {bcv && (
               <Text style={styles.resultadoEquivalente}>
                 ≈ ${equivalenteUsd!.toFixed(2)} · €{equivalenteEur!.toFixed(2)}

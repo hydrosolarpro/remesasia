@@ -173,6 +173,14 @@ export default function Perfil() {
         </View>
       )}
 
+      {/* % de comisión: lo asigna el Operador principal, acá solo se ve. */}
+      {veRow && (
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.cardTitulo}>% Comisión asignada</Text>
+          <Text style={styles.miembroNombre}>{veRow.comision_pct ?? 0}%</Text>
+        </View>
+      )}
+
       {/* OPERADORES EN PERÚ – EQUIPO: los miembros asignados a este VE */}
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.cardTitulo}>OPERADORES EN PERÚ – EQUIPO</Text>

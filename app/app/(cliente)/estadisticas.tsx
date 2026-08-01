@@ -68,8 +68,8 @@ export default function EstadisticasCliente() {
         'C.I.': d.beneficiario_ci ?? '',
         'Entidad bancaria': d.beneficiario_banco,
         'N° cuenta': d.beneficiario_cuenta,
-        'Monto (S/)': d.monto_pen,
-        'Recibe (Bs)': d.monto_ves,
+        'Monto (PEN)': d.monto_pen,
+        'Recibe (VES)': d.monto_ves,
         'USD (BCV)': d.monto_usd_bcv ?? '',
         'EUR (BCV)': d.monto_eur_bcv ?? '',
         'Forma de pago': ETIQUETA_METODO_PAGO[d.metodo_pago],
@@ -124,13 +124,13 @@ export default function EstadisticasCliente() {
             </View>
             <View style={styles.resumenItem}>
               <Text style={styles.resumenLabel}>Monto total</Text>
-              <Text style={styles.resumenValor}>S/ {montoTotal.toFixed(2)}</Text>
+              <Text style={styles.resumenValor}>PEN {montoTotal.toFixed(2)}</Text>
             </View>
           </View>
         </View>
       )}
 
-      {!cargando && puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto solicitado vs. período (S/)" />}
+      {!cargando && puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto solicitado vs. período (PEN)" />}
 
       {!cargando && buscado && depositos.length === 0 && <Text style={styles.vacio}>No hay depósitos en ese período.</Text>}
 
