@@ -38,7 +38,7 @@ export default function PanelControl() {
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
   const [demoExtendido, setDemoExtendido] = useState<Record<string, boolean>>({});
-  const [ultraMontos, setUltraMontos] = useState<Record<string, string>>({});
+  const [montosUnlimited, setMontosUnlimited] = useState<Record<string, string>>({});
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -123,10 +123,10 @@ export default function PanelControl() {
     setProcesando(null);
   };
 
-  const guardarUltraMonto = async (operadorId: string) => {
-    const monto = parseFloat(ultraMontos[operadorId]);
+  const guardarMontoUnlimited = async (operadorId: string) => {
+    const monto = parseFloat(montosUnlimited[operadorId]);
     if (!monto || monto <= 0) return;
-    setProcesando(`${operadorId}_ultra`);
+    setProcesando(`${operadorId}_unlimited`);
     const { data: usuarioAuth } = await supabase.auth.getUser();
     const periodo = periodoActual();
     const { data: existente } = await supabase
@@ -150,9 +150,9 @@ export default function PanelControl() {
         verificado_at: new Date().toISOString(),
       });
     }
-    await supabase.from('usuarios').update({ plan: 'ultra', acceso_concedido: true }).eq('id', operadorId);
+    await supabase.from('usuarios').update({ plan: 'unlimited', acceso_concedido: true }).eq('id', operadorId);
     setProcesando(null);
-    setUltraMontos((prev) => ({ ...prev, [operadorId]: '' }));
+    setMontosUnlimited((prev) => ({ ...prev, [operadorId]: '' }));
     cargar();
   };
 
@@ -316,24 +316,24 @@ export default function PanelControl() {
               )}
             </View>
 
-            {planActual === 'ultra' && (
-              <View style={styles.ultraRow}>
-                <Text style={styles.ultraLabel}>Monto ULTRA (S/):</Text>
+            {planActual === 'unlimited' && (
+              <View style={styles.unlimitedRow}>
+                <Text style={styles.unlimitedLabel}>Monto UNLIMITED (S/):</Text>
                 <TextInput
-                  style={styles.ultraInput}
-                  value={ultraMontos[op.id] ?? ''}
-                  onChangeText={(t) => setUltraMontos((prev) => ({ ...prev, [op.id]: t }))}
+                  style={styles.unlimitedInput}
+                  value={montosUnlimited[op.id] ?? ''}
+                  onChangeText={(t) => setMontosUnlimited((prev) => ({ ...prev, [op.id]: t }))}
                   keyboardType="numeric"
-                  placeholder="Ej: 600"
+                  placeholder="Ej: 1500"
                   placeholderTextColor={colors.textMuted}
                 />
                 <Pressable
-                  style={styles.ultraBtn}
-                  onPress={() => guardarUltraMonto(op.id)}
-                  disabled={procesando === `${op.id}_ultra` || !ultraMontos[op.id]}
+                  style={styles.unlimitedBtn}
+                  onPress={() => guardarMontoUnlimited(op.id)}
+                  disabled={procesando === `${op.id}_unlimited` || !montosUnlimited[op.id]}
                 >
-                  <Text style={styles.ultraBtnTexto}>
-                    {procesando === `${op.id}_ultra` ? '...' : 'Fijar monto y activar'}
+                  <Text style={styles.unlimitedBtnTexto}>
+                    {procesando === `${op.id}_unlimited` ? '...' : 'Fijar monto y activar'}
                   </Text>
                 </Pressable>
               </View>
@@ -388,10 +388,10 @@ const styles = StyleSheet.create({
   checkCol: { alignItems: 'center', gap: 6, flex: 1, paddingHorizontal: 4 },
   checkLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   checkEstado: { color: colors.textMuted, fontSize: 10 },
-  ultraRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
-  ultraLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  ultraInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, color: colors.text, fontSize: 14, backgroundColor: colors.cardAlt, maxWidth: 100 },
-  ultraBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
-  ultraBtnTexto: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  unlimitedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  unlimitedLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  unlimitedInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, color: colors.text, fontSize: 14, backgroundColor: colors.cardAlt, maxWidth: 100 },
+  unlimitedBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
+  unlimitedBtnTexto: { color: colors.text, fontSize: 12, fontWeight: '700' },
   vacio: { color: colors.textMuted, textAlign: 'center', marginTop: 20, fontStyle: 'italic' },
 });

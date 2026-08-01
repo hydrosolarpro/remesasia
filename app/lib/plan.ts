@@ -1,14 +1,19 @@
 export const PRECIO_STARTER_MENSUAL = 100;
 export const PRECIO_PRO_MENSUAL = 200;
-export const PRECIO_EXPERT_MENSUAL = 300;
-export const PRECIO_AVANCE_MENSUAL = 500;
+export const PRECIO_EXPERT_MENSUAL = 400;
+export const PRECIO_AVANCE_MENSUAL = 600;
+export const PRECIO_ULTRA_MENSUAL = 1000;
 
+// UNLIMITED no tiene precio fijo (monto acordado directamente con el
+// administrador), por eso queda fuera de este mapa -- ver
+// requiereMontoManual en FormularioSolicitudPlan.
 export const PRECIO_PLAN: Record<string, number> = {
   demo: 0,
   starter: PRECIO_STARTER_MENSUAL,
   pro: PRECIO_PRO_MENSUAL,
   expert: PRECIO_EXPERT_MENSUAL,
   avance: PRECIO_AVANCE_MENSUAL,
+  ultra: PRECIO_ULTRA_MENSUAL,
 };
 
 export const NOMBRE_PLAN: Record<string, string> = {
@@ -25,18 +30,19 @@ export function planDesdeMonto(monto: number): string {
   if (monto === 0) return 'demo';
   if (monto === 100) return 'starter';
   if (monto === 200) return 'pro';
-  if (monto === 300) return 'expert';
-  if (monto === 500) return 'avance';
-  return 'ultra';
+  if (monto === 400) return 'expert';
+  if (monto === 600) return 'avance';
+  if (monto === 1000) return 'ultra';
+  return 'unlimited'; // Monto que no calza con ningún plan fijo: acordado con el administrador.
 }
 
 export function planLabel(plan: string, monto?: number): string {
-  if (plan === 'ultra' && monto) return `ULTRA (S/ ${monto})`;
+  if (plan === 'unlimited' && monto) return `UNLIMITED (S/ ${monto})`;
   return NOMBRE_PLAN[plan] ?? plan.toUpperCase();
 }
 
 export function planPrecioLabel(plan: string, monto?: number): string {
-  if (plan === 'ultra' && monto) return `S/ ${monto}/mes`;
+  if (plan === 'unlimited' && monto) return `S/ ${monto}/mes`;
   const p = PRECIO_PLAN[plan];
   return p !== undefined ? `S/ ${p}/mes` : '';
 }

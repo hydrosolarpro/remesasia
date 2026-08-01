@@ -18,9 +18,9 @@ type FormaPago = 'yape' | 'transferencia';
 // dentro de SuscripcionGate (cuando el DEMO ya venció, siempre para
 // STARTER) como desde "Próxima Meta" en Perfil (operador solicitando
 // subir a un plan superior específico). El monto define qué plan asigna
-// el admin al aprobar (ver planDesdeMonto) -- para ULTRA/UNLIMITED, cuyo
-// precio se acuerda directamente con el administrador, se pide un monto
-// manual en vez de uno fijo.
+// el admin al aprobar (ver planDesdeMonto) -- solo UNLIMITED no tiene
+// precio fijo (se acuerda directamente con el administrador), así que pide
+// un monto manual en vez de uno fijo.
 export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onEnviado?: () => void }) {
   const { usuario, refreshUsuario } = useAuth();
   const [config, setConfig] = useState<ConfiguracionPagosAdmin | null>(null);
@@ -35,7 +35,7 @@ export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onE
   const [montoManual, setMontoManual] = useState('');
 
   const montoFijo = PRECIO_PLAN[plan];
-  const requiereMontoManual = montoFijo === undefined; // ultra / unlimited
+  const requiereMontoManual = montoFijo === undefined; // unlimited
   const monto = requiereMontoManual ? Number(montoManual.replace(',', '.')) || 0 : montoFijo;
 
   useEffect(() => {
