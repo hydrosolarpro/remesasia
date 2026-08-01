@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { CopyField } from './CopyField';
-import { extensionDeImagen } from '../lib/imagenUtil';
+import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin } from '../types/database';
 import { PRECIO_PLAN, planLabel } from '../lib/plan';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -53,10 +53,13 @@ export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onE
       return;
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (!resultado.canceled) {
-      setComprobanteUri(resultado.assets[0].uri);
-      setComprobanteExt(extensionDeImagen(resultado.assets[0]));
+    if (resultado.canceled) return;
+    if (!(await validarTamanoImagen(resultado.assets[0]))) {
+      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
+      return;
     }
+    setComprobanteUri(resultado.assets[0].uri);
+    setComprobanteExt(extensionDeImagen(resultado.assets[0]));
   };
 
   const enviarSolicitud = async () => {
@@ -228,10 +231,10 @@ function SelectorOpcion({ etiqueta, seleccionado, onPress }: { etiqueta: string;
 }
 
 const styles = StyleSheet.create({
-  subtitulo: { color: colors.textMuted, fontSize: 13 },
+  subtitulo: { color: colors.textMuted, fontSize: 15 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 4, width: '100%' },
-  seccionTitulo: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 6 },
-  avisoTexto: { color: colors.text, fontSize: 13, lineHeight: 19 },
+  seccionTitulo: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 6 },
+  avisoTexto: { color: colors.text, fontSize: 15, lineHeight: 19 },
   selectorRow: { flexDirection: 'row', gap: 20, marginBottom: 12 },
   opcion: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   opcionCirculo: {
@@ -245,7 +248,7 @@ const styles = StyleSheet.create({
   },
   opcionCirculoActivo: { borderColor: colors.success },
   opcionPunto: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.success },
-  opcionTexto: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  opcionTexto: { color: colors.textMuted, fontSize: 15, fontWeight: '600' },
   opcionTextoActivo: { color: colors.text, fontWeight: '800' },
   subirBtn: {
     borderWidth: 1,
@@ -256,33 +259,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  subirBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  subirBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   comprobantePreview: { width: '100%', height: 160, borderRadius: radius.sm },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 8 },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 8 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     padding: 12,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     marginTop: 5,
     backgroundColor: colors.cardAlt,
   },
   inputDisabled: { justifyContent: 'center', opacity: 0.7 },
-  inputDisabledText: { color: colors.textMuted, fontSize: 15 },
-  error: { color: colors.danger, fontSize: 13 },
+  inputDisabledText: { color: colors.textMuted, fontSize: 17 },
+  error: { color: colors.danger, fontSize: 15 },
   enviarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   enviarBtnDeshabilitado: { opacity: 0.5 },
-  enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 18 },
   terminosBox: { borderColor: colors.primary, gap: 8 },
-  terminosTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  terminosTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  terminosTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  terminosTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
   terminosTextoFlex: { flex: 1 },
   terminosTextoAceptado: { color: colors.success, fontWeight: '700' },
-  linkPdf: { color: colors.accent, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+  linkPdf: { color: colors.accent, fontSize: 15, fontWeight: '700', textDecorationLine: 'underline' },
   terminosAceptacion: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
   checkboxContainer: { padding: 4 },
-  checkbox: { fontSize: 20, color: colors.textMuted },
+  checkbox: { fontSize: 23, color: colors.textMuted },
   checkboxActivo: { color: colors.success },
 });

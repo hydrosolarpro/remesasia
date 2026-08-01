@@ -31,5 +31,5 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  texto: { fontSize: 12, fontWeight: '700' },
+  texto: { fontSize: 14, fontWeight: '700' },
 });

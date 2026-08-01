@@ -12,7 +12,7 @@ import {
   Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { extensionDeImagen } from '../../lib/imagenUtil';
+import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { calcularConversion } from '../../lib/tasaCalculo';
@@ -145,10 +145,13 @@ export default function InicioCliente() {
       return;
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (!resultado.canceled) {
-      setComprobanteUri(resultado.assets[0].uri);
-      setComprobanteExt(extensionDeImagen(resultado.assets[0]));
+    if (resultado.canceled) return;
+    if (!(await validarTamanoImagen(resultado.assets[0]))) {
+      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
+      return;
     }
+    setComprobanteUri(resultado.assets[0].uri);
+    setComprobanteExt(extensionDeImagen(resultado.assets[0]));
   };
 
   const enviarSolicitud = async () => {
@@ -486,28 +489,28 @@ function Field({
 
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 },
-  avisoSinNegocio: { color: colors.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  avisoSinNegocio: { color: colors.textMuted, fontSize: 16, textAlign: 'center', lineHeight: 20 },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
-  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  negocioLogo: { width: 28, height: 28, borderRadius: 8, backgroundColor: colors.cardAlt },
-  negocioNombre: { color: colors.accent, fontSize: 14, fontWeight: '800', flexShrink: 1 },
-  bienvenida: { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: -4 },
-  eslogan: { color: colors.accent, fontSize: 13, fontStyle: 'italic', fontWeight: '600' },
-  horario: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  negocioLogo: { width: 84, height: 84, borderRadius: 24, backgroundColor: colors.cardAlt },
+  negocioNombre: { color: colors.accent, fontSize: 16, fontWeight: '800', flexShrink: 1 },
+  bienvenida: { color: colors.text, fontSize: 25, fontWeight: '800', marginBottom: -4 },
+  eslogan: { color: colors.accent, fontSize: 15, fontStyle: 'italic', fontWeight: '600' },
+  horario: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   filaTasas: { flexDirection: 'row', gap: 12 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
   tasaCard: { flex: 1, gap: 4 },
-  tasaLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  tasaValor: { color: colors.text, fontSize: 22, fontWeight: '900' },
-  bcvValor: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  seccionTitulo: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 8 },
-  nuevaSolicitudTitulo: { color: colors.text, fontSize: 18, fontWeight: '900', textTransform: 'uppercase' },
-  nuevaSolicitudTexto: { color: colors.textMuted, fontSize: 13, marginTop: 2, marginBottom: 10 },
-  montoInput: { color: colors.text, fontSize: 36, fontWeight: '900' },
-  montoLabel: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  tasaLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  tasaValor: { color: colors.text, fontSize: 25, fontWeight: '900' },
+  bcvValor: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  seccionTitulo: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
+  nuevaSolicitudTitulo: { color: colors.text, fontSize: 21, fontWeight: '900', textTransform: 'uppercase' },
+  nuevaSolicitudTexto: { color: colors.textMuted, fontSize: 15, marginTop: 2, marginBottom: 10 },
+  montoInput: { color: colors.text, fontSize: 41, fontWeight: '900' },
+  montoLabel: { color: colors.textMuted, fontSize: 14, marginTop: 2 },
   resultado: { marginTop: 14, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
-  resultadoBs: { color: colors.accent, fontSize: 26, fontWeight: '900' },
-  resultadoEquivalente: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  resultadoBs: { color: colors.accent, fontSize: 30, fontWeight: '900' },
+  resultadoEquivalente: { color: colors.textMuted, fontSize: 15, marginTop: 2 },
   chipsScroll: { marginBottom: 10 },
   chip: {
     borderWidth: 1,
@@ -519,29 +522,29 @@ const styles = StyleSheet.create({
     maxWidth: 160,
   },
   chipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
-  chipTexto: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  chipTexto: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   chipTextoActivo: { color: colors.text },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 10 },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 10 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     padding: 12,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     marginTop: 5,
     backgroundColor: colors.cardAlt,
   },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-  switchLabel: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1, marginRight: 8 },
-  pagarA: { color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  switchLabel: { color: colors.text, fontSize: 15, fontWeight: '600', flex: 1, marginRight: 8 },
+  pagarA: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 8 },
   telefonosPago: { marginBottom: 4 },
   cuentaBanco: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
-  cuentaBancoEntidad: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  cuentaBancoEntidad: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   metodoRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
   metodoOption: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
   metodoOptionActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
-  metodoText: { color: colors.textMuted, fontWeight: '600', fontSize: 12 },
+  metodoText: { color: colors.textMuted, fontWeight: '600', fontSize: 14 },
   metodoTextActive: { color: colors.text },
   subirBtn: {
     borderWidth: 1,
@@ -553,9 +556,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
     overflow: 'hidden',
   },
-  subirBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  subirBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   comprobantePreview: { width: '100%', height: 160, borderRadius: radius.sm },
-  error: { color: colors.danger, fontSize: 13 },
+  error: { color: colors.danger, fontSize: 15 },
   enviarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
-  enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 18 },
 });

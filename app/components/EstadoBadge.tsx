@@ -24,5 +24,5 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  text: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+  text: { fontSize: 14, fontWeight: '700', letterSpacing: 0.2 },
 });

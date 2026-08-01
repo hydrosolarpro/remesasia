@@ -4,9 +4,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { Solicitud } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { CopyField } from './CopyField';
-import { construirEnlaceWhatsApp, mensajeConfirmacionDeposito } from '../lib/whatsapp';
+import { construirEnlaceWhatsApp, construirEnlaceWhatsAppGenerico, mensajeConfirmacionDeposito } from '../lib/whatsapp';
 import { formatearBs } from '../lib/formato';
-import { extensionDeImagen } from '../lib/imagenUtil';
+import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 export const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
@@ -30,6 +30,8 @@ export interface OperationRowData extends Solicitud {
   validador_ve_nombre: string | null;
   /** Nombre del operador de Perú miembro que atiende la operación (null = el Operador principal). */
   operador_peru_atiende?: string | null;
+  /** Teléfono del operador de Perú miembro que atiende (null = el Operador principal). */
+  operador_peru_atiende_telefono?: string | null;
 }
 
 const ETIQUETA_METODO_PAGO: Record<OperationRowData['metodo_pago'], string> = {
@@ -43,14 +45,14 @@ const ETIQUETA_TIPO_TRANSFERENCIA: Record<OperationRowData['tipo_transferencia']
   pago_movil: 'Pago móvil',
 };
 
-// "Tiempo de respuesta" = diferencia entre el check de Perú y el de
-// Venezuela. Si cae en el mismo día solo se muestra horas/minutos; si cruza
-// de día se agrega la cantidad de días de diferencia.
-export function formatearTiempoRespuesta(peruAt: string, veAt: string): string {
-  const a = new Date(peruAt).getTime();
-  const b = new Date(veAt).getTime();
+// Diferencia entre dos timestamps ISO (p.ej. Generada→Atendida, o el tramo
+// interno PE→VE). Si cae en el mismo día solo se muestra horas/minutos; si
+// cruza de día se agrega la cantidad de días de diferencia.
+export function formatearTiempoRespuesta(desde: string, hasta: string): string {
+  const a = new Date(desde).getTime();
+  const b = new Date(hasta).getTime();
   const diffMs = Math.abs(b - a);
-  const mismoDia = peruAt.slice(0, 10) === veAt.slice(0, 10);
+  const mismoDia = desde.slice(0, 10) === hasta.slice(0, 10);
   const totalMin = Math.round(diffMs / 60000);
 
   if (mismoDia) {
@@ -82,6 +84,7 @@ export function OperationRow({
   onResolverRevision,
   resolviendoRevision,
   atendidoPor,
+  atendidoPorTelefono,
   derivadaDePrincipal,
   onDerivar,
   style,
@@ -103,6 +106,8 @@ export function OperationRow({
   resolviendoRevision?: boolean;
   /** Nombre del operador de Perú que atiende esta operación (p.ej. "Operador principal de Perú"). */
   atendidoPor?: string;
+  /** Teléfono del operador de Perú que atiende, para el botón de WhatsApp. */
+  atendidoPorTelefono?: string | null;
   /** Marca visual: operación derivada del Operador principal a un miembro de Perú. */
   derivadaDePrincipal?: boolean;
   /** Botón "Derivar" (solo lo usa el Operador principal sobre sus propias operaciones). */
@@ -119,6 +124,10 @@ export function OperationRow({
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
     if (resultado.canceled) return;
+    if (!(await validarTamanoImagen(resultado.assets[0]))) {
+      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
+      return;
+    }
     onValidarVe(resultado.assets[0].uri, extensionDeImagen(resultado.assets[0]));
   };
 
@@ -136,6 +145,17 @@ export function OperationRow({
       return;
     }
     Linking.openURL(enlaceWhatsApp);
+  };
+
+  const enlaceWhatsAppOperador = construirEnlaceWhatsAppGenerico(atendidoPorTelefono, `Hola ${atendidoPor ?? ''}, te escribo por una remesa.`);
+  const contactarOperador = async () => {
+    if (!enlaceWhatsAppOperador) return;
+    const puedeAbrir = await Linking.canOpenURL(enlaceWhatsAppOperador);
+    if (!puedeAbrir) {
+      Alert.alert('No se pudo abrir WhatsApp', 'Verifica el número del operador.');
+      return;
+    }
+    Linking.openURL(enlaceWhatsAppOperador);
   };
 
   return (
@@ -166,6 +186,16 @@ export function OperationRow({
             </View>
           )}
           {!!atendidoPor && <CopyField label="Atendido por" value={atendidoPor} />}
+          {enlaceWhatsAppOperador && (
+            <Pressable style={styles.whatsappBtnChico} onPress={contactarOperador}>
+              <Text style={styles.whatsappBtnChicoTexto}>Contactar a {atendidoPor} por WhatsApp</Text>
+            </Pressable>
+          )}
+          <CopyField label="Generada" value={FORMATTER_FECHA_HORA.format(new Date(op.created_at))} />
+          <CopyField label="Atendida" value={op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '—'} />
+          {op.check_deposito_ve_at && (
+            <CopyField label="Tiempo de respuesta total" value={formatearTiempoRespuesta(op.created_at, op.check_deposito_ve_at)} />
+          )}
           {/* Todos los campos son copiables (CopyField): el operador los
               necesita para pegarlos al hacer la transferencia. */}
           <CopyField label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
@@ -180,7 +210,7 @@ export function OperationRow({
           <CopyField label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
           <CopyField label="Recibe" value={`VES ${op.monto_ves.toFixed(2)}`} />
           {op.check_deposito_peru_at && op.check_deposito_ve_at && (
-            <CopyField label="Tiempo de respuesta" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
+            <CopyField label="Tramo interno PE → VE" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
           )}
 
           {op.comprobante_pago_url && (
@@ -273,11 +303,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
   headerTextos: { flex: 1, marginRight: 8 },
   // Número y fecha/hora más grandes y visibles (antes 11px, apenas legible).
-  fecha: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  cliente: { color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 2 },
-  monto: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 2 },
+  fecha: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  cliente: { color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 2 },
+  monto: { color: colors.accent, fontSize: 15, fontWeight: '700', marginTop: 2 },
   headerChecks: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chevron: { color: colors.textMuted, fontSize: 11, marginLeft: 4 },
+  chevron: { color: colors.textMuted, fontSize: 13, marginLeft: 4 },
   mini: {
     width: 24,
     height: 24,
@@ -288,7 +318,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   miniChecked: { backgroundColor: colors.success, borderColor: colors.success },
-  miniTexto: { color: colors.textMuted, fontSize: 9, fontWeight: '800' },
+  miniTexto: { color: colors.textMuted, fontSize: 10, fontWeight: '800' },
   miniTextoChecked: { color: '#fff' },
   detalle: { borderTopWidth: 1, borderTopColor: colors.border, padding: 14, gap: 8 },
   imagenToggle: {
@@ -300,17 +330,19 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 4,
   },
-  imagenToggleTexto: { color: colors.accent, fontSize: 14, fontWeight: '700' },
-  imagenToggleChevron: { color: colors.textMuted, fontSize: 10 },
+  imagenToggleTexto: { color: colors.accent, fontSize: 16, fontWeight: '700' },
+  imagenToggleChevron: { color: colors.textMuted, fontSize: 12 },
   comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 },
   checkCol: { alignItems: 'center', gap: 6, flex: 1 },
   // Etiquetas de los botones de check más grandes (antes 11px).
-  checkLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  checkHora: { color: colors.textMuted, fontSize: 11 },
-  checkValidador: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 1 },
+  checkLabel: { color: colors.textMuted, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  checkHora: { color: colors.textMuted, fontSize: 13 },
+  checkValidador: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 1 },
   whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
-  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 17 },
+  whatsappBtnChico: { backgroundColor: colors.success, borderRadius: radius.sm, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center', alignSelf: 'flex-start' },
+  whatsappBtnChicoTexto: { color: '#fff', fontWeight: '700', fontSize: 14 },
   derivadaBadge: {
     alignSelf: 'flex-start',
     backgroundColor: `${colors.warning}22`,
@@ -321,9 +353,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginBottom: 4,
   },
-  derivadaBadgeTexto: { color: colors.warning, fontSize: 12, fontWeight: '800' },
+  derivadaBadgeTexto: { color: colors.warning, fontSize: 14, fontWeight: '800' },
   derivarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 4 },
-  derivarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  derivarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
   revisionCard: {
     backgroundColor: `${colors.danger}18`,
     borderWidth: 1,
@@ -334,5 +366,5 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: 'center',
   },
-  revisionTitulo: { color: colors.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  revisionTitulo: { color: colors.danger, fontSize: 15, fontWeight: '700', textAlign: 'center' },
 });

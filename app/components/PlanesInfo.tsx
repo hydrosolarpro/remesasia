@@ -164,9 +164,9 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
-  titulo: { color: colors.text, fontSize: 16, fontWeight: '900' },
-  intro: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  titulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  intro: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
   beneficioRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  beneficioCheck: { color: colors.success, fontSize: 13, fontWeight: '800', marginTop: 1 },
-  beneficioTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18, flex: 1 },
+  beneficioCheck: { color: colors.success, fontSize: 15, fontWeight: '800', marginTop: 1 },
+  beneficioTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18, flex: 1 },
 });

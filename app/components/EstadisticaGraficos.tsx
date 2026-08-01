@@ -114,12 +114,12 @@ export function EstadisticaGraficos({ puntos, tituloBase }: { puntos: PuntoGrafi
             spacing={18}
             roundedTop
             frontColor={colors.primary}
-            yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+            yAxisTextStyle={{ color: colors.textMuted, fontSize: 12 }}
+            xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 10 }}
             noOfSections={4}
             hideRules
             showValuesAsTopLabel
-            topLabelTextStyle={{ color: colors.text, fontSize: 10, fontWeight: '700' }}
+            topLabelTextStyle={{ color: colors.text, fontSize: 12, fontWeight: '700' }}
           />
         )}
 
@@ -134,8 +134,8 @@ export function EstadisticaGraficos({ puntos, tituloBase }: { puntos: PuntoGrafi
                 innerCircleColor={colors.card}
                 centerLabelComponent={() => (
                   <View style={{ alignItems: 'center' }}>
-                    <Text style={{ color: colors.textMuted, fontSize: 10 }}>Total</Text>
-                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>PEN {totalMonto.toFixed(0)}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>Total</Text>
+                    <Text style={{ color: colors.text, fontSize: 17, fontWeight: '800' }}>PEN {totalMonto.toFixed(0)}</Text>
                   </View>
                 )}
               />
@@ -163,8 +163,8 @@ export function EstadisticaGraficos({ puntos, tituloBase }: { puntos: PuntoGrafi
             dataPointsColor={colors.accent}
             textColor1={colors.text}
             textFontSize={10}
-            yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+            yAxisTextStyle={{ color: colors.textMuted, fontSize: 12 }}
+            xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 10 }}
             noOfSections={4}
             hideRules
             areaChart
@@ -202,21 +202,21 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   headerRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 },
-  titulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  titulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   tiposRow: { flexDirection: 'row', gap: 6 },
   tipoChip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
   tipoChipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
-  tipoChipTexto: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
+  tipoChipTexto: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
   tipoChipTextoActivo: { color: colors.text },
   capturaWrap: { backgroundColor: colors.card },
   pieWrap: { alignItems: 'center', paddingVertical: 8 },
   leyenda: { marginTop: 12, gap: 6 },
   leyendaFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   leyendaColor: { width: 10, height: 10, borderRadius: 5 },
-  leyendaTexto: { color: colors.textMuted, fontSize: 12, flex: 1 },
-  leyendaValor: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  leyendaTexto: { color: colors.textMuted, fontSize: 14, flex: 1 },
+  leyendaValor: { color: colors.text, fontSize: 14, fontWeight: '700' },
   descargasRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   descargaBtn: { flex: 1, minWidth: 150, backgroundColor: colors.primary, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
   descargaBtnSecundario: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border },
-  descargaBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  descargaBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
 });

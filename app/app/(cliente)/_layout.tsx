@@ -15,6 +15,7 @@ const ICONO = {
   index: '🏠',
   solicitudes: '📋',
   'cuentas-utilizadas': '💳',
+  conversor: '💱',
   estadisticas: '📊',
   perfil: '👤',
 };
@@ -77,7 +78,9 @@ export default function ClienteLayout() {
       <AccesoNegocioGate operadorPeruId={usuario?.negocio_operador_peru_id} rolParaAviso="cliente">
       <Tabs
         screenOptions={{
-          headerStyle: { backgroundColor: colors.card },
+          // 76px para que las banderas x3 (66x45) entren con aire; el
+          // header nativo por default (44/56) las recortaba.
+          headerStyle: { backgroundColor: colors.card, height: 76 },
           headerTintColor: colors.text,
           headerTitle: () => <BannerTitle />,
           headerRight: () => <BannerFlags />,
@@ -116,6 +119,13 @@ export default function ClienteLayout() {
           options={{
             title: 'Mis cuentas',
             tabBarIcon: ({ color, focused }) => <TabIcon nombre="cuentas-utilizadas" color={color} focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="conversor"
+          options={{
+            title: 'Conversor',
+            tabBarIcon: ({ color, focused }) => <TabIcon nombre="conversor" color={color} focused={focused} />,
           }}
         />
         <Tabs.Screen

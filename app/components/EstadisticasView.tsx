@@ -9,6 +9,7 @@ import { RangoFecha, calcularRango } from '../lib/dateRange';
 import { Solicitud } from '../types/database';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { construirEnlaceWhatsAppGenerico } from '../lib/whatsapp';
+import { formatearTiempoRespuesta } from './OperationRow';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const HOY = () => new Date().toISOString().slice(0, 10);
@@ -28,6 +29,8 @@ interface SolicitudConValidadores extends Solicitud {
   validador_peru_nombre: string | null;
   validador_ve_nombre: string | null;
   operador_peru_atiende: string | null;
+  /** Teléfono del operador de Perú que atiende (miembro o principal), para el botón de WhatsApp. */
+  operador_peru_atiende_telefono: string | null;
   /** Operador Venezuela asignado (vía el miembro de Perú que atiende), null si no se pudo determinar. */
   operador_ve_atiende: string | null;
   cliente_nombre: string;
@@ -100,6 +103,7 @@ export function EstadisticasView({
 
   interface MiembroInfo {
     nombre: string;
+    telefono: string | null;
     comisionPct: number;
     veId: string | null;
   }
@@ -108,24 +112,26 @@ export function EstadisticasView({
     comisionPct: number;
   }
 
-  // Datos de cada miembro de Perú (nombre, % comisión, VE asignado) y de
-  // cada Operador Venezuela (nombre, % comisión) -- se usan para calcular
-  // la ganancia/comisión de cada operación y para mostrar quién la atendió.
-  const cargarEquipo = async (): Promise<{ miembros: Map<string, MiembroInfo>; ves: Map<string, VeInfo> }> => {
-    const [{ data: miembrosData }, { data: vesData }] = await Promise.all([
+  // Datos de cada miembro de Perú (nombre, teléfono, % comisión, VE
+  // asignado), del principal (teléfono) y de cada Operador Venezuela
+  // (nombre, % comisión) -- se usan para calcular la ganancia/comisión de
+  // cada operación y para mostrar quién la atendió (+ su WhatsApp).
+  const cargarEquipo = async (): Promise<{ miembros: Map<string, MiembroInfo>; ves: Map<string, VeInfo>; principalTelefono: string | null }> => {
+    const [{ data: miembrosData }, { data: vesData }, { data: principalData }] = await Promise.all([
       supabase
         .from('operador_peru_miembro')
-        .select('id, nombre, comision_pct, operador_venezuela_id')
+        .select('id, nombre, telefono, comision_pct, operador_venezuela_id')
         .eq('operador_peru_id', operadorPeruId),
       supabase.from('operador_venezuela_perfil').select('id, nombre, comision_pct').eq('operador_peru_id', operadorPeruId),
+      supabase.from('usuarios').select('telefono').eq('id', operadorPeruId).maybeSingle(),
     ]);
     const miembros = new Map<string, MiembroInfo>();
-    for (const m of (miembrosData as { id: string; nombre: string; comision_pct: number; operador_venezuela_id: string | null }[] | null) ?? [])
-      miembros.set(m.id, { nombre: m.nombre, comisionPct: m.comision_pct, veId: m.operador_venezuela_id });
+    for (const m of (miembrosData as { id: string; nombre: string; telefono: string | null; comision_pct: number; operador_venezuela_id: string | null }[] | null) ?? [])
+      miembros.set(m.id, { nombre: m.nombre, telefono: m.telefono, comisionPct: m.comision_pct, veId: m.operador_venezuela_id });
     const ves = new Map<string, VeInfo>();
     for (const v of (vesData as { id: string; nombre: string; comision_pct: number }[] | null) ?? [])
       ves.set(v.id, { nombre: v.nombre, comisionPct: v.comision_pct });
-    return { miembros, ves };
+    return { miembros, ves, principalTelefono: principalData?.telefono ?? null };
   };
 
   // Trae los datos del rango sin tocar scroll ni el spinner de carga --
@@ -133,7 +139,7 @@ export function EstadisticasView({
   // silencioso por Realtime, que NO debe interrumpir al usuario si en ese
   // momento está escribiendo en el buscador o leyendo resultados.
   const cargarDatos = async (rangoConsulta: RangoFecha) => {
-    const [{ miembros, ves }, { data: ops }] = await Promise.all([
+    const [{ miembros, ves, principalTelefono }, { data: ops }] = await Promise.all([
       cargarEquipo(),
       (() => {
         let query = supabase
@@ -184,6 +190,7 @@ export function EstadisticasView({
           cliente_nombre: row.cliente?.nombre ?? 'Cliente',
           cliente_telefono: row.cliente?.telefono ?? null,
           operador_peru_atiende: miembro?.nombre ?? 'Operador principal de Perú',
+          operador_peru_atiende_telefono: miembro ? miembro.telefono : principalTelefono,
           operador_ve_atiende: ve?.nombre ?? null,
           ganancia,
         };
@@ -396,6 +403,10 @@ export function EstadisticasView({
                       o.beneficiario_telefono,
                       `Hola ${o.beneficiario_nombre}, te escribo por tu remesa.`
                     );
+                    const waOperadorPeru = construirEnlaceWhatsAppGenerico(
+                      o.operador_peru_atiende_telefono,
+                      `Hola ${o.operador_peru_atiende ?? ''}, te escribo por una remesa.`
+                    );
                     return (
                       <View key={o.id} style={styles.detalleFila}>
                         <Text style={styles.detalleBeneficiario} numberOfLines={1}>
@@ -405,10 +416,20 @@ export function EstadisticasView({
                         <Text style={styles.detalleDato}>
                           Atendida: {o.check_deposito_ve_at ? new Date(o.check_deposito_ve_at).toLocaleString('es-PE') : '—'}
                         </Text>
+                        {o.check_deposito_ve_at && (
+                          <Text style={styles.detalleDato}>Tiempo de respuesta total: {formatearTiempoRespuesta(o.created_at, o.check_deposito_ve_at)}</Text>
+                        )}
                         <Text style={styles.detalleDato}>
                           PEN {o.monto_pen.toFixed(2)} · VES {o.monto_ves.toFixed(2)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
                         </Text>
-                        <Text style={styles.detalleDato}>Operador de Perú: {o.operador_peru_atiende ?? '—'}</Text>
+                        <View style={styles.operadorFila}>
+                          <Text style={styles.detalleDato}>Operador de Perú: {o.operador_peru_atiende ?? '—'}</Text>
+                          {waOperadorPeru && (
+                            <Pressable onPress={() => Linking.openURL(waOperadorPeru)}>
+                              <Text style={styles.telefonoLink}>WhatsApp</Text>
+                            </Pressable>
+                          )}
+                        </View>
                         <Text style={styles.detalleDato}>Operador Venezuela: {o.operador_ve_atiende ?? '—'}</Text>
                         {o.ganancia && (
                           <>
@@ -514,33 +535,34 @@ function ResumenItem({ label, valor, destacado }: { label: string; valor: string
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 14, paddingBottom: 48 },
-  titulo: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  titulo: { color: colors.text, fontSize: 23, fontWeight: '800' },
   resumen: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 10 },
-  resumenPeriodo: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  resumenPeriodo: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   resumenFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   resumenItemBox: { alignItems: 'center', minWidth: 90, flexGrow: 1 },
-  resumenLabel: { color: colors.textMuted, fontSize: 11 },
-  resumenValor: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
+  resumenLabel: { color: colors.textMuted, fontSize: 13 },
+  resumenValor: { color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 2 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
-  chartTitulo: { color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  chartTitulo: { color: colors.text, fontSize: 15, fontWeight: '700', marginBottom: 4 },
   detalleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  detalleChevron: { color: colors.textMuted, fontSize: 11 },
+  detalleChevron: { color: colors.textMuted, fontSize: 13 },
   detalleFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 8, gap: 2 },
-  detalleBeneficiario: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  detalleDato: { color: colors.textMuted, fontSize: 11 },
-  telefonosToggle: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 4 },
+  detalleBeneficiario: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  detalleDato: { color: colors.textMuted, fontSize: 13 },
+  operadorFila: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  telefonosToggle: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 4 },
   telefonosBloque: { gap: 4, marginTop: 4 },
-  telefonoLink: { color: colors.success, fontSize: 11, fontWeight: '600' },
+  telefonoLink: { color: colors.success, fontSize: 13, fontWeight: '600' },
   excelDetalleBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
-  excelDetalleBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  desgloseSubtitulo: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 10, marginBottom: 4 },
+  excelDetalleBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  desgloseSubtitulo: { color: colors.textMuted, fontSize: 13, fontWeight: '700', marginTop: 10, marginBottom: 4 },
   desgloseSubtituloVe: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
   desgloseFila: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, paddingVertical: 3 },
-  desgloseNombre: { color: colors.text, fontSize: 12, fontWeight: '600', flex: 1, minWidth: 80 },
-  desgloseValor: { color: colors.accent, fontSize: 12, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  desgloseNombre: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1, minWidth: 80 },
+  desgloseValor: { color: colors.accent, fontSize: 14, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
   pdfBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   pdfBtnTexto: { color: colors.text, fontWeight: '700' },
-  vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic', textAlign: 'center' },
+  vacio: { color: colors.textMuted, fontSize: 15, fontStyle: 'italic', textAlign: 'center' },
   misClientesFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   misClientesChip: {
     borderWidth: 1,
@@ -551,7 +573,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   misClientesChipActivo: { backgroundColor: colors.accent, borderColor: colors.accent },
-  misClientesChipTexto: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  misClientesChipTexto: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   misClientesChipTextoActivo: { color: colors.text },
-  misClientesAyuda: { color: colors.textMuted, fontSize: 11, flex: 1 },
+  misClientesAyuda: { color: colors.textMuted, fontSize: 13, flex: 1 },
 });

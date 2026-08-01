@@ -36,5 +36,5 @@ export function LiveClock({ style }: { style?: TextStyle }) {
 }
 
 const styles = StyleSheet.create({
-  text: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  text: { color: colors.textMuted, fontSize: 15, fontWeight: '600' },
 });

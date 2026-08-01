@@ -329,6 +329,16 @@ export default function Perfil() {
         <>
           <Text style={styles.rolTitulo}>OPERADOR DE PERÚ MIEMBRO</Text>
 
+          {/* Datos del Operador principal de Perú: solo lectura, siempre primero */}
+          {principal && (
+            <View style={[styles.card, cardShadow]}>
+              <Text style={styles.cardTitulo}>OPERADOR PRINCIPAL DE PERÚ</Text>
+              <Text style={styles.miembroNombre}>{principal.nombre}</Text>
+              <Text style={styles.miembroDato}>{principal.email}</Text>
+              <Text style={styles.miembroDato}>{principal.telefono ?? 'Sin teléfono'}</Text>
+            </View>
+          )}
+
           {/* Sus propios datos: editables y guardables */}
           <View style={[styles.card, cardShadow]}>
             <Text style={styles.cardTitulo}>Mis datos</Text>
@@ -364,16 +374,6 @@ export default function Perfil() {
             <Text style={styles.cardTitulo}>% Comisión asignada</Text>
             <Text style={styles.miembroNombre}>{miembroRow?.comision_pct ?? 0}%</Text>
           </View>
-
-          {/* Datos del Operador principal de Perú: solo lectura */}
-          {principal && (
-            <View style={[styles.card, cardShadow]}>
-              <Text style={styles.cardTitulo}>OPERADOR PRINCIPAL DE PERÚ</Text>
-              <Text style={styles.miembroNombre}>{principal.nombre}</Text>
-              <Text style={styles.miembroDato}>{principal.email}</Text>
-              <Text style={styles.miembroDato}>{principal.telefono ?? 'Sin teléfono'}</Text>
-            </View>
-          )}
         </>
       )}
 
@@ -752,14 +752,14 @@ function NuevoOperadorForm({
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 24, gap: 12 },
-  rolTitulo: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  nombre: { color: colors.text, fontSize: 22, fontWeight: '800' },
-  email: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
-  telefono: { color: colors.textMuted, fontSize: 14, marginBottom: 4 },
+  rolTitulo: { color: colors.accent, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  nombre: { color: colors.text, fontSize: 25, fontWeight: '800' },
+  email: { color: colors.textMuted, fontSize: 16, marginTop: -8 },
+  telefono: { color: colors.textMuted, fontSize: 16, marginBottom: 4 },
   planCardGrande: { gap: 10 },
-  planNombreGrande: { color: colors.text, fontSize: 28, fontWeight: '900' },
+  planNombreGrande: { color: colors.text, fontSize: 32, fontWeight: '900' },
   metaBloque: { marginTop: 8, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
-  metaTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  metaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   metaFila: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -770,65 +770,65 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   metaFilaDatos: { flex: 1, gap: 2 },
-  metaFilaNombre: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  metaFilaDato: { color: colors.textMuted, fontSize: 12 },
+  metaFilaNombre: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  metaFilaDato: { color: colors.textMuted, fontSize: 14 },
   metaSolicitarBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
-  metaSolicitarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  metaSolicitarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
   metaFormulario: { marginTop: 12, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   metaFormularioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
-  cardTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  cardTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  cardTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  cardTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
   boton: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center' },
   botonTexto: { color: colors.text, fontWeight: '700' },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 8 },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 8 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     padding: 12,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     marginTop: 5,
     backgroundColor: colors.cardAlt,
   },
-  error: { color: colors.danger, fontSize: 13, marginTop: 6 },
+  error: { color: colors.danger, fontSize: 15, marginTop: 6 },
   guardarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 12 },
-  guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
   miembroFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4, gap: 2 },
   miembroHeaderRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   miembroInputNombre: { flex: 1, minWidth: 0, marginTop: 0 },
   miembroEliminarBtn: { padding: 8 },
-  miembroEliminarTexto: { color: colors.danger, fontWeight: '800', fontSize: 14 },
-  miembroNombre: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  miembroDato: { color: colors.textMuted, fontSize: 12 },
+  miembroEliminarTexto: { color: colors.danger, fontWeight: '800', fontSize: 16 },
+  miembroNombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  miembroDato: { color: colors.textMuted, fontSize: 14 },
   asignadosBloque: { marginTop: 6, gap: 2 },
-  asignadosLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
-  asignadosItem: { color: colors.accent, fontSize: 12, fontWeight: '600' },
+  asignadosLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  asignadosItem: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   asignarBtn: { alignSelf: 'flex-start', marginTop: 8 },
-  asignarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  asignarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   filaBotonesFinales: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
   whatsappBtn: { alignSelf: 'flex-start', marginTop: 8 },
-  whatsappBtnTexto: { color: colors.success, fontWeight: '700', fontSize: 13 },
+  whatsappBtnTexto: { color: colors.success, fontWeight: '700', fontSize: 15 },
   clientesContador: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 6 },
-  clientesContadorValor: { color: colors.text, fontSize: 26, fontWeight: '900' },
-  clientesContadorLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
-  asignadoVe: { color: colors.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 2 },
+  clientesContadorValor: { color: colors.text, fontSize: 30, fontWeight: '900' },
+  clientesContadorLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  asignadoVe: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic', marginTop: 2 },
   agregarBtn: { marginTop: 10, alignSelf: 'flex-start' },
-  agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
-  limiteTexto: { color: colors.warning, fontSize: 12, fontWeight: '600', marginTop: 10 },
+  agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
+  limiteTexto: { color: colors.warning, fontSize: 14, fontWeight: '600', marginTop: 10 },
   nuevoBloque: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
   nuevoAccionesRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   guardarNuevoBtn: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
-  guardarNuevoBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
+  guardarNuevoBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
   cancelarNuevoBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
-  cancelarNuevoBtnTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
+  cancelarNuevoBtnTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 15 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10, width: '100%', maxWidth: 420 },
-  modalTitulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
-  modalTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  modalTitulo: { color: colors.text, fontSize: 21, fontWeight: '900' },
+  modalTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 19 },
   miembroOpcion: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -840,9 +840,9 @@ const styles = StyleSheet.create({
   },
   miembroOpcionActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
   miembroOpcionDatos: { flex: 1, gap: 2 },
-  miembroOpcionNombre: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  miembroOpcionDato: { color: colors.textMuted, fontSize: 11 },
-  miembroOpcionCheck: { color: colors.textMuted, fontSize: 18, fontWeight: '900' },
+  miembroOpcionNombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  miembroOpcionDato: { color: colors.textMuted, fontSize: 13 },
+  miembroOpcionCheck: { color: colors.textMuted, fontSize: 21, fontWeight: '900' },
   miembroOpcionCheckActivo: { color: colors.success },
   modalCerrar: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
   modalCerrarTexto: { color: colors.textMuted, fontWeight: '700' },

@@ -17,6 +17,21 @@ export function calcularConversion(montoPen: number, tasaPenVes: number): Desglo
   };
 }
 
+/** Bolívares -> Soles: inversa de calcularConversion. */
+export function calcularConversionInversa(montoVes: number, tasaPenVes: number): number {
+  return Number((montoVes / tasaPenVes).toFixed(2));
+}
+
+/** Divisa BCV (USD/EUR) -> Bolívares: montoDivisa × xVes. */
+export function divisaAVes(montoDivisa: number, xVes: number): number {
+  return Number((montoDivisa * xVes).toFixed(2));
+}
+
+/** Bolívares -> Divisa BCV (USD/EUR): montoVes ÷ xVes. */
+export function vesADivisa(montoVes: number, xVes: number): number {
+  return Number((montoVes / xVes).toFixed(2));
+}
+
 // Fórmulas de Ganancia Bruta/Neta y comisiones -- ver
 // "Calculos-tasas-dinero-comisiones/Calculos-tasas-dinero-comisiones.md".
 // Ms=montoPen, Tv=tasaVenta, Ta=tasaAdquisicion, C1/C2=comisiones (0.02 = 2%).

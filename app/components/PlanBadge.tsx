@@ -24,5 +24,5 @@ const styles = StyleSheet.create({
   pill: { alignSelf: 'flex-end', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, marginTop: 3 },
   pillDemo: { backgroundColor: `${colors.warning}33` },
   pillStarter: { backgroundColor: `${colors.success}33` },
-  texto: { color: colors.text, fontSize: 10, fontWeight: '800' },
+  texto: { color: colors.text, fontSize: 12, fontWeight: '800' },
 });

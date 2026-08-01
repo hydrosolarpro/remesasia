@@ -89,20 +89,20 @@ export default function Registro() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: 24, justifyContent: 'center', gap: 4 },
-  title: { color: colors.text, fontSize: 24, fontWeight: '800' },
-  subtitle: { color: colors.textMuted, fontSize: 14, marginBottom: 24 },
-  label: { color: colors.textMuted, fontSize: 13, marginTop: 12 },
+  title: { color: colors.text, fontSize: 28, fontWeight: '800' },
+  subtitle: { color: colors.textMuted, fontSize: 16, marginBottom: 24 },
+  label: { color: colors.textMuted, fontSize: 15, marginTop: 12 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: 14,
     color: colors.text,
-    fontSize: 16,
+    fontSize: 18,
     marginTop: 6,
     backgroundColor: colors.card,
   },
-  error: { color: colors.danger, marginTop: 14, fontSize: 13 },
+  error: { color: colors.danger, marginTop: 14, fontSize: 15 },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.md,
@@ -110,5 +110,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 28,
   },
-  buttonText: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  buttonText: { color: colors.text, fontWeight: '700', fontSize: 18 },
 });

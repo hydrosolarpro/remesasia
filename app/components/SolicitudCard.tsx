@@ -38,8 +38,8 @@ const styles = StyleSheet.create({
   },
   cardHover: { borderColor: colors.primary },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  id: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  beneficiario: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  monto: { color: colors.text, fontSize: 14 },
-  montoVes: { color: colors.accent, fontSize: 14, fontWeight: '700' },
+  id: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  beneficiario: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  monto: { color: colors.text, fontSize: 16 },
+  montoVes: { color: colors.accent, fontSize: 16, fontWeight: '700' },
 });

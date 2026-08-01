@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { extensionDeImagen } from '../../lib/imagenUtil';
+import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -93,6 +93,10 @@ export default function OnboardingNegocio() {
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
     if (resultado.canceled || !usuario) return;
+    if (!(await validarTamanoImagen(resultado.assets[0]))) {
+      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
+      return;
+    }
 
     setSubiendoImagen(tipo);
     const archivo = resultado.assets[0];
@@ -380,23 +384,23 @@ function LogoPicker({ uri, subiendo, onPress }: { uri: string | null; subiendo: 
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 16, paddingBottom: 48 },
-  titulo: { color: colors.text, fontSize: 22, fontWeight: '800' },
-  subtitulo: { color: colors.textMuted, fontSize: 13, marginTop: -8 },
+  titulo: { color: colors.text, fontSize: 25, fontWeight: '800' },
+  subtitulo: { color: colors.textMuted, fontSize: 15, marginTop: -8 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 4 },
-  sectionTitulo: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 6 },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 10 },
+  sectionTitulo: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 6 },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 10 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     padding: 12,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     marginTop: 5,
     backgroundColor: colors.cardAlt,
   },
   inputDisabled: { justifyContent: 'center', opacity: 0.7 },
-  inputDisabledText: { color: colors.textMuted, fontSize: 15 },
+  inputDisabledText: { color: colors.textMuted, fontSize: 17 },
   logoPicker: {
     width: 120,
     height: 120,
@@ -411,7 +415,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoImg: { width: '100%', height: '100%' },
-  logoPlaceholder: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
+  logoPlaceholder: { color: colors.accent, fontSize: 14, fontWeight: '700', textAlign: 'center', paddingHorizontal: 8 },
   cuentaBloque: { gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   cuentaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   // minWidth: 0 es necesario porque en web un input dentro de un flex
@@ -421,16 +425,16 @@ const styles = StyleSheet.create({
   cuentaEntidad: { flex: 1, minWidth: 0, marginTop: 0 },
   cuentaNumero: { flex: 1, minWidth: 0, marginTop: 0 },
   quitarBtn: { padding: 8 },
-  quitarBtnTexto: { color: colors.danger, fontSize: 16, fontWeight: '800' },
+  quitarBtnTexto: { color: colors.danger, fontSize: 18, fontWeight: '800' },
   agregarBtn: { marginTop: 12, alignSelf: 'flex-start' },
-  agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
+  agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  switchLabel: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
+  switchLabel: { color: colors.text, fontSize: 16, fontWeight: '600', flex: 1, marginRight: 8 },
   horarioRow: { flexDirection: 'row', gap: 12 },
-  ayuda: { color: colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 12 },
+  ayuda: { color: colors.textMuted, fontSize: 14, lineHeight: 17, marginTop: 12 },
   copiarEnlaceBtn: { backgroundColor: colors.cardAlt, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 8 },
-  copiarEnlaceBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
-  error: { color: colors.danger, fontSize: 13 },
+  copiarEnlaceBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
+  error: { color: colors.danger, fontSize: 15 },
   guardarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center', marginTop: 4 },
-  guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 18 },
 });

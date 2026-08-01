@@ -45,8 +45,8 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
   },
-  titulo: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  mensaje: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+  titulo: { color: colors.text, fontSize: 21, fontWeight: '800' },
+  mensaje: { color: colors.textMuted, fontSize: 16, lineHeight: 20 },
   boton: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 8 },
-  botonTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  botonTexto: { color: colors.text, fontWeight: '700', fontSize: 17 },
 });

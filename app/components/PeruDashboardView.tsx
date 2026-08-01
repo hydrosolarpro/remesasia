@@ -57,6 +57,7 @@ export function PeruDashboardView({
   const [operaciones, setOperaciones] = useState<OperationRowData[]>([]);
   const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
   const [vePerfiles, setVePerfiles] = useState<OperadorVenezuelaPerfil[]>([]);
+  const [principalTelefono, setPrincipalTelefono] = useState<string | null>(null);
   const [validando, setValidando] = useState<{ id: string; tipo: 'peru' | 've' } | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [exportando, setExportando] = useState(false);
@@ -85,7 +86,7 @@ export function PeruDashboardView({
     let query = supabase
       .from('solicitudes')
       .select(
-        '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre), atendido_por:operador_peru_miembro!solicitudes_operador_peru_miembro_id_fkey(nombre)'
+        '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre), atendido_por:operador_peru_miembro!solicitudes_operador_peru_miembro_id_fkey(nombre, telefono)'
       )
       .eq('negocio_operador_peru_id', operadorPeruId)
       .order('created_at', { ascending: false })
@@ -99,29 +100,32 @@ export function PeruDashboardView({
       query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
     }
 
-    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: miembrosData }, { data: vePerfilesData }] = await Promise.all([
-      supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
-      supabase
-        .from('tasas')
-        .select('*')
-        .eq('publicada_por', operadorPeruId)
-        .order('fecha', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length === 0 ? Promise.resolve({ data: null }) : query,
-      supabase
-        .from('operador_peru_miembro')
-        .select('*')
-        .eq('operador_peru_id', operadorPeruId)
-        .order('created_at', { ascending: true }),
-      supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId),
-    ]);
+    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: miembrosData }, { data: vePerfilesData }, { data: principalData }] =
+      await Promise.all([
+        supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
+        supabase
+          .from('tasas')
+          .select('*')
+          .eq('publicada_por', operadorPeruId)
+          .order('fecha', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length === 0 ? Promise.resolve({ data: null }) : query,
+        supabase
+          .from('operador_peru_miembro')
+          .select('*')
+          .eq('operador_peru_id', operadorPeruId)
+          .order('created_at', { ascending: true }),
+        supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId),
+        supabase.from('usuarios').select('telefono').eq('id', operadorPeruId).maybeSingle(),
+      ]);
 
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
     setMiembros((miembrosData as OperadorPeruMiembro[] | null) ?? []);
     setVePerfiles((vePerfilesData as OperadorVenezuelaPerfil[] | null) ?? []);
+    setPrincipalTelefono(principalData?.telefono ?? null);
     if (opsData) {
       setOperaciones(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,6 +137,7 @@ export function PeruDashboardView({
           validador_peru_nombre: row.validador_peru?.nombre ?? null,
           validador_ve_nombre: row.validador_ve?.nombre ?? null,
           operador_peru_atiende: row.atendido_por?.nombre ?? null,
+          operador_peru_atiende_telefono: row.atendido_por?.telefono ?? null,
         }))
       );
     } else {
@@ -271,6 +276,8 @@ export function PeruDashboardView({
   // atiende el Operador principal de Perú directamente.
   const atendidoPor = (op: OperationRowData): string =>
     op.operador_peru_miembro_id ? (op.operador_peru_atiende ?? 'Operador de Perú miembro') : 'Operador principal de Perú';
+  const atendidoPorTelefono = (op: OperationRowData): string | null =>
+    op.operador_peru_miembro_id ? op.operador_peru_atiende_telefono ?? null : principalTelefono;
 
   const exportarExcel = async () => {
     setExportando(true);
@@ -622,6 +629,7 @@ export function PeruDashboardView({
                 validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
                 validandoVe={validando?.id === op.id && validando.tipo === 've'}
                 atendidoPor={atendidoPor(op)}
+                atendidoPorTelefono={atendidoPorTelefono(op)}
                 derivadaDePrincipal={op.derivada_de_principal}
                 onDerivar={esPrincipal && !op.operador_peru_miembro_id ? () => abrirDerivacion(op) : undefined}
               />
@@ -659,6 +667,7 @@ export function PeruDashboardView({
                 validandoPeru={false}
                 validandoVe={false}
                 atendidoPor={atendidoPor(op)}
+                atendidoPorTelefono={atendidoPorTelefono(op)}
                 derivadaDePrincipal={op.derivada_de_principal}
               />
             ))}
@@ -684,6 +693,7 @@ export function PeruDashboardView({
                 validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
                 validandoVe={false}
                 atendidoPor={atendidoPor(op)}
+                atendidoPorTelefono={atendidoPorTelefono(op)}
                 derivadaDePrincipal={op.derivada_de_principal}
               />
             ))}
@@ -707,6 +717,7 @@ export function PeruDashboardView({
                 validandoPeru={false}
                 validandoVe={false}
                 atendidoPor={atendidoPor(op)}
+                atendidoPorTelefono={atendidoPorTelefono(op)}
                 onResolverRevision={() => resolverRevision(op)}
                 resolviendoRevision={resolviendoId === op.id}
               />
@@ -796,31 +807,31 @@ function EstadoResumenItem({
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
-  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  negocioLogo: { width: 28, height: 28, borderRadius: 8, backgroundColor: colors.cardAlt },
-  negocioNombre: { color: colors.accent, fontSize: 14, fontWeight: '800', flexShrink: 1 },
-  bienvenida: { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: -4 },
+  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  negocioLogo: { width: 84, height: 84, borderRadius: 24, backgroundColor: colors.cardAlt },
+  negocioNombre: { color: colors.accent, fontSize: 16, fontWeight: '800', flexShrink: 1 },
+  bienvenida: { color: colors.text, fontSize: 25, fontWeight: '800', marginBottom: -4 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
   tasaCard: { alignItems: 'flex-start', gap: 4, marginTop: 8 },
-  tasaLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  tasaValor: { color: colors.text, fontSize: 34, fontWeight: '900', letterSpacing: -0.5 },
-  tasaEditar: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 4 },
-  miniLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  miniValor: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  tasaLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  tasaValor: { color: colors.text, fontSize: 39, fontWeight: '900', letterSpacing: -0.5 },
+  tasaEditar: { color: colors.accent, fontSize: 14, fontWeight: '700', marginTop: 4 },
+  miniLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  miniValor: { color: colors.text, fontSize: 23, fontWeight: '800' },
   horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  horarioValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
+  horarioValor: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
   esloganCard: { gap: 4 },
   esloganHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  eslogan: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },
-  esloganInput: { color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 4, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 },
+  eslogan: { color: colors.text, fontSize: 16, fontWeight: '600', marginTop: 4, fontStyle: 'italic' },
+  esloganInput: { color: colors.text, fontSize: 16, fontWeight: '600', marginTop: 4, borderBottomWidth: 1, borderBottomColor: colors.primary, paddingVertical: 4 },
   tiempoRealCard: { gap: 8 },
   tiempoRealFila: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   estadoResumenItem: { flex: 1, minWidth: 100, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, gap: 2 },
   estadoResumenItemAlerta: { borderColor: colors.danger },
-  estadoResumenMonto: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  estadoResumenMonto: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
   financieroCard: { gap: 6 },
   financieroFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 4 },
-  seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
+  seccionTitulo: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 8 },
   seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   opsToggleRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   opsToggleBtn: {
@@ -836,13 +847,13 @@ const styles = StyleSheet.create({
   },
   opsToggleBtnActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
   opsToggleBtnAlerta: { borderColor: colors.danger },
-  opsToggleTexto: { color: colors.textMuted, fontWeight: '800', fontSize: 13, textTransform: 'uppercase', textAlign: 'center' },
+  opsToggleTexto: { color: colors.textMuted, fontWeight: '800', fontSize: 15, textTransform: 'uppercase', textAlign: 'center' },
   opsToggleTextoActivo: { color: colors.text },
-  derivadasTitulo: { color: colors.warning, fontSize: 16, fontWeight: '900', marginTop: 10, letterSpacing: 0.5 },
-  derivadasSubtitulo: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  derivadasTitulo: { color: colors.warning, fontSize: 18, fontWeight: '900', marginTop: 10, letterSpacing: 0.5 },
+  derivadasSubtitulo: { color: colors.textMuted, fontSize: 14, marginTop: 2 },
   excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
-  excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
+  excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  vacio: { color: colors.textMuted, fontSize: 15, fontStyle: 'italic' },
   // 1 columna en móvil; en pantallas anchas (operador en web/tablet) las
   // tarjetas se acomodan solas en 2-3 columnas gracias al flexWrap.
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
@@ -853,16 +864,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     padding: 12,
     color: colors.text,
-    fontSize: 14,
+    fontSize: 16,
     backgroundColor: colors.cardAlt,
   },
-  resumenLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  resumenValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
+  resumenLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  resumenValor: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
   resumenValorFlex: { textAlign: 'right' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10, width: '100%', maxWidth: 420 },
-  modalTitulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
-  modalTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  modalTitulo: { color: colors.text, fontSize: 21, fontWeight: '900' },
+  modalTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 19 },
   miembroOpcion: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -874,8 +885,8 @@ const styles = StyleSheet.create({
   },
   miembroOpcionActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
   miembroOpcionDatos: { flex: 1, gap: 2 },
-  miembroOpcionNombre: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  miembroOpcionDato: { color: colors.textMuted, fontSize: 11 },
+  miembroOpcionNombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  miembroOpcionDato: { color: colors.textMuted, fontSize: 13 },
   miembroOpcionCheck: { color: colors.success, fontWeight: '900' },
   modalAcciones: { flexDirection: 'row', gap: 8, marginTop: 12 },
   modalCancelar: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },

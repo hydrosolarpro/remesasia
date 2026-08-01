@@ -161,10 +161,10 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 14 },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
-  titulo: { color: colors.text, fontSize: 22, fontWeight: '800' },
+  titulo: { color: colors.text, fontSize: 25, fontWeight: '800' },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 4, width: '100%' },
   avisoPendiente: { borderColor: colors.warning, alignItems: 'center', gap: 6 },
   avisoRechazado: { borderColor: colors.danger },
-  avisoTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
-  avisoTexto: { color: colors.text, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  avisoTitulo: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  avisoTexto: { color: colors.text, fontSize: 15, lineHeight: 19, textAlign: 'center' },
 });

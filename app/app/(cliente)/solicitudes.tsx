@@ -12,6 +12,7 @@ export default function SolicitudesCliente() {
   const { usuario } = useAuth();
   const [cargando, setCargando] = useState(true);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+  const [operadores, setOperadores] = useState<Map<string, { nombre: string; telefono: string | null }>>(new Map());
   const [horarioFin, setHorarioFin] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<{ id: string; tipo: 'confirmar' | 'reportar' | 'resolver' } | null>(null);
 
@@ -24,7 +25,31 @@ export default function SolicitudesCliente() {
       .eq('cliente_id', usuario.id)
       .order('created_at', { ascending: false })
       .limit(200);
-    setSolicitudes((data as Solicitud[] | null) ?? []);
+    const lista = (data as Solicitud[] | null) ?? [];
+    setSolicitudes(lista);
+
+    // Resuelve el operador de Perú asignado a cada solicitud (miembro
+    // específico, o el principal del negocio cuando no hay miembro).
+    const miembroIds = [...new Set(lista.map((s) => s.operador_peru_miembro_id).filter((id): id is string => !!id))];
+    const [{ data: miembrosData }, { data: principalData }] = await Promise.all([
+      miembroIds.length > 0
+        ? supabase.from('operador_peru_miembro').select('id, nombre, telefono').in('id', miembroIds)
+        : Promise.resolve({ data: [] }),
+      usuario.negocio_operador_peru_id
+        ? supabase.from('usuarios').select('nombre, telefono').eq('id', usuario.negocio_operador_peru_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const mapaMiembros = new Map((miembrosData ?? []).map((m) => [m.id, { nombre: m.nombre, telefono: m.telefono }]));
+    const mapaOperadores = new Map<string, { nombre: string; telefono: string | null }>();
+    for (const s of lista) {
+      const info = s.operador_peru_miembro_id
+        ? mapaMiembros.get(s.operador_peru_miembro_id)
+        : principalData
+          ? { nombre: principalData.nombre, telefono: principalData.telefono }
+          : undefined;
+      if (info) mapaOperadores.set(s.id, info);
+    }
+    setOperadores(mapaOperadores);
     setCargando(false);
   }, [usuario]);
 
@@ -124,6 +149,8 @@ export default function SolicitudesCliente() {
             confirmando={enviando?.id === s.id && enviando.tipo === 'confirmar'}
             reportando={enviando?.id === s.id && enviando.tipo === 'reportar'}
             confirmandoResuelto={enviando?.id === s.id && enviando.tipo === 'resolver'}
+            operadorNombre={operadores.get(s.id)?.nombre}
+            operadorTelefono={operadores.get(s.id)?.telefono}
           />
         ))}
       </View>
@@ -142,6 +169,8 @@ export default function SolicitudesCliente() {
             confirmando={enviando?.id === s.id && enviando.tipo === 'confirmar'}
             reportando={enviando?.id === s.id && enviando.tipo === 'reportar'}
             confirmandoResuelto={enviando?.id === s.id && enviando.tipo === 'resolver'}
+            operadorNombre={operadores.get(s.id)?.nombre}
+            operadorTelefono={operadores.get(s.id)?.telefono}
           />
         ))}
       </View>
@@ -152,7 +181,7 @@ export default function SolicitudesCliente() {
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 10, paddingBottom: 48 },
-  seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8, textTransform: 'uppercase' },
-  vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
+  seccionTitulo: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 8, textTransform: 'uppercase' },
+  vacio: { color: colors.textMuted, fontSize: 15, fontStyle: 'italic' },
   lista: { gap: 10 },
 });

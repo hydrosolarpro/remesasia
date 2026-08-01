@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Solicitud } from '../types/database';
-import { construirEnlaceWhatsApp } from '../lib/whatsapp';
+import { construirEnlaceWhatsApp, construirEnlaceWhatsAppGenerico } from '../lib/whatsapp';
 import { formatearBs } from '../lib/formato';
-import { FORMATTER_FECHA_HORA } from './OperationRow';
+import { FORMATTER_FECHA_HORA, formatearTiempoRespuesta } from './OperationRow';
 import { RoundCheck } from './RoundCheck';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -34,6 +34,8 @@ export function ClienteSolicitudRow({
   confirmando,
   reportando,
   confirmandoResuelto,
+  operadorNombre,
+  operadorTelefono,
 }: {
   solicitud: Solicitud;
   numero?: number;
@@ -46,6 +48,10 @@ export function ClienteSolicitudRow({
   confirmando?: boolean;
   reportando?: boolean;
   confirmandoResuelto?: boolean;
+  /** Nombre del operador de Perú asignado a esta solicitud (miembro o principal). */
+  operadorNombre?: string;
+  /** Teléfono del operador de Perú asignado, para el botón de WhatsApp. */
+  operadorTelefono?: string | null;
 }) {
   const [abierto, setAbierto] = useState(false);
 
@@ -71,6 +77,17 @@ export function ClienteSolicitudRow({
     Linking.openURL(enlaceWhatsApp);
   };
 
+  const enlaceWhatsAppOperador = construirEnlaceWhatsAppGenerico(operadorTelefono, `Hola ${operadorNombre ?? ''}, te escribo por mi remesa.`);
+  const contactarOperador = async () => {
+    if (!enlaceWhatsAppOperador) return;
+    const puedeAbrir = await Linking.canOpenURL(enlaceWhatsAppOperador);
+    if (!puedeAbrir) {
+      Alert.alert('No se pudo abrir WhatsApp', 'Verifica el número del operador.');
+      return;
+    }
+    Linking.openURL(enlaceWhatsAppOperador);
+  };
+
   return (
     <View style={[styles.card, cardShadow, style]}>
       <Pressable style={styles.header} onPress={() => setAbierto((v) => !v)}>
@@ -89,6 +106,21 @@ export function ClienteSolicitudRow({
 
       {abierto && (
         <View style={styles.detalle}>
+          <Row label="Generada" value={FORMATTER_FECHA_HORA.format(new Date(solicitud.created_at))} />
+          <Row label="Atendida" value={solicitud.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(solicitud.check_deposito_ve_at)) : '—'} />
+          {solicitud.check_deposito_ve_at && (
+            <Row label="Tiempo de respuesta total" value={formatearTiempoRespuesta(solicitud.created_at, solicitud.check_deposito_ve_at)} />
+          )}
+          {!!operadorNombre && (
+            <View style={styles.operadorFila}>
+              <Row label="Operador de Perú asignado" value={operadorNombre} />
+              {enlaceWhatsAppOperador && (
+                <Pressable onPress={contactarOperador}>
+                  <Text style={styles.contactarOperadorTexto}>Contactar por WhatsApp</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
           <Row label="C.I." value={solicitud.beneficiario_ci ?? '—'} />
           <Row label="Teléfono beneficiario" value={solicitud.beneficiario_telefono ?? '—'} />
           <Row label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[solicitud.tipo_transferencia]} />
@@ -190,31 +222,33 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
   headerTextos: { flex: 1, marginRight: 8 },
-  fecha: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  beneficiario: { color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 2 },
-  monto: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 2 },
-  chevron: { color: colors.textMuted, fontSize: 11 },
+  fecha: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  beneficiario: { color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 2 },
+  monto: { color: colors.accent, fontSize: 15, fontWeight: '700', marginTop: 2 },
+  chevron: { color: colors.textMuted, fontSize: 13 },
   detalle: { borderTopWidth: 1, borderTopColor: colors.border, padding: 14, gap: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 6 },
-  rowLabel: { color: colors.textMuted, fontSize: 12 },
-  rowValue: { color: colors.text, fontSize: 12, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  operadorFila: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  contactarOperadorTexto: { color: colors.success, fontSize: 14, fontWeight: '700' },
+  rowLabel: { color: colors.textMuted, fontSize: 14 },
+  rowValue: { color: colors.text, fontSize: 14, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
   checkCol: { alignItems: 'center', gap: 4, flex: 1 },
   checkDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.border },
   checkDotHecho: { backgroundColor: colors.success, borderColor: colors.success },
-  checkLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '600', textAlign: 'center' },
-  checkHora: { color: colors.textMuted, fontSize: 9 },
+  checkLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  checkHora: { color: colors.textMuted, fontSize: 10 },
   confirmacionBloque: { marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
   enRevisionBloque: { gap: 10, alignItems: 'center' },
-  enRevisionTexto: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  enRevisionTexto: { color: colors.accent, fontSize: 14, fontWeight: '700', textAlign: 'center' },
   imagenToggle: { backgroundColor: colors.cardAlt, borderRadius: radius.sm, padding: 10, marginTop: 4 },
-  imagenToggleTexto: { color: colors.accent, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  imagenToggleTexto: { color: colors.accent, fontSize: 14, fontWeight: '700', textAlign: 'center' },
   comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },
   accionesRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   descargarBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, alignItems: 'center' },
-  descargarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  descargarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
   whatsappBtn: { flex: 1, backgroundColor: colors.success, borderRadius: radius.sm, padding: 10, alignItems: 'center' },
-  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 14 },
   verDetalleBtn: { marginTop: 10, alignItems: 'center' },
-  verDetalleBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 12 },
+  verDetalleBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
 });

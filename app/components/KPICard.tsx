@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 5,
   },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  value: { color: colors.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
-  sub: { color: colors.accent, fontSize: 11, fontWeight: '600' },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  value: { color: colors.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.3 },
+  sub: { color: colors.accent, fontSize: 13, fontWeight: '600' },
 });

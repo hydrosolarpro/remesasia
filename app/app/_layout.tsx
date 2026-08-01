@@ -20,6 +20,11 @@ export default function RootLayout() {
           <View style={[styles.shell, Platform.OS === 'web' ? webShellShadow : null]}>
             <Stack
               screenOptions={{
+                // Este header nunca se renderiza en la práctica: todas las
+                // pantallas hijas lo tapan con headerShown:false y usan su
+                // propio header (Tabs de cada sesión, con su propia altura
+                // para las banderas x3). native-stack tampoco permite
+                // `height` en headerStyle (solo backgroundColor).
                 headerStyle: { backgroundColor: colors.card },
                 headerTintColor: colors.text,
                 headerTitle: () => <BannerTitle />,

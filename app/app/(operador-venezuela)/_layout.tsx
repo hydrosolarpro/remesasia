@@ -41,7 +41,9 @@ export default function OperadorVenezuelaLayout() {
     <AccesoNegocioGate operadorPeruId={operadorPeruId} rolParaAviso="operador_venezuela">
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: colors.card },
+        // 104px: banderas x3 (66x45) + PlanBadge apilado debajo necesitan más
+        // aire que el header nativo por default (44/56), que las recortaba.
+        headerStyle: { backgroundColor: colors.card, height: 104 },
         headerTintColor: colors.text,
         headerTitle: () => <BannerTitle />,
         headerRight: () => (

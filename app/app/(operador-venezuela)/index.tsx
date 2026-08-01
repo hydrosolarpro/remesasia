@@ -94,5 +94,5 @@ export default function PanelOperadorVenezuela() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  aviso: { color: colors.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  aviso: { color: colors.textMuted, fontSize: 16, textAlign: 'center', lineHeight: 20 },
 });

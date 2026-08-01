@@ -38,13 +38,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   textos: { flex: 1 },
-  label: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  value: { color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 1 },
+  label: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  value: { color: colors.text, fontSize: 17, fontWeight: '700', marginTop: 1 },
   boton: {
     backgroundColor: colors.cardAlt,
     borderRadius: radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  botonTexto: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  botonTexto: { color: colors.accent, fontSize: 14, fontWeight: '700' },
 });

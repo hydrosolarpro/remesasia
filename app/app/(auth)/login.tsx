@@ -66,9 +66,9 @@ function GoogleIcon() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: 24, justifyContent: 'center', gap: 8 },
-  title: { color: colors.text, fontSize: 26, fontWeight: '800' },
-  subtitle: { color: colors.textMuted, fontSize: 14, marginBottom: 48 },
-  error: { color: colors.danger, marginBottom: 12, fontSize: 13 },
+  title: { color: colors.text, fontSize: 30, fontWeight: '800' },
+  subtitle: { color: colors.textMuted, fontSize: 16, marginBottom: 48 },
+  error: { color: colors.danger, marginBottom: 12, fontSize: 15 },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -78,5 +78,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 16,
   },
-  buttonText: { color: '#1F1F1F', fontWeight: '700', fontSize: 16 },
+  buttonText: { color: '#1F1F1F', fontWeight: '700', fontSize: 18 },
 });

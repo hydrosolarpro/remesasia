@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   chipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
-  chipTexto: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  chipTexto: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   chipTextoActivo: { color: colors.text },
   camposRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   campo: {
@@ -157,9 +157,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardAlt,
   },
   campoActivo: { borderColor: colors.primary },
-  campoTexto: { color: colors.text, fontSize: 13, fontWeight: '700', textTransform: 'capitalize' },
-  campoPlaceholder: { color: colors.textMuted, fontSize: 13 },
-  campoIcono: { fontSize: 13, marginLeft: 6 },
+  campoTexto: { color: colors.text, fontSize: 15, fontWeight: '700', textTransform: 'capitalize' },
+  campoPlaceholder: { color: colors.textMuted, fontSize: 15 },
+  campoIcono: { fontSize: 15, marginLeft: 6 },
   panel: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
   },
   boton: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
   botonDeshabilitado: { opacity: 0.4 },
-  botonTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
+  botonTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
 });

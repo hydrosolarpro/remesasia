@@ -96,9 +96,9 @@ export default function Invitacion() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: 24, justifyContent: 'center', alignItems: 'center', gap: 8 },
-  titulo: { color: colors.text, fontSize: 20, fontWeight: '800', textAlign: 'center', marginTop: 16 },
-  subtitulo: { color: colors.textMuted, fontSize: 14, textAlign: 'center', marginBottom: 24 },
-  error: { color: colors.danger, fontSize: 13, textAlign: 'center', marginBottom: 12 },
+  titulo: { color: colors.text, fontSize: 23, fontWeight: '800', textAlign: 'center', marginTop: 16 },
+  subtitulo: { color: colors.textMuted, fontSize: 16, textAlign: 'center', marginBottom: 24 },
+  error: { color: colors.danger, fontSize: 15, textAlign: 'center', marginBottom: 12 },
   button: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 16, paddingHorizontal: 32, alignItems: 'center' },
-  buttonText: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  buttonText: { color: colors.text, fontWeight: '700', fontSize: 18 },
 });

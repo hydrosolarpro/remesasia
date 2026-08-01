@@ -30,5 +30,5 @@ const styles = StyleSheet.create({
     gap: 6,
     maxWidth: 420,
   },
-  titulo: { color: colors.text, fontSize: 16, fontWeight: '800', textAlign: 'center', lineHeight: 22 },
+  titulo: { color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'center', lineHeight: 22 },
 });

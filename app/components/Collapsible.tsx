@@ -39,8 +39,8 @@ const styles = StyleSheet.create({
   wrap: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: colors.cardAlt },
   headerTextos: { flex: 1, gap: 1 },
-  titulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  subtitulo: { color: colors.textMuted, fontSize: 12 },
-  flecha: { color: colors.textMuted, fontSize: 11, fontWeight: '800' },
+  titulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  subtitulo: { color: colors.textMuted, fontSize: 14 },
+  flecha: { color: colors.textMuted, fontSize: 13, fontWeight: '800' },
   contenido: { padding: 12, gap: 8, borderTopWidth: 1, borderTopColor: colors.border },
 });

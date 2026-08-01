@@ -20,7 +20,7 @@ export function TabBarIcon({
 }) {
   return (
     <View style={[styles.wrap, focused && styles.wrapActivo]}>
-      <Text style={{ fontSize: 18, color: peligro ? colors.danger : color }}>{emoji}</Text>
+      <Text style={{ fontSize: 21, color: peligro ? colors.danger : color }}>{emoji}</Text>
     </View>
   );
 }

@@ -40,8 +40,8 @@ export function BannerTitle() {
 export function BannerFlags() {
   return (
     <View style={styles.flagsWrap}>
-      <FlagPeru width={22} height={15} />
-      <FlagVenezuela width={22} height={15} />
+      <FlagPeru width={66} height={45} />
+      <FlagVenezuela width={66} height={45} />
     </View>
   );
 }
@@ -49,15 +49,15 @@ export function BannerFlags() {
 const styles = StyleSheet.create({
   title: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
   reloj: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
     marginTop: 1,
   },
-  flagsWrap: { flexDirection: 'row', gap: 10, paddingRight: 16, alignItems: 'center' },
+  flagsWrap: { flexDirection: 'row', gap: 8, paddingRight: 12, alignItems: 'center' },
 });

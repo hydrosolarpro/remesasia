@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
+import { Collapsible } from '../../components/Collapsible';
 
 interface MiembroEditable {
   id: string;
@@ -132,6 +133,16 @@ export default function Perfil() {
       <Text style={styles.nombre}>{usuario.nombre}</Text>
       <Text style={styles.email}>{usuario.email}</Text>
 
+      {/* Datos del Operador principal de Perú: solo lectura, siempre primero */}
+      {principal && (
+        <View style={[styles.card, cardShadow]}>
+          <Text style={styles.cardTitulo}>OPERADOR PRINCIPAL DE PERÚ</Text>
+          <Text style={styles.miembroNombre}>{principal.nombre}</Text>
+          <Text style={styles.miembroDato}>{principal.email}</Text>
+          <Text style={styles.miembroDato}>{principal.telefono ?? 'Sin teléfono'}</Text>
+        </View>
+      )}
+
       {/* Sus propios datos: nombre, correo y teléfono editables */}
       {veRow && (
         <View style={[styles.card, cardShadow]}>
@@ -192,7 +203,7 @@ export default function Perfil() {
           <Text style={styles.cardTexto}>Todavía no tienes operadores de Perú asignados.</Text>
         ) : (
           equipo.map((m) => (
-            <View key={m.id} style={styles.miembroFila}>
+            <Collapsible key={m.id} titulo={m.nombre || 'Operador de Perú'} subtitulo={m.email || 'Sin correo'}>
               <Text style={styles.label}>Nombre</Text>
               <TextInput
                 style={styles.input}
@@ -225,21 +236,12 @@ export default function Perfil() {
                   <Text style={styles.guardarBtnTexto}>Guardar datos de {m.nombre.trim() || 'este operador'}</Text>
                 )}
               </Pressable>
-            </View>
+            </Collapsible>
           ))
         )}
         {mensajeVe && <Text style={styles.mensaje}>{mensajeVe}</Text>}
       </View>
 
-      {/* Datos del Operador principal de Perú: solo lectura */}
-      {principal && (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>OPERADOR PRINCIPAL DE PERÚ</Text>
-          <Text style={styles.miembroNombre}>{principal.nombre}</Text>
-          <Text style={styles.miembroDato}>{principal.email}</Text>
-          <Text style={styles.miembroDato}>{principal.telefono ?? 'Sin teléfono'}</Text>
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -247,29 +249,28 @@ export default function Perfil() {
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 24, gap: 12 },
-  rolTitulo: { color: colors.accent, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  nombre: { color: colors.text, fontSize: 22, fontWeight: '800' },
-  email: { color: colors.textMuted, fontSize: 14, marginTop: -8 },
-  telefono: { color: colors.textMuted, fontSize: 14, marginBottom: 4 },
+  rolTitulo: { color: colors.accent, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  nombre: { color: colors.text, fontSize: 25, fontWeight: '800' },
+  email: { color: colors.textMuted, fontSize: 16, marginTop: -8 },
+  telefono: { color: colors.textMuted, fontSize: 16, marginBottom: 4 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
-  cardTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  cardTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 8 },
+  cardTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  cardTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 8 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     padding: 12,
     color: colors.text,
-    fontSize: 15,
+    fontSize: 17,
     marginTop: 5,
     backgroundColor: colors.cardAlt,
   },
-  error: { color: colors.danger, fontSize: 13, marginTop: 6 },
-  mensaje: { color: colors.success, fontSize: 13, marginTop: 6 },
+  error: { color: colors.danger, fontSize: 15, marginTop: 6 },
+  mensaje: { color: colors.success, fontSize: 15, marginTop: 6 },
   guardarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 12 },
-  guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
-  miembroFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4 },
-  miembroNombre: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  miembroDato: { color: colors.textMuted, fontSize: 12 },
+  guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  miembroNombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  miembroDato: { color: colors.textMuted, fontSize: 14 },
 });
