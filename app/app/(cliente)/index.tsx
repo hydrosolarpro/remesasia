@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -58,6 +58,11 @@ export default function InicioCliente() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mostrarExito, setMostrarExito] = useState(false);
+  // Guarda sincrónica contra doble envío: `enviando` (estado de React) no
+  // alcanza a re-renderizar el botón a tiempo si el usuario vuelve a tocar
+  // "Enviar solicitud" muy rápido (p.ej. mientras la subida del
+  // comprobante tarda) -- eso generaba solicitudes duplicadas.
+  const enviandoRef = useRef(false);
 
   const negocioId = usuario?.negocio_operador_peru_id ?? null;
 
@@ -147,21 +152,36 @@ export default function InicioCliente() {
   };
 
   const enviarSolicitud = async () => {
+    // Bloqueo sincrónico: se revisa y marca ANTES de cualquier `await`, así
+    // que un segundo toque casi simultáneo (antes de que React re-renderice
+    // el botón con `disabled`) no alcanza a colarse.
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     setError(null);
     if (!usuario || !negocioId || !tasa || !conversion) {
       setError('Ingresa un monto válido.');
+      enviandoRef.current = false;
       return;
     }
     if (!beneficiarioNombre.trim() || !beneficiarioCi.trim() || !beneficiarioBanco.trim() || !beneficiarioCuenta.trim()) {
       setError('Completa los datos del beneficiario en Venezuela.');
+      enviandoRef.current = false;
       return;
     }
     if (!comprobanteUri) {
       setError('Sube la imagen de tu depósito.');
+      enviandoRef.current = false;
       return;
     }
 
     setEnviando(true);
+    // Si algo falla DESPUÉS de crear la fila (subida del comprobante o el
+    // update posterior), se borra ese intento fallido antes de mostrar el
+    // error -- así un reintento con el mismo formulario no genera OTRA
+    // solicitud duplicada (la fila solo se sube a storage en
+    // `comprobantes/<id de la solicitud>/...`, así que primero hace falta
+    // el id: no se puede subir antes de insertar).
+    let solicitudCreadaId: string | null = null;
     try {
       const { data: solicitud, error: insertError } = await supabase
         .from('solicitudes')
@@ -186,13 +206,19 @@ export default function InicioCliente() {
         .select()
         .single();
       if (insertError || !solicitud) throw insertError ?? new Error('No se pudo crear la solicitud.');
+      solicitudCreadaId = solicitud.id;
 
       const path = `${solicitud.id}/comprobante-cliente.${comprobanteExt}`;
       const blob = await (await fetch(comprobanteUri)).blob();
       const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
-      await supabase.from('solicitudes').update({ comprobante_pago_url: publicUrl.publicUrl }).eq('id', solicitud.id);
+      const { error: updateError } = await supabase
+        .from('solicitudes')
+        .update({ comprobante_pago_url: publicUrl.publicUrl })
+        .eq('id', solicitud.id);
+      if (updateError) throw updateError;
+      solicitudCreadaId = null; // Completa: ya no hay nada que revertir.
 
       if (guardarCuenta) {
         await supabase.from('cuentas_utilizadas_cliente').upsert(
@@ -213,9 +239,13 @@ export default function InicioCliente() {
       setComprobanteUri(null);
       setMostrarExito(true);
     } catch (err) {
+      if (solicitudCreadaId) {
+        await supabase.rpc('cancelar_solicitud_fallida', { p_solicitud_id: solicitudCreadaId });
+      }
       setError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.');
     } finally {
       setEnviando(false);
+      enviandoRef.current = false;
     }
   };
 
