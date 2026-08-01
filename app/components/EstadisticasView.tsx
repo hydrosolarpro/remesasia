@@ -505,8 +505,8 @@ export function EstadisticasView({
 
 function ResumenItem({ label, valor, destacado }: { label: string; valor: string; destacado?: boolean }) {
   return (
-    <View style={{ alignItems: 'center' }}>
-      <Text style={styles.resumenLabel}>{label}</Text>
+    <View style={styles.resumenItemBox}>
+      <Text style={styles.resumenLabel} numberOfLines={1}>{label}</Text>
       <Text style={[styles.resumenValor, destacado && { color: colors.accent }]}>{valor}</Text>
     </View>
   );
@@ -517,7 +517,8 @@ const styles = StyleSheet.create({
   titulo: { color: colors.text, fontSize: 20, fontWeight: '800' },
   resumen: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 10 },
   resumenPeriodo: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  resumenFila: { flexDirection: 'row', justifyContent: 'space-around' },
+  resumenFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  resumenItemBox: { alignItems: 'center', minWidth: 90, flexGrow: 1 },
   resumenLabel: { color: colors.textMuted, fontSize: 11 },
   resumenValor: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 2 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
@@ -534,9 +535,9 @@ const styles = StyleSheet.create({
   excelDetalleBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 12 },
   desgloseSubtitulo: { color: colors.textMuted, fontSize: 11, fontWeight: '700', marginTop: 10, marginBottom: 4 },
   desgloseSubtituloVe: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
-  desgloseFila: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 3 },
-  desgloseNombre: { color: colors.text, fontSize: 12, fontWeight: '600', flex: 1 },
-  desgloseValor: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  desgloseFila: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, paddingVertical: 3 },
+  desgloseNombre: { color: colors.text, fontSize: 12, fontWeight: '600', flex: 1, minWidth: 80 },
+  desgloseValor: { color: colors.accent, fontSize: 12, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
   pdfBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   pdfBtnTexto: { color: colors.text, fontWeight: '700' },
   vacio: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic', textAlign: 'center' },

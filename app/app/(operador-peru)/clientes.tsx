@@ -339,7 +339,7 @@ export default function ClientesRegistrados() {
               return (
                 <Pressable key={m.id} style={[styles.miembroOpcion, seleccionado && styles.miembroOpcionActivo]} onPress={() => setDerivandoMiembroId(m.id)}>
                   <Text style={[styles.miembroOpcionNombre, seleccionado && { color: colors.text }]}>{m.nombre}</Text>
-                  <Text style={styles.miembroOpcionDato}>{m.email}</Text>
+                  <Text style={styles.miembroOpcionDato} numberOfLines={1}>{m.email}</Text>
                   {seleccionado && <Text style={styles.miembroOpcionCheck}>✓</Text>}
                 </Pressable>
               );
@@ -397,8 +397,8 @@ const styles = StyleSheet.create({
   eliminarBtnTexto: { color: colors.danger, fontSize: 12, fontWeight: '700' },
   derivarBtn: { alignSelf: 'flex-start', marginTop: 8 },
   derivarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10, width: '100%', maxWidth: 420 },
   modalTitulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
   modalTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   miembroOpcion: {

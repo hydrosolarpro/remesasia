@@ -225,7 +225,7 @@ export default function PanelControl() {
                 {op.perfil_negocio?.nombre_negocio ? <Text style={styles.negocio}>{op.perfil_negocio.nombre_negocio}</Text> : null}
                 <Text style={styles.dato}>{op.email ?? 'Sin correo'}</Text>
                 {op.telefono ? (
-                  <Pressable onPress={() => Linking.openURL(`https://wa.me/${op.telefono.replace(/[^0-9]/g, '')}`)}>
+                  <Pressable onPress={() => Linking.openURL(`https://wa.me/${op.telefono!.replace(/[^0-9]/g, '')}`)}>
                     <Text style={[styles.dato, styles.telefonoLink]}>{op.telefono}</Text>
                   </Pressable>
                 ) : (
@@ -353,8 +353,8 @@ const styles = StyleSheet.create({
   titulo: { color: colors.text, fontSize: 20, fontWeight: '800' },
   resumen: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 10 },
   resumenTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  resumenFila: { flexDirection: 'row', justifyContent: 'space-around' },
-  resumenItem: { alignItems: 'center' },
+  resumenFila: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  resumenItem: { alignItems: 'center', minWidth: 100, flexGrow: 1 },
   resumenLabel: { color: colors.textMuted, fontSize: 11 },
   resumenValor: { color: colors.accent, fontSize: 22, fontWeight: '900', marginTop: 2 },
   fila: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 2 },
@@ -374,9 +374,9 @@ const styles = StyleSheet.create({
   planPillStarter: { backgroundColor: `${colors.success}33` },
   planPillPremium: { backgroundColor: `${colors.primary}33` },
   planPillTexto: { color: colors.text, fontSize: 11, fontWeight: '800' },
-  filaRow: { flexDirection: 'row' },
-  filaLeft: { flex: 1, gap: 2, minWidth: 0 },
-  clienteBox: { backgroundColor: colors.cardAlt, borderRadius: radius.md, padding: 14, alignItems: 'center', justifyContent: 'center', marginLeft: 14, minWidth: 120 },
+  filaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  filaLeft: { flex: 1, gap: 2, minWidth: 200 },
+  clienteBox: { backgroundColor: colors.cardAlt, borderRadius: radius.md, padding: 14, alignItems: 'center', justifyContent: 'center', minWidth: 120 },
   clienteNum: { color: colors.accent, fontSize: 36, fontWeight: '900', lineHeight: 42 },
   clienteLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginTop: -2 },
   clienteCupoRow: { flexDirection: 'row', gap: 4, marginTop: 4 },
@@ -384,11 +384,11 @@ const styles = StyleSheet.create({
   clienteCupoLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
   clienteBarraBg: { height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 8, width: '100%', overflow: 'hidden' },
   clienteBarraFill: { height: 4, borderRadius: 2 },
-  checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
-  checkCol: { alignItems: 'center', gap: 6, flex: 1, paddingHorizontal: 4 },
+  checksRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: 10, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  checkCol: { alignItems: 'center', gap: 6, flex: 1, minWidth: 110, paddingHorizontal: 4 },
   checkLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   checkEstado: { color: colors.textMuted, fontSize: 10 },
-  unlimitedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  unlimitedRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
   unlimitedLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   unlimitedInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, color: colors.text, fontSize: 14, backgroundColor: colors.cardAlt, maxWidth: 100 },
   unlimitedBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },

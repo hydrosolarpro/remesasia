@@ -733,8 +733,10 @@ export function PeruDashboardView({
                 const seleccionado = derivandoMiembroId === m.id;
                 return (
                   <Pressable key={m.id} style={[styles.miembroOpcion, seleccionado && styles.miembroOpcionActivo]} onPress={() => setDerivandoMiembroId(m.id)}>
-                    <Text style={[styles.miembroOpcionNombre, seleccionado && { color: colors.text }]}>{m.nombre}</Text>
-                    <Text style={styles.miembroOpcionDato}>{m.email}</Text>
+                    <View style={styles.miembroOpcionDatos}>
+                      <Text style={[styles.miembroOpcionNombre, seleccionado && { color: colors.text }]} numberOfLines={1}>{m.nombre}</Text>
+                      <Text style={styles.miembroOpcionDato} numberOfLines={1}>{m.email}</Text>
+                    </View>
                     {seleccionado && <Text style={styles.miembroOpcionCheck}>✓</Text>}
                   </Pressable>
                 );
@@ -763,7 +765,7 @@ function FinancieroItem({ label, valor, destacado }: { label: string; valor: str
   return (
     <View style={styles.financieroFila}>
       <Text style={styles.resumenLabel}>{label}</Text>
-      <Text style={[styles.resumenValor, destacado && { color: colors.accent }]}>{valor}</Text>
+      <Text style={[styles.resumenValor, styles.resumenValorFlex, destacado && { color: colors.accent }]}>{valor}</Text>
     </View>
   );
 }
@@ -817,7 +819,7 @@ const styles = StyleSheet.create({
   estadoResumenItemAlerta: { borderColor: colors.danger },
   estadoResumenMonto: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
   financieroCard: { gap: 6 },
-  financieroFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  financieroFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 4 },
   seccionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 },
   seccionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   opsToggleRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
@@ -856,8 +858,9 @@ const styles = StyleSheet.create({
   },
   resumenLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
   resumenValor: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10 },
+  resumenValorFlex: { textAlign: 'right' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10, width: '100%', maxWidth: 420 },
   modalTitulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
   modalTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   miembroOpcion: {
@@ -870,7 +873,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   miembroOpcionActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
-  miembroOpcionNombre: { color: colors.text, fontSize: 14, fontWeight: '700', flex: 1 },
+  miembroOpcionDatos: { flex: 1, gap: 2 },
+  miembroOpcionNombre: { color: colors.text, fontSize: 14, fontWeight: '700' },
   miembroOpcionDato: { color: colors.textMuted, fontSize: 11 },
   miembroOpcionCheck: { color: colors.success, fontWeight: '900' },
   modalAcciones: { flexDirection: 'row', gap: 8, marginTop: 12 },

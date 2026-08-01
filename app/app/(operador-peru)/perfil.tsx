@@ -825,8 +825,8 @@ const styles = StyleSheet.create({
   cancelarNuevoBtnTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 13 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10, width: '100%', maxWidth: 420 },
   modalTitulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
   modalTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   miembroOpcion: {
