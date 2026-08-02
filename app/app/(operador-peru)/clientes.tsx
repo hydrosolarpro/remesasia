@@ -28,6 +28,7 @@ export default function ClientesRegistrados() {
 
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
+  const [errorEnlace, setErrorEnlace] = useState<string | null>(null);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [planNegocio, setPlanNegocio] = useState('demo');
   const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
@@ -160,8 +161,10 @@ export default function ClientesRegistrados() {
   useEffect(() => {
     if (!negocioId) return;
     setCargandoEnlace(true);
+    setErrorEnlace(null);
     obtenerOCrearInvitacionCliente(negocioId, miembroId)
       .then((inv) => setEnlaceCliente(construirEnlaceLandingCliente(inv.token)))
+      .catch((err) => setErrorEnlace(err instanceof Error ? err.message : 'No se pudo generar tu enlace de invitación.'))
       .finally(() => setCargandoEnlace(false));
   }, [negocioId, miembroId]);
 
@@ -237,6 +240,8 @@ export default function ClientesRegistrados() {
         <Text style={styles.cardTexto}>Comparte la landing page con tu cliente por WhatsApp.</Text>
         {cargandoEnlace ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
+        ) : errorEnlace ? (
+          <Text style={styles.errorEnlace}>{errorEnlace}</Text>
         ) : (
           <Pressable style={styles.botonWhatsApp} onPress={compartirInvitacionWhatsApp}>
             <Text style={styles.botonWhatsAppTexto}>💬 Compartir por WhatsApp</Text>
@@ -362,6 +367,7 @@ const styles = StyleSheet.create({
   cardTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
   botonWhatsApp: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 6 },
   botonWhatsAppTexto: { color: '#fff', fontWeight: '700', fontSize: 15, textAlign: 'center' },
+  errorEnlace: { color: colors.danger, fontSize: 14, marginTop: 6 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   headerBotones: { flexDirection: 'row', gap: 8 },
   titulo: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 8 },
