@@ -44,6 +44,14 @@ export function construirEnlaceWhatsAppGenerico(telefono: string | null | undefi
   return `https://wa.me/${normalizado}?text=${encodeURIComponent(mensaje)}`;
 }
 
+// Enlace de WhatsApp SIN destinatario fijo: al abrirlo, WhatsApp muestra el
+// selector de contactos del propio operador para que elija a quién
+// reenviar el mensaje -- para invitaciones masivas donde no hay (ni hace
+// falta) un teléfono de destino conocido de antemano.
+export function construirEnlaceWhatsAppSinDestino(mensaje: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+}
+
 // Mensaje de confirmación enviado automáticamente al validar un depósito
 // (tanto el de Perú -> cliente, como el de Venezuela -> beneficiario): el
 // mismo texto para ambos casos, a pedido explícito del negocio.

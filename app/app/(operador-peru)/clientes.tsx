@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/auth';
 import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
-import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { obtenerLimiteClientes } from '../../lib/plan';
 import { Usuario, OperadorPeruMiembro } from '../../types/database';
@@ -29,7 +29,6 @@ export default function ClientesRegistrados() {
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
-  const [telefonoOperador, setTelefonoOperador] = useState<string | null>(null);
   const [planNegocio, setPlanNegocio] = useState('demo');
   const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
   const [derivandoCliente, setDerivandoCliente] = useState<Usuario | null>(null);
@@ -47,12 +46,6 @@ export default function ClientesRegistrados() {
       // -- un miembro de equipo no tiene su propio "plan".
       const { data: principalData } = await supabase.from('usuarios').select('plan').eq('id', ctx.negocioId).maybeSingle();
       if (principalData?.plan) setPlanNegocio(principalData.plan);
-      if (ctx.tipo === 'miembro' && ctx.miembroId) {
-        const { data: m } = await supabase.from('operador_peru_miembro').select('telefono').eq('id', ctx.miembroId).maybeSingle();
-        setTelefonoOperador(m?.telefono ?? null);
-      } else {
-        setTelefonoOperador(usuario.telefono ?? null);
-      }
     });
   }, [usuario]);
 
@@ -174,16 +167,14 @@ export default function ClientesRegistrados() {
 
   // Un solo botón: comparte la landing page (información del servicio) por
   // WhatsApp con un mensaje fijo -- sin mostrar la URL cruda en pantalla ni
-  // botones separados para "ver landing" / "copiar enlace".
+  // botones separados para "ver landing" / "copiar enlace". Sin número de
+  // destino fijo: WhatsApp abre su propio selector de contactos para que
+  // el operador elija a quién reenviarlo, sin depender de tener su
+  // teléfono cargado en el perfil.
   const compartirInvitacionWhatsApp = () => {
     if (!enlaceCliente) return;
     const mensaje = `${MENSAJE_INVITACION_CLIENTE} ${enlaceCliente}`;
-    const enlace = construirEnlaceWhatsAppGenerico(telefonoOperador, mensaje);
-    if (!enlace) {
-      Alert.alert('Sin teléfono', 'Completa tu teléfono en tu perfil para poder enviar la invitación por WhatsApp.');
-      return;
-    }
-    Linking.openURL(enlace);
+    Linking.openURL(construirEnlaceWhatsAppSinDestino(mensaje));
   };
 
   // El buscador solo filtra lo que se ve en pantalla (nombre o teléfono);

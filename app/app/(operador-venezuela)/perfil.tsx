@@ -14,21 +14,19 @@ interface MiembroEditable {
   email: string;
 }
 
-// El Operador Venezuela ve: su teléfono, el equipo de Perú que le fue
-// asignado ("OPERADORES EN PERÚ – EQUIPO") con opción a editar nombre,
-// correo y teléfono (guardando en operador_peru_miembro, por lo que se
-// refleja automáticamente en el perfil del Operador principal de Perú), y
-// los datos del Operador principal de Perú en solo lectura.
+// El Operador Venezuela ve, en solo lectura, los datos del Operador
+// principal de Perú y su % de comisión asignada; y puede editar el equipo
+// de Perú que le fue asignado ("OPERADORES EN PERÚ – EQUIPO": nombre,
+// correo y teléfono, guardando en operador_peru_miembro, por lo que se
+// refleja automáticamente en el perfil del Operador principal de Perú).
 export default function Perfil() {
   const { usuario } = useAuth();
   const [veRow, setVeRow] = useState<OperadorVenezuelaPerfil | null>(null);
   const [principal, setPrincipal] = useState<Usuario | null>(null);
   const [equipo, setEquipo] = useState<MiembroEditable[]>([]);
-  const [guardandoVe, setGuardandoVe] = useState(false);
   const [guardandoMiembroId, setGuardandoMiembroId] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [mensajeVe, setMensajeVe] = useState<string | null>(null);
-  const [guardadoVe, setGuardadoVe] = useState(false);
   const [errorVe, setErrorVe] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,27 +96,6 @@ export default function Perfil() {
     setTimeout(() => setMensajeVe(null), 3000);
   };
 
-  const guardarMisDatos = async () => {
-    if (!veRow) return;
-    setErrorVe(null);
-    setGuardandoVe(true);
-    const { error } = await supabase
-      .from('operador_venezuela_perfil')
-      .update({
-        nombre: veRow.nombre.trim(),
-        telefono: veRow.telefono?.trim() || null,
-        email: veRow.email?.trim().toLowerCase() ?? null,
-      })
-      .eq('id', veRow.id);
-    setGuardandoVe(false);
-    if (error) {
-      setErrorVe(error.message);
-      return;
-    }
-    setGuardadoVe(true);
-    setTimeout(() => setGuardadoVe(false), 2000);
-  };
-
   if (!usuario || cargando) {
     return (
       <View style={styles.center}>
@@ -132,6 +109,7 @@ export default function Perfil() {
       <Text style={styles.rolTitulo}>OPERADOR DE VENEZUELA</Text>
       <Text style={styles.nombre}>{usuario.nombre}</Text>
       <Text style={styles.email}>{usuario.email}</Text>
+      <Text style={styles.telefono}>{usuario.telefono ?? 'Sin teléfono'}</Text>
 
       {/* Datos del Operador principal de Perú: solo lectura, siempre primero */}
       {principal && (
@@ -140,47 +118,6 @@ export default function Perfil() {
           <Text style={styles.miembroNombre}>{principal.nombre}</Text>
           <Text style={styles.miembroDato}>{principal.email}</Text>
           <Text style={styles.miembroDato}>{principal.telefono ?? 'Sin teléfono'}</Text>
-        </View>
-      )}
-
-      {/* Sus propios datos: nombre, correo y teléfono editables */}
-      {veRow && (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>Mis datos</Text>
-          <Text style={styles.cardTexto}>Estos cambios se actualizan automáticamente en el perfil del Operador principal de Perú.</Text>
-          <Text style={styles.label}>Nombre</Text>
-          <TextInput
-            style={styles.input}
-            value={veRow.nombre}
-            onChangeText={(t) => setVeRow({ ...veRow, nombre: t })}
-            placeholderTextColor={colors.textMuted}
-          />
-          <Text style={styles.label}>Correo</Text>
-          <TextInput
-            style={styles.input}
-            value={veRow.email ?? ''}
-            onChangeText={(t) => setVeRow({ ...veRow, email: t })}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor={colors.textMuted}
-          />
-          <Text style={styles.label}>Teléfono</Text>
-          <TextInput
-            style={styles.input}
-            value={veRow.telefono ?? ''}
-            onChangeText={(t) => setVeRow({ ...veRow, telefono: t })}
-            keyboardType="phone-pad"
-            placeholder="+58 999 999 999"
-            placeholderTextColor={colors.textMuted}
-          />
-          {errorVe && <Text style={styles.error}>{errorVe}</Text>}
-          <Pressable style={styles.guardarBtn} onPress={guardarMisDatos} disabled={guardandoVe}>
-            {guardandoVe ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <Text style={styles.guardarBtnTexto}>{guardadoVe ? '✓ Guardado' : 'Guardar mis datos'}</Text>
-            )}
-          </Pressable>
         </View>
       )}
 
@@ -239,6 +176,7 @@ export default function Perfil() {
             </Collapsible>
           ))
         )}
+        {errorVe && <Text style={styles.error}>{errorVe}</Text>}
         {mensajeVe && <Text style={styles.mensaje}>{mensajeVe}</Text>}
       </View>
 

@@ -18,6 +18,7 @@ import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
 import { PlanesInfo } from '../../components/PlanesInfo';
 import { Collapsible } from '../../components/Collapsible';
+import { ClientesMiembroList } from '../../components/ClientesMiembroList';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
@@ -36,6 +37,9 @@ export default function Perfil() {
   const [veList, setVeList] = useState<OperadorVenezuelaPerfil[]>([]);
   const [peList, setPeList] = useState<OperadorPeruMiembro[]>([]);
   const [clientesPorMiembro, setClientesPorMiembro] = useState<Record<string, number>>({});
+  // Filas completas (no solo el conteo) para desplegar la lista de clientes
+  // de cada miembro dentro de su tarjeta -- ver ClientesMiembroList.
+  const [clientesNegocio, setClientesNegocio] = useState<Usuario[]>([]);
 
   const [agregandoVe, setAgregandoVe] = useState(false);
   const [veNombre, setVeNombre] = useState('');
@@ -54,14 +58,8 @@ export default function Perfil() {
   // Asignación de miembros de Perú a cada Operador de Venezuela
   const [asignandoVe, setAsignandoVe] = useState<OperadorVenezuelaPerfil | null>(null);
 
-  // Miembro de Perú: sus propios datos editables
+  // Miembro de Perú: su % de comisión (asignado por el principal, solo lectura acá)
   const [miembroRow, setMiembroRow] = useState<OperadorPeruMiembro | null>(null);
-  const [miNombre, setMiNombre] = useState('');
-  const [miTelefono, setMiTelefono] = useState('');
-  const [miEmail, setMiEmail] = useState('');
-  const [guardandoMi, setGuardandoMi] = useState(false);
-  const [errorMi, setErrorMi] = useState<string | null>(null);
-  const [guardadoMi, setGuardadoMi] = useState(false);
   // VE asignado al miembro (se muestra solo lectura)
   const [miVe, setMiVe] = useState<OperadorVenezuelaPerfil | null>(null);
 
@@ -97,15 +95,18 @@ export default function Perfil() {
       supabase.from('operador_peru_miembro').select('*').eq('operador_peru_id', negocioIdParam).order('created_at', { ascending: true }),
       supabase
         .from('usuarios')
-        .select('invitado_por_operador_miembro_id')
+        .select('*')
         .eq('rol', 'cliente')
         .eq('negocio_operador_peru_id', negocioIdParam)
-        .is('eliminado_at', null),
+        .is('eliminado_at', null)
+        .order('created_at', { ascending: false }),
     ]);
     setVeList((veResult.data as OperadorVenezuelaPerfil[] | null) ?? []);
     setPeList((peResult.data as OperadorPeruMiembro[] | null) ?? []);
+    const clientes = (clientesResult.data as Usuario[] | null) ?? [];
+    setClientesNegocio(clientes);
     const conteo: Record<string, number> = {};
-    (clientesResult.data ?? []).forEach((c) => {
+    clientes.forEach((c) => {
       if (c.invitado_por_operador_miembro_id) {
         conteo[c.invitado_por_operador_miembro_id] = (conteo[c.invitado_por_operador_miembro_id] ?? 0) + 1;
       }
@@ -117,9 +118,6 @@ export default function Perfil() {
     const { data: m } = await supabase.from('operador_peru_miembro').select('*').eq('id', miembroIdParam).maybeSingle();
     if (m) {
       setMiembroRow(m as OperadorPeruMiembro);
-      setMiNombre(m.nombre);
-      setMiTelefono(m.telefono ?? '');
-      setMiEmail(m.email ?? '');
       if (m.operador_venezuela_id) {
         const { data: ve } = await supabase
           .from('operador_venezuela_perfil')
@@ -136,31 +134,6 @@ export default function Perfil() {
   useEffect(() => {
     cargarContexto();
   }, [cargarContexto]);
-
-  const guardarMiembro = async () => {
-    if (!miembroId) return;
-    setErrorMi(null);
-    if (!miNombre.trim() || !miEmail.trim()) {
-      setErrorMi('Completa el nombre y el correo.');
-      return;
-    }
-    setGuardandoMi(true);
-    const { error } = await supabase
-      .from('operador_peru_miembro')
-      .update({
-        nombre: miNombre.trim(),
-        telefono: miTelefono.trim() || null,
-        email: miEmail.trim().toLowerCase(),
-      })
-      .eq('id', miembroId);
-    setGuardandoMi(false);
-    if (error) {
-      setErrorMi(error.message);
-      return;
-    }
-    setGuardadoMi(true);
-    setTimeout(() => setGuardadoMi(false), 2000);
-  };
 
   // El vínculo a la sesión real se hace por correo (ver
   // vincular_cuenta_pendiente): si esta fila ya estaba vinculada
@@ -339,35 +312,15 @@ export default function Perfil() {
             </View>
           )}
 
-          {/* Sus propios datos: editables y guardables */}
-          <View style={[styles.card, cardShadow]}>
-            <Text style={styles.cardTitulo}>Mis datos</Text>
-            <Text style={styles.cardTexto}>Estos cambios se actualizan automáticamente en la sesión del Operador principal de Perú.</Text>
-            <Text style={styles.label}>Nombre</Text>
-            <TextInput style={styles.input} value={miNombre} onChangeText={setMiNombre} placeholderTextColor={colors.textMuted} />
-            <Text style={styles.label}>Correo</Text>
-            <TextInput
-              style={styles.input}
-              value={miEmail}
-              onChangeText={setMiEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor={colors.textMuted}
-            />
-            <Text style={styles.label}>Teléfono</Text>
-            <TextInput
-              style={styles.input}
-              value={miTelefono}
-              onChangeText={setMiTelefono}
-              keyboardType="phone-pad"
-              placeholder="+51 999 999 999"
-              placeholderTextColor={colors.textMuted}
-            />
-            {errorMi && <Text style={styles.error}>{errorMi}</Text>}
-            <Pressable style={styles.guardarBtn} onPress={guardarMiembro} disabled={guardandoMi}>
-              {guardandoMi ? <ActivityIndicator color={colors.text} /> : <Text style={styles.guardarBtnTexto}>{guardadoMi ? '✓ Guardado' : 'Guardar mis datos'}</Text>}
-            </Pressable>
-          </View>
+          {/* Operador de Venezuela asignado a este miembro: solo lectura. */}
+          {miVe && (
+            <View style={[styles.card, cardShadow]}>
+              <Text style={styles.cardTitulo}>OPERADOR DE VENEZUELA ASIGNADO</Text>
+              <Text style={styles.miembroNombre}>{miVe.nombre}</Text>
+              <Text style={styles.miembroDato}>{miVe.email}</Text>
+              <Text style={styles.miembroDato}>{miVe.telefono ?? 'Sin teléfono'}</Text>
+            </View>
+          )}
 
           {/* % de comisión: lo asigna el Operador principal, acá solo se ve. */}
           <View style={[styles.card, cardShadow]}>
@@ -582,10 +535,6 @@ export default function Perfil() {
                   keyboardType="decimal-pad"
                   placeholderTextColor={colors.textMuted}
                 />
-                <View style={styles.clientesContador}>
-                  <Text style={styles.clientesContadorValor}>{clientesPorMiembro[p.id] ?? 0}</Text>
-                  <Text style={styles.clientesContadorLabel}>clientes</Text>
-                </View>
                 <Text style={styles.asignadoVe}>{veAsignado ? `Asignado a: ${veAsignado.nombre}` : 'Sin Operador de Venezuela asignado'}</Text>
                 <Pressable
                   style={styles.whatsappBtn}
@@ -593,6 +542,15 @@ export default function Perfil() {
                 >
                   <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
                 </Pressable>
+
+                <Collapsible titulo={`Clientes (${clientesPorMiembro[p.id] ?? 0})`}>
+                  <ClientesMiembroList
+                    miembro={p}
+                    clientes={clientesNegocio.filter((c) => c.invitado_por_operador_miembro_id === p.id)}
+                    miembros={peList}
+                    onDerivado={() => negocioId && cargarEquipos(negocioId)}
+                  />
+                </Collapsible>
               </Collapsible>
             );
           })}
@@ -617,16 +575,6 @@ export default function Perfil() {
             />
           )}
         </Collapsible>
-      )}
-
-      {!esPrincipal && miVe && (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>OPERADORES EN VENEZUELA - EQUIPO</Text>
-          <Text style={styles.cardTexto}>Operador de Venezuela asignado a tu sesión por el Operador principal de Perú:</Text>
-          <Text style={styles.miembroNombre}>{miVe.nombre}</Text>
-          <Text style={styles.miembroDato}>{miVe.email}</Text>
-          <Text style={styles.miembroDato}>{miVe.telefono ?? 'Sin teléfono'}</Text>
-        </View>
       )}
 
       {esPrincipal && (
@@ -810,9 +758,6 @@ const styles = StyleSheet.create({
   filaBotonesFinales: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
   whatsappBtn: { alignSelf: 'flex-start', marginTop: 8 },
   whatsappBtnTexto: { color: colors.success, fontWeight: '700', fontSize: 15 },
-  clientesContador: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 6 },
-  clientesContadorValor: { color: colors.text, fontSize: 30, fontWeight: '900' },
-  clientesContadorLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   asignadoVe: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic', marginTop: 2 },
   agregarBtn: { marginTop: 10, alignSelf: 'flex-start' },
   agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
