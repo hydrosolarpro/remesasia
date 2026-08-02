@@ -59,8 +59,14 @@ export default function ClientesRegistrados() {
       .eq('rol', 'cliente')
       .eq('negocio_operador_peru_id', negocioId)
       .is('eliminado_at', null);
-    // Un miembro de Perú solo ve los clientes que él mismo invitó.
-    if (!esPrincipal && miembroId) {
+    if (esPrincipal) {
+      // Los clientes de un miembro de Perú ya no se listan acá -- viven en
+      // Perfil, dentro de la tarjeta de ese operador (ver
+      // ClientesMiembroList). Esta pantalla solo muestra los clientes que
+      // el principal invitó directamente.
+      query = query.is('invitado_por_operador_miembro_id', null);
+    } else if (miembroId) {
+      // Un miembro de Perú solo ve los clientes que él mismo invitó.
       query = query.eq('invitado_por_operador_miembro_id', miembroId);
     }
     query.order('created_at', { ascending: false }).then(({ data }) => {

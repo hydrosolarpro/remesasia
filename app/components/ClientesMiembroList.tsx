@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, Alert, ActivityIndicator } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { generarYCompartirExcel } from '../lib/excelReporte';
+import { generarYCompartirPdf } from '../lib/pdfReporte';
 import { Usuario, OperadorPeruMiembro } from '../types/database';
 import { colors, radius } from '../constants/theme';
 
 // Lista de clientes de UN operador de Perú miembro, para uso del Operador
 // principal dentro de Perfil (ver perfil.tsx, sección "OPERADORES EN
-// PERÚ"). Reutiliza el mismo RPC `derivar_cliente` que ya usa
-// app/(operador-peru)/clientes.tsx -- acá solo cambia dónde vive la UI (por
-// operador, no en una lista única) y que solo ofrece Excel (sin PDF).
+// PERÚ"). Reutiliza el mismo RPC `derivar_cliente` y los mismos
+// generadores de Excel/PDF que ya usa app/(operador-peru)/clientes.tsx --
+// acá solo cambia dónde vive la UI (por operador, no en una lista única).
 export function ClientesMiembroList({
   miembro,
   clientes,
@@ -22,13 +23,14 @@ export function ClientesMiembroList({
   miembros: OperadorPeruMiembro[];
   onDerivado: () => void;
 }) {
-  const [exportando, setExportando] = useState(false);
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
   const [derivando, setDerivando] = useState<Usuario | null>(null);
   const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   const exportarExcel = async () => {
-    setExportando(true);
+    setExportandoExcel(true);
     try {
       const filas = clientes.map((c) => ({
         Nombre: c.nombre,
@@ -39,7 +41,35 @@ export function ClientesMiembroList({
       }));
       await generarYCompartirExcel(`clientes-${miembro.nombre}`, 'Clientes', filas);
     } finally {
-      setExportando(false);
+      setExportandoExcel(false);
+    }
+  };
+
+  const exportarPdf = async () => {
+    setExportandoPdf(true);
+    try {
+      const filas = clientes
+        .map(
+          (c) => `<tr>
+            <td>${c.nombre}</td>
+            <td>${c.email ?? '—'}</td>
+            <td>${c.telefono ?? '—'}</td>
+            <td>${c.pais ?? '—'}</td>
+            <td>${new Date(c.created_at).toLocaleDateString('es-PE')}</td>
+          </tr>`
+        )
+        .join('');
+
+      await generarYCompartirPdf(
+        `Clientes de ${miembro.nombre}`,
+        `${clientes.length} clientes`,
+        `<table>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>País</th><th>Registrado</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>`
+      );
+    } finally {
+      setExportandoPdf(false);
     }
   };
 
@@ -71,9 +101,14 @@ export function ClientesMiembroList({
         <Text style={styles.vacio}>Todavía no tiene clientes registrados.</Text>
       ) : (
         <>
-          <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportando}>
-            {exportando ? <ActivityIndicator color="#fff" /> : <Text style={styles.excelBtnTexto}>Descargar Excel</Text>}
-          </Pressable>
+          <View style={styles.exportRow}>
+            <Pressable style={styles.excelBtn} onPress={exportarExcel} disabled={exportandoExcel}>
+              {exportandoExcel ? <ActivityIndicator color="#fff" /> : <Text style={styles.excelBtnTexto}>Excel</Text>}
+            </Pressable>
+            <Pressable style={styles.pdfBtn} onPress={exportarPdf} disabled={exportandoPdf}>
+              {exportandoPdf ? <ActivityIndicator color={colors.text} /> : <Text style={styles.pdfBtnTexto}>PDF</Text>}
+            </Pressable>
+          </View>
           {clientes.map((c) => (
             <View key={c.id} style={styles.clienteFila}>
               <View style={styles.clienteDatos}>
@@ -139,8 +174,11 @@ export function ClientesMiembroList({
 const styles = StyleSheet.create({
   container: { gap: 8 },
   vacio: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic' },
-  excelBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingVertical: 10, alignItems: 'center' },
+  exportRow: { flexDirection: 'row', gap: 8 },
+  excelBtn: { flex: 1, backgroundColor: colors.success, borderRadius: radius.sm, paddingVertical: 10, alignItems: 'center' },
   excelBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  pdfBtn: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.sm, paddingVertical: 10, alignItems: 'center' },
+  pdfBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
   clienteFila: {
     flexDirection: 'row',
     justifyContent: 'space-between',
