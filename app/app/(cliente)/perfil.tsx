@@ -25,24 +25,35 @@ export default function Perfil() {
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
   const [conectandoTelegram, setConectandoTelegram] = useState(false);
-  const [operador, setOperador] = useState<{ nombre: string; telefono: string | null } | null>(null);
+  const [operador, setOperador] = useState<{ nombre: string; telefono: string | null; email: string | null } | null>(null);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
   }, [usuario]);
 
-  // Contacto de soporte: el operador principal de Perú del negocio al que
-  // pertenece el cliente (no hay un registro de "quién lo atendió" a nivel
-  // general, así que se usa el dueño del negocio como contacto por defecto).
+  // Operador de Perú que atiende a este cliente: si lo invitó un miembro de
+  // Perú, es ese miembro (operador_peru_miembro); si lo invitó el negocio
+  // directamente, es el Operador principal (usuarios). Reemplaza el antiguo
+  // "Contacto de soporte", que siempre mostraba al principal sin importar
+  // quién invitó realmente al cliente.
   useEffect(() => {
     if (!usuario?.negocio_operador_peru_id) return;
-    supabase
-      .from('usuarios')
-      .select('nombre, telefono')
-      .eq('id', usuario.negocio_operador_peru_id)
-      .maybeSingle()
-      .then(({ data }) => setOperador(data));
-  }, [usuario?.negocio_operador_peru_id]);
+    if (usuario.invitado_por_operador_miembro_id) {
+      supabase
+        .from('operador_peru_miembro')
+        .select('nombre, telefono, email')
+        .eq('id', usuario.invitado_por_operador_miembro_id)
+        .maybeSingle()
+        .then(({ data }) => setOperador(data));
+    } else {
+      supabase
+        .from('usuarios')
+        .select('nombre, telefono, email')
+        .eq('id', usuario.negocio_operador_peru_id)
+        .maybeSingle()
+        .then(({ data }) => setOperador(data));
+    }
+  }, [usuario?.negocio_operador_peru_id, usuario?.invitado_por_operador_miembro_id]);
 
   const enlaceWhatsAppOperador = operador
     ? construirEnlaceWhatsAppGenerico(operador.telefono, 'Hola, necesito ayuda con una solicitud en Remesas PERU-VENEZUELA.')
@@ -160,6 +171,26 @@ export default function Perfil() {
         <Text style={styles.buttonOutlineText}>Editar mis datos</Text>
       </Pressable>
 
+      <View style={styles.contactoCard}>
+        <Text style={styles.telegramTitulo}>Tu operador de Perú</Text>
+        {operador ? (
+          <>
+            <Text style={styles.operadorNombre}>{operador.nombre}</Text>
+            <Text style={styles.operadorDato}>{operador.email ?? 'Sin correo'}</Text>
+            <Text style={styles.operadorDato}>{operador.telefono ?? 'Sin teléfono'}</Text>
+            {enlaceWhatsAppOperador && (
+              <Pressable style={styles.whatsappBtn} onPress={contactarOperador}>
+                <Text style={styles.whatsappBtnTexto} numberOfLines={2}>
+                  Enviar WhatsApp a {operador.nombre}
+                </Text>
+              </Pressable>
+            )}
+          </>
+        ) : (
+          <ActivityIndicator color={colors.primary} />
+        )}
+      </View>
+
       <View style={styles.telegramCard}>
         <Text style={styles.telegramTitulo}>Notificaciones por Telegram</Text>
         {usuario?.telegram_connected ? (
@@ -171,23 +202,6 @@ export default function Perfil() {
               {conectandoTelegram ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.buttonOutlineText}>Conectar Telegram</Text>}
             </Pressable>
           </>
-        )}
-      </View>
-
-      <View style={styles.contactoCard}>
-        <Text style={styles.telegramTitulo}>Contacto de soporte</Text>
-        <Text style={styles.telegramDato}>
-          Para resolver situaciones que no puedan resolverse con el flujo de trabajo en el aplicativo, comunícate directamente
-          {operador?.nombre ? ` con ${operador.nombre}` : ' con tu operador'}.
-        </Text>
-        {enlaceWhatsAppOperador ? (
-          <Pressable style={styles.whatsappBtn} onPress={contactarOperador}>
-            <Text style={styles.whatsappBtnTexto} numberOfLines={2}>
-              Enviar WhatsApp{operador?.nombre ? ` a ${operador.nombre}` : ''}
-            </Text>
-          </Pressable>
-        ) : (
-          <Text style={styles.telegramDato}>Aún no hay un teléfono de contacto configurado.</Text>
         )}
       </View>
     </ScrollView>
@@ -221,6 +235,8 @@ const styles = StyleSheet.create({
   telegramTitulo: { color: colors.text, fontSize: 17, fontWeight: '700', flexShrink: 1, flexWrap: 'wrap' },
   telegramDato: { color: colors.textMuted, fontSize: 15, flexShrink: 1, flexWrap: 'wrap' },
   contactoCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 10, marginTop: 8 },
+  operadorNombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  operadorDato: { color: colors.textMuted, fontSize: 14 },
   whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.md, padding: 14, alignItems: 'center' },
   whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 16, textAlign: 'center', flexShrink: 1, flexWrap: 'wrap' },
 });

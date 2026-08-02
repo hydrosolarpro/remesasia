@@ -319,6 +319,16 @@ export default function Perfil() {
               <Text style={styles.miembroNombre}>{miVe.nombre}</Text>
               <Text style={styles.miembroDato}>{miVe.email}</Text>
               <Text style={styles.miembroDato}>{miVe.telefono ?? 'Sin teléfono'}</Text>
+              {(() => {
+                const enlace = construirEnlaceWhatsAppGenerico(miVe.telefono, `Hola ${miVe.nombre}, te escribo por Remesas PERU-VENEZUELA.`);
+                return (
+                  enlace && (
+                    <Pressable style={styles.whatsappBtn} onPress={() => Linking.openURL(enlace)}>
+                      <Text style={styles.whatsappBtnTexto}>💬 Contactar por WhatsApp</Text>
+                    </Pressable>
+                  )
+                );
+              })()}
             </View>
           )}
 
