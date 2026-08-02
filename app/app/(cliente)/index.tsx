@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { calcularConversion } from '../../lib/tasaCalculo';
+import { calcularConversion, calcularConversionInversa, divisaAVes } from '../../lib/tasaCalculo';
 import { obtenerTasaBcv } from '../../lib/bcv';
 import { formatearBs } from '../../lib/formato';
 import { CopyField } from '../../components/CopyField';
@@ -44,6 +44,12 @@ export default function InicioCliente() {
   const [cuentasGuardadas, setCuentasGuardadas] = useState<CuentaUtilizadaCliente[]>([]);
 
   const [montoPen, setMontoPen] = useState('');
+  // Convertidor de Divisas (antes una pestaña independiente, ahora una
+  // etapa previa de Nueva Solicitud): solo guarda lo que el usuario tipeó
+  // en USD/EUR -- el resultado en Soles se escribe directo en `montoPen`,
+  // el mismo estado que ya usan el resto de procesos de esta pantalla.
+  const [monedaConvertidor, setMonedaConvertidor] = useState<'usd' | 'eur'>('usd');
+  const [montoConvertidor, setMontoConvertidor] = useState('');
   const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
   const [beneficiarioNombre, setBeneficiarioNombre] = useState('');
   const [beneficiarioTelefono, setBeneficiarioTelefono] = useState('');
@@ -119,6 +125,21 @@ export default function InicioCliente() {
 
   const equivalenteUsd = conversion && bcv ? conversion.montoVes / bcv.usd_ves : null;
   const equivalenteEur = conversion && bcv ? conversion.montoVes / bcv.eur_ves : null;
+
+  const xVesConvertidor = bcv ? (monedaConvertidor === 'usd' ? bcv.usd_ves : bcv.eur_ves) : null;
+  const conversionDivisaPen = useMemo(() => {
+    const montoDivisa = Number(montoConvertidor.replace(',', '.'));
+    if (!tasa || !xVesConvertidor || !Number.isFinite(montoDivisa) || montoDivisa <= 0) return null;
+    const ves = divisaAVes(montoDivisa, xVesConvertidor);
+    return calcularConversionInversa(ves, tasa.tasa_pen_ves);
+  }, [montoConvertidor, tasa, xVesConvertidor]);
+
+  // Al convertir USD/EUR el resultado en Soles se carga automáticamente en
+  // Nueva Solicitud -- sin esto el usuario tendría que volver a tipear el
+  // monto ya convertido en el campo de arriba.
+  useEffect(() => {
+    if (conversionDivisaPen !== null) setMontoPen(String(conversionDivisaPen));
+  }, [conversionDivisaPen]);
 
   const elegirCuentaGuardada = (cuenta: CuentaUtilizadaCliente) => {
     setCuentaSeleccionadaId(cuenta.id);
@@ -338,6 +359,40 @@ export default function InicioCliente() {
         )}
       </View>
 
+      <View style={[styles.card, cardShadow]}>
+        <Text style={styles.seccionTitulo}>Convertidor de Divisas</Text>
+        <Text style={styles.nuevaSolicitudTexto}>¿Tienes Dólares o Euros? Conviértelos a Soles y se cargan solos arriba.</Text>
+        <View style={styles.convChipsRow}>
+          {(['usd', 'eur'] as const).map((m) => (
+            <Pressable
+              key={m}
+              style={[styles.convChip, monedaConvertidor === m && styles.convChipActivo]}
+              onPress={() => setMonedaConvertidor(m)}
+            >
+              <Text style={[styles.convChipTexto, monedaConvertidor === m && styles.convChipTextoActivo]}>
+                {m === 'usd' ? 'Dólar' : 'Euro'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <TextInput
+          style={styles.montoInput}
+          value={montoConvertidor}
+          onChangeText={setMontoConvertidor}
+          keyboardType="decimal-pad"
+          placeholder="0.00"
+          placeholderTextColor={colors.textMuted}
+        />
+        <Text style={styles.montoLabel}>Monto en {monedaConvertidor === 'usd' ? 'Dólares' : 'Euros'}</Text>
+        {conversionDivisaPen !== null ? (
+          <View style={styles.resultado}>
+            <Text style={styles.resultadoBs}>S/ {conversionDivisaPen.toFixed(2)}</Text>
+          </View>
+        ) : (
+          !bcv && <Text style={styles.montoLabel}>No se pudo cargar la tasa BCV en este momento.</Text>
+        )}
+      </View>
+
       {conversion && (
         <>
           <View style={[styles.card, cardShadow]}>
@@ -524,6 +579,11 @@ const styles = StyleSheet.create({
   chipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
   chipTexto: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   chipTextoActivo: { color: colors.text },
+  convChipsRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  convChip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: 18 },
+  convChipActivo: { borderColor: colors.accent, backgroundColor: `${colors.accent}22` },
+  convChipTexto: { color: colors.textMuted, fontSize: 15, fontWeight: '700' },
+  convChipTextoActivo: { color: colors.accent },
   label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 10 },
   input: {
     borderWidth: 1,

@@ -15,7 +15,6 @@ const ICONO = {
   index: '🏠',
   solicitudes: '📋',
   'cuentas-utilizadas': '💳',
-  conversor: '💱',
   estadisticas: '📊',
   perfil: '👤',
 };
@@ -119,13 +118,6 @@ export default function ClienteLayout() {
           options={{
             title: 'Mis cuentas',
             tabBarIcon: ({ color, focused }) => <TabIcon nombre="cuentas-utilizadas" color={color} focused={focused} />,
-          }}
-        />
-        <Tabs.Screen
-          name="conversor"
-          options={{
-            title: 'Conversor',
-            tabBarIcon: ({ color, focused }) => <TabIcon nombre="conversor" color={color} focused={focused} />,
           }}
         />
         <Tabs.Screen
