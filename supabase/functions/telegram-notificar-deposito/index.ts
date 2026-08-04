@@ -88,12 +88,15 @@ async function notificarCliente(supabase: any, solicitud: any) {
 
 // deno-lint-ignore no-explicit-any
 async function chatIdBeneficiario(supabase: any, solicitud: any): Promise<string | null> {
+  // Desde la Fase C, Telegram se vincula por beneficiario (persona, en
+  // beneficiarios_cliente) y no por cuenta bancaria específica -- un mismo
+  // beneficiario con varias cuentas comparte el mismo chat_id sin importar
+  // cuál cuenta se usó en esta solicitud.
   const { data: beneficiario } = await supabase
-    .from('cuentas_utilizadas_cliente')
+    .from('beneficiarios_cliente')
     .select('telegram_chat_id, telegram_connected')
     .eq('cliente_id', solicitud.cliente_id)
     .eq('ci', solicitud.beneficiario_ci)
-    .eq('numero_cuenta', solicitud.beneficiario_cuenta)
     .maybeSingle();
   return beneficiario?.telegram_connected && beneficiario.telegram_chat_id ? beneficiario.telegram_chat_id : null;
 }

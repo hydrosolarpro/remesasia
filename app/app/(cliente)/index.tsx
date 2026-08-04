@@ -27,9 +27,12 @@ import {
   TasaBcv,
   PerfilNegocio,
   CuentaBancariaOperador,
-  CuentaUtilizadaCliente,
+  BeneficiarioCliente,
+  BeneficiarioCuentaBancaria,
   MetodoPago,
 } from '../../types/database';
+
+type BeneficiarioConCuentas = BeneficiarioCliente & { cuentas: BeneficiarioCuentaBancaria[] };
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function InicioCliente() {
@@ -41,7 +44,7 @@ export default function InicioCliente() {
   const [perfil, setPerfil] = useState<PerfilNegocio | null>(null);
   const [nombreOperador, setNombreOperador] = useState('');
   const [cuentasOperador, setCuentasOperador] = useState<CuentaBancariaOperador[]>([]);
-  const [cuentasGuardadas, setCuentasGuardadas] = useState<CuentaUtilizadaCliente[]>([]);
+  const [beneficiariosGuardados, setBeneficiariosGuardados] = useState<BeneficiarioConCuentas[]>([]);
 
   const [montoPen, setMontoPen] = useState('');
   // Convertidor de Divisas (antes una pestaña independiente, ahora una
@@ -50,6 +53,7 @@ export default function InicioCliente() {
   // el mismo estado que ya usan el resto de procesos de esta pantalla.
   const [monedaConvertidor, setMonedaConvertidor] = useState<'usd' | 'eur'>('usd');
   const [montoConvertidor, setMontoConvertidor] = useState('');
+  const [beneficiarioSeleccionadoId, setBeneficiarioSeleccionadoId] = useState<string | null>(null);
   const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
   const [beneficiarioNombre, setBeneficiarioNombre] = useState('');
   const [beneficiarioTelefono, setBeneficiarioTelefono] = useState('');
@@ -94,14 +98,18 @@ export default function InicioCliente() {
         .maybeSingle(),
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', negocioId).maybeSingle(),
       supabase.from('cuentas_bancarias_operador').select('*').eq('operador_peru_id', negocioId),
-      supabase.from('cuentas_utilizadas_cliente').select('*').eq('cliente_id', usuario.id).order('created_at', { ascending: false }),
+      supabase
+        .from('beneficiarios_cliente')
+        .select('*, cuentas:beneficiario_cuentas_bancarias(*)')
+        .eq('cliente_id', usuario.id)
+        .order('created_at', { ascending: false }),
     ]);
 
     setNombreOperador(operadorRow?.nombre ?? '');
     setTasa(tasaData as Tasa | null);
     setPerfil(perfilData as PerfilNegocio | null);
     setCuentasOperador((cuentasData as CuentaBancariaOperador[] | null) ?? []);
-    setCuentasGuardadas((guardadasData as CuentaUtilizadaCliente[] | null) ?? []);
+    setBeneficiariosGuardados((guardadasData as BeneficiarioConCuentas[] | null) ?? []);
     setCargando(false);
   }, [usuario, negocioId]);
 
@@ -141,16 +149,32 @@ export default function InicioCliente() {
     if (conversionDivisaPen !== null) setMontoPen(String(conversionDivisaPen));
   }, [conversionDivisaPen]);
 
-  const elegirCuentaGuardada = (cuenta: CuentaUtilizadaCliente) => {
+  // Elegir beneficiario: si tiene una sola cuenta, se autocompleta todo de
+  // una vez; si tiene varias, el cliente elige la cuenta específica en el
+  // segundo selector que aparece debajo (ver JSX).
+  const elegirBeneficiario = (b: BeneficiarioConCuentas) => {
+    setBeneficiarioSeleccionadoId(b.id);
+    setBeneficiarioNombre(b.nombre);
+    setBeneficiarioCi(b.ci);
+    if (b.cuentas.length === 1) {
+      elegirCuentaGuardada(b.cuentas[0]);
+    } else {
+      setCuentaSeleccionadaId(null);
+      setBeneficiarioTelefono('');
+      setBeneficiarioBanco('');
+      setBeneficiarioCuenta('');
+    }
+  };
+
+  const elegirCuentaGuardada = (cuenta: BeneficiarioCuentaBancaria) => {
     setCuentaSeleccionadaId(cuenta.id);
-    setBeneficiarioNombre(cuenta.nombre_beneficiario);
     setBeneficiarioTelefono(cuenta.telefono ?? '');
-    setBeneficiarioCi(cuenta.ci);
     setBeneficiarioBanco(cuenta.entidad_bancaria);
     setBeneficiarioCuenta(cuenta.numero_cuenta);
   };
 
   const limpiarBeneficiario = () => {
+    setBeneficiarioSeleccionadoId(null);
     setCuentaSeleccionadaId(null);
     setBeneficiarioNombre('');
     setBeneficiarioTelefono('');
@@ -158,6 +182,8 @@ export default function InicioCliente() {
     setBeneficiarioBanco('');
     setBeneficiarioCuenta('');
   };
+
+  const beneficiarioSeleccionado = beneficiariosGuardados.find((b) => b.id === beneficiarioSeleccionadoId) ?? null;
 
   const elegirComprobante = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -245,17 +271,29 @@ export default function InicioCliente() {
       solicitudCreadaId = null; // Completa: ya no hay nada que revertir.
 
       if (guardarCuenta) {
-        await supabase.from('cuentas_utilizadas_cliente').upsert(
-          {
-            cliente_id: usuario.id,
-            nombre_beneficiario: beneficiarioNombre.trim(),
-            telefono: beneficiarioTelefono.trim() || null,
-            ci: beneficiarioCi.trim(),
-            entidad_bancaria: beneficiarioBanco.trim(),
-            numero_cuenta: beneficiarioCuenta.trim(),
-          },
-          { onConflict: 'cliente_id,ci,numero_cuenta' }
-        );
+        // Fase C: 1 beneficiario (por CI) puede tener varias cuentas
+        // bancarias -- primero se guarda/actualiza la persona, luego la
+        // cuenta específica usada en esta solicitud, dentro de ese
+        // beneficiario.
+        const { data: beneficiarioGuardado } = await supabase
+          .from('beneficiarios_cliente')
+          .upsert(
+            { cliente_id: usuario.id, nombre: beneficiarioNombre.trim(), ci: beneficiarioCi.trim() },
+            { onConflict: 'cliente_id,ci' }
+          )
+          .select()
+          .single();
+        if (beneficiarioGuardado) {
+          await supabase.from('beneficiario_cuentas_bancarias').upsert(
+            {
+              beneficiario_id: beneficiarioGuardado.id,
+              entidad_bancaria: beneficiarioBanco.trim(),
+              numero_cuenta: beneficiarioCuenta.trim(),
+              telefono: beneficiarioTelefono.trim() || null,
+            },
+            { onConflict: 'beneficiario_id,entidad_bancaria,numero_cuenta' }
+          );
+        }
       }
 
       setMontoPen('');
@@ -398,16 +436,16 @@ export default function InicioCliente() {
           <View style={[styles.card, cardShadow]}>
             <Text style={styles.seccionTitulo}>¿Quién recibe en Venezuela?</Text>
 
-            {cuentasGuardadas.length > 0 && (
+            {beneficiariosGuardados.length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-                {cuentasGuardadas.map((c) => (
+                {beneficiariosGuardados.map((b) => (
                   <Pressable
-                    key={c.id}
-                    style={[styles.chip, cuentaSeleccionadaId === c.id && styles.chipActivo]}
-                    onPress={() => elegirCuentaGuardada(c)}
+                    key={b.id}
+                    style={[styles.chip, beneficiarioSeleccionadoId === b.id && styles.chipActivo]}
+                    onPress={() => elegirBeneficiario(b)}
                   >
-                    <Text style={[styles.chipTexto, cuentaSeleccionadaId === c.id && styles.chipTextoActivo]} numberOfLines={1}>
-                      {c.nombre_beneficiario}
+                    <Text style={[styles.chipTexto, beneficiarioSeleccionadoId === b.id && styles.chipTextoActivo]} numberOfLines={1}>
+                      {b.nombre}
                     </Text>
                   </Pressable>
                 ))}
@@ -415,6 +453,25 @@ export default function InicioCliente() {
                   <Text style={styles.chipTexto}>+ Nuevo</Text>
                 </Pressable>
               </ScrollView>
+            )}
+
+            {beneficiarioSeleccionado && beneficiarioSeleccionado.cuentas.length > 1 && (
+              <>
+                <Text style={styles.label}>¿Con cuál cuenta de {beneficiarioSeleccionado.nombre}?</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+                  {beneficiarioSeleccionado.cuentas.map((c) => (
+                    <Pressable
+                      key={c.id}
+                      style={[styles.chip, cuentaSeleccionadaId === c.id && styles.chipActivo]}
+                      onPress={() => elegirCuentaGuardada(c)}
+                    >
+                      <Text style={[styles.chipTexto, cuentaSeleccionadaId === c.id && styles.chipTextoActivo]} numberOfLines={1}>
+                        {c.entidad_bancaria} · {c.numero_cuenta}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </>
             )}
 
             <Field label="Nombre completo" value={beneficiarioNombre} onChangeText={setBeneficiarioNombre} />

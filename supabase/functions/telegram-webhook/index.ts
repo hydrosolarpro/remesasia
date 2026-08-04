@@ -61,8 +61,11 @@ Deno.serve(async (req) => {
         .update({ telegram_chat_id: chatIdTexto, telegram_username: username, telegram_connected: true })
         .eq('id', tokenRow.target_id);
     } else {
+      // El beneficiario (persona) vive en beneficiarios_cliente desde la
+      // Fase C -- puede tener varias cuentas bancarias, pero Telegram se
+      // vincula una sola vez por persona, no por cuenta.
       await supabase
-        .from('cuentas_utilizadas_cliente')
+        .from('beneficiarios_cliente')
         .update({
           telegram_chat_id: chatIdTexto,
           telegram_username: username,

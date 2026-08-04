@@ -4,15 +4,17 @@ import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { CuentaUtilizadaCliente } from '../../types/database';
+import { BeneficiarioCliente, BeneficiarioCuentaBancaria } from '../../types/database';
 import { construirEnlaceWhatsApp } from '../../lib/whatsapp';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
-type Form = Omit<
-  CuentaUtilizadaCliente,
-  'id' | 'cliente_id' | 'created_at' | 'telegram_chat_id' | 'telegram_username' | 'telegram_connected' | 'telegram_connected_at'
->;
-const FORM_VACIO: Form = { nombre_beneficiario: '', telefono: '', ci: '', entidad_bancaria: '', numero_cuenta: '' };
+type BeneficiarioConCuentas = BeneficiarioCliente & { cuentas: BeneficiarioCuentaBancaria[] };
+
+type FormBeneficiario = { nombre: string; ci: string };
+const FORM_BENEFICIARIO_VACIO: FormBeneficiario = { nombre: '', ci: '' };
+
+type FormCuenta = { entidad_bancaria: string; numero_cuenta: string; telefono: string };
+const FORM_CUENTA_VACIO: FormCuenta = { entidad_bancaria: '', numero_cuenta: '', telefono: '' };
 
 const BOT_TELEGRAM = 'Remesaspv_bot';
 
@@ -20,29 +22,41 @@ const mensajeInvitacionTelegram = (nombreBeneficiario: string, enlace: string) =
   `Hola ${nombreBeneficiario}. Te envío este enlace seguro para que puedas recibir las notificaciones de las transferencia que te envié, ` +
   `por favor vincula tu Telegram mediante este enlace: ${enlace} Pulsa Start para hacer efectiva la vinculación de notificaciones.`;
 
-// CRUD de "Datos de cuentas utilizados": beneficiarios guardados por el
-// cliente para no volver a llenarlos cada vez (se usan como autocompletado
-// en la calculadora, ver (cliente)/index.tsx).
+// CRUD de beneficiarios guardados por el cliente (Fase C: cada beneficiario
+// puede tener varias cuentas bancarias, ya que puede recibir dinero por
+// distintas entidades). Se usan como autocompletado en la calculadora,
+// ver (cliente)/index.tsx.
 export default function CuentasUtilizadas() {
   const { usuario } = useAuth();
-  const [cuentas, setCuentas] = useState<CuentaUtilizadaCliente[]>([]);
-  const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [form, setForm] = useState<Form>(FORM_VACIO);
-  const [mostrarForm, setMostrarForm] = useState(false);
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [beneficiarios, setBeneficiarios] = useState<BeneficiarioConCuentas[]>([]);
+  const [cargando, setCargando] = useState(true);
+
+  const [editandoBeneficiarioId, setEditandoBeneficiarioId] = useState<string | null>(null);
+  const [formBeneficiario, setFormBeneficiario] = useState<FormBeneficiario>(FORM_BENEFICIARIO_VACIO);
+  const [mostrarFormNuevoBeneficiario, setMostrarFormNuevoBeneficiario] = useState(false);
+  const [guardandoBeneficiario, setGuardandoBeneficiario] = useState(false);
+  const [errorBeneficiario, setErrorBeneficiario] = useState<string | null>(null);
+
+  const [agregandoCuentaEnId, setAgregandoCuentaEnId] = useState<string | null>(null);
+  const [editandoCuentaId, setEditandoCuentaId] = useState<string | null>(null);
+  const [formCuenta, setFormCuenta] = useState<FormCuenta>(FORM_CUENTA_VACIO);
+  const [guardandoCuenta, setGuardandoCuenta] = useState(false);
+  const [errorCuenta, setErrorCuenta] = useState<string | null>(null);
+
   const [generandoTelegramId, setGenerandoTelegramId] = useState<string | null>(null);
   const [enlacesTelegram, setEnlacesTelegram] = useState<Record<string, string>>({});
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
+    setCargando(true);
     const { data } = await supabase
-      .from('cuentas_utilizadas_cliente')
-      .select('*')
+      .from('beneficiarios_cliente')
+      .select('*, cuentas:beneficiario_cuentas_bancarias(*)')
       .eq('cliente_id', usuario.id)
       .order('created_at', { ascending: false });
-    setCuentas((data as CuentaUtilizadaCliente[] | null) ?? []);
+    setBeneficiarios((data as BeneficiarioConCuentas[] | null) ?? []);
+    setCargando(false);
   }, [usuario]);
 
   useFocusEffect(
@@ -51,56 +65,45 @@ export default function CuentasUtilizadas() {
     }, [cargar])
   );
 
-  const abrirNueva = () => {
-    setEditandoId(null);
-    setForm(FORM_VACIO);
-    setMostrarForm(true);
+  // ── Beneficiario ──────────────────────────────────────────
+  const abrirNuevoBeneficiario = () => {
+    setEditandoBeneficiarioId(null);
+    setFormBeneficiario(FORM_BENEFICIARIO_VACIO);
+    setMostrarFormNuevoBeneficiario(true);
   };
 
-  const abrirEdicion = (c: CuentaUtilizadaCliente) => {
-    setEditandoId(c.id);
-    setForm({
-      nombre_beneficiario: c.nombre_beneficiario,
-      telefono: c.telefono,
-      ci: c.ci,
-      entidad_bancaria: c.entidad_bancaria,
-      numero_cuenta: c.numero_cuenta,
-    });
-    setMostrarForm(true);
+  const abrirEdicionBeneficiario = (b: BeneficiarioConCuentas) => {
+    setEditandoBeneficiarioId(b.id);
+    setFormBeneficiario({ nombre: b.nombre, ci: b.ci });
+    setMostrarFormNuevoBeneficiario(false);
   };
 
-  const guardar = async () => {
-    setError(null);
-    if (!usuario || !form.nombre_beneficiario.trim() || !form.ci.trim() || !form.entidad_bancaria.trim() || !form.numero_cuenta.trim()) {
-      setError('Completa nombre, C.I., entidad y número de cuenta.');
+  const guardarBeneficiario = async () => {
+    setErrorBeneficiario(null);
+    if (!usuario || !formBeneficiario.nombre.trim() || !formBeneficiario.ci.trim()) {
+      setErrorBeneficiario('Completa nombre y C.I.');
       return;
     }
-    setGuardando(true);
-    const payload = {
-      cliente_id: usuario.id,
-      nombre_beneficiario: form.nombre_beneficiario.trim(),
-      telefono: form.telefono?.trim() || null,
-      ci: form.ci.trim(),
-      entidad_bancaria: form.entidad_bancaria.trim(),
-      numero_cuenta: form.numero_cuenta.trim(),
-    };
+    setGuardandoBeneficiario(true);
+    const payload = { cliente_id: usuario.id, nombre: formBeneficiario.nombre.trim(), ci: formBeneficiario.ci.trim() };
 
-    const { error: guardarError } = editandoId
-      ? await supabase.from('cuentas_utilizadas_cliente').update(payload).eq('id', editandoId)
-      : await supabase.from('cuentas_utilizadas_cliente').upsert(payload, { onConflict: 'cliente_id,ci,numero_cuenta' });
+    const { error } = editandoBeneficiarioId
+      ? await supabase.from('beneficiarios_cliente').update(payload).eq('id', editandoBeneficiarioId)
+      : await supabase.from('beneficiarios_cliente').upsert(payload, { onConflict: 'cliente_id,ci' });
 
-    setGuardando(false);
-    if (guardarError) {
-      setError(guardarError.message);
+    setGuardandoBeneficiario(false);
+    if (error) {
+      setErrorBeneficiario(error.message);
       return;
     }
-    setMostrarForm(false);
+    setMostrarFormNuevoBeneficiario(false);
+    setEditandoBeneficiarioId(null);
     cargar();
   };
 
-  const eliminar = (c: CuentaUtilizadaCliente) => {
+  const eliminarBeneficiario = (b: BeneficiarioConCuentas) => {
     const borrar = async () => {
-      const { error } = await supabase.from('cuentas_utilizadas_cliente').delete().eq('id', c.id);
+      const { error } = await supabase.from('beneficiarios_cliente').delete().eq('id', b.id);
       if (error) {
         if (Platform.OS === 'web') window.alert(`No se pudo eliminar: ${error.message}`);
         else Alert.alert('No se pudo eliminar', error.message);
@@ -109,22 +112,90 @@ export default function CuentasUtilizadas() {
       cargar();
     };
 
-    // Alert.alert con varios botones no siempre dispara el onPress en web
-    // (react-native-web lo reduce a un solo confirm); en web se usa
-    // window.confirm directamente para que el botón funcione siempre.
+    const mensaje = `¿Eliminar a ${b.nombre} y todas sus cuentas bancarias guardadas?`;
     if (Platform.OS === 'web') {
-      if (window.confirm(`¿Eliminar los datos de ${c.nombre_beneficiario}?`)) borrar();
+      if (window.confirm(mensaje)) borrar();
       return;
     }
-    Alert.alert('Eliminar cuenta', `¿Eliminar los datos de ${c.nombre_beneficiario}?`, [
+    Alert.alert('Eliminar beneficiario', mensaje, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Eliminar', style: 'destructive', onPress: borrar },
     ]);
   };
 
-  const generarEnlaceTelegram = async (c: CuentaUtilizadaCliente) => {
-    setGenerandoTelegramId(c.id);
-    const { data: token, error: tokenError } = await supabase.rpc('generar_token_telegram_beneficiario', { p_beneficiario_id: c.id });
+  // ── Cuenta bancaria ───────────────────────────────────────
+  const abrirNuevaCuenta = (beneficiarioId: string) => {
+    setAgregandoCuentaEnId(beneficiarioId);
+    setEditandoCuentaId(null);
+    setFormCuenta(FORM_CUENTA_VACIO);
+    setErrorCuenta(null);
+  };
+
+  const abrirEdicionCuenta = (beneficiarioId: string, c: BeneficiarioCuentaBancaria) => {
+    setAgregandoCuentaEnId(beneficiarioId);
+    setEditandoCuentaId(c.id);
+    setFormCuenta({ entidad_bancaria: c.entidad_bancaria, numero_cuenta: c.numero_cuenta, telefono: c.telefono ?? '' });
+    setErrorCuenta(null);
+  };
+
+  const cerrarFormCuenta = () => {
+    setAgregandoCuentaEnId(null);
+    setEditandoCuentaId(null);
+  };
+
+  const guardarCuenta = async (beneficiarioId: string) => {
+    setErrorCuenta(null);
+    if (!formCuenta.entidad_bancaria.trim() || !formCuenta.numero_cuenta.trim()) {
+      setErrorCuenta('Completa entidad y número de cuenta.');
+      return;
+    }
+    setGuardandoCuenta(true);
+    const payload = {
+      beneficiario_id: beneficiarioId,
+      entidad_bancaria: formCuenta.entidad_bancaria.trim(),
+      numero_cuenta: formCuenta.numero_cuenta.trim(),
+      telefono: formCuenta.telefono.trim() || null,
+    };
+
+    const { error } = editandoCuentaId
+      ? await supabase.from('beneficiario_cuentas_bancarias').update(payload).eq('id', editandoCuentaId)
+      : await supabase.from('beneficiario_cuentas_bancarias').insert(payload);
+
+    setGuardandoCuenta(false);
+    if (error) {
+      setErrorCuenta(error.message);
+      return;
+    }
+    cerrarFormCuenta();
+    cargar();
+  };
+
+  const eliminarCuenta = (c: BeneficiarioCuentaBancaria) => {
+    const borrar = async () => {
+      const { error } = await supabase.from('beneficiario_cuentas_bancarias').delete().eq('id', c.id);
+      if (error) {
+        if (Platform.OS === 'web') window.alert(`No se pudo eliminar: ${error.message}`);
+        else Alert.alert('No se pudo eliminar', error.message);
+        return;
+      }
+      cargar();
+    };
+
+    const mensaje = `¿Eliminar la cuenta ${c.entidad_bancaria} · ${c.numero_cuenta}?`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(mensaje)) borrar();
+      return;
+    }
+    Alert.alert('Eliminar cuenta', mensaje, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: borrar },
+    ]);
+  };
+
+  // ── Telegram (vinculado al beneficiario, no a la cuenta) ───
+  const generarEnlaceTelegram = async (b: BeneficiarioConCuentas) => {
+    setGenerandoTelegramId(b.id);
+    const { data: token, error: tokenError } = await supabase.rpc('generar_token_telegram_beneficiario', { p_beneficiario_id: b.id });
     setGenerandoTelegramId(null);
     if (tokenError || !token) {
       const msg = tokenError?.message ?? 'No se pudo generar el enlace.';
@@ -132,7 +203,7 @@ export default function CuentasUtilizadas() {
       else Alert.alert('No se pudo generar el enlace', msg);
       return;
     }
-    setEnlacesTelegram((prev) => ({ ...prev, [c.id]: `https://t.me/${BOT_TELEGRAM}?start=${token}` }));
+    setEnlacesTelegram((prev) => ({ ...prev, [b.id]: `https://t.me/${BOT_TELEGRAM}?start=${token}` }));
   };
 
   const copiarEnlace = async (id: string, enlace: string) => {
@@ -141,10 +212,10 @@ export default function CuentasUtilizadas() {
     setTimeout(() => setCopiadoId((actual) => (actual === id ? null : actual)), 2500);
   };
 
-  const enviarEnlacePorWhatsApp = (c: CuentaUtilizadaCliente, enlace: string) => {
-    const wa = construirEnlaceWhatsApp(c.telefono, mensajeInvitacionTelegram(c.nombre_beneficiario, enlace));
+  const enviarEnlacePorWhatsApp = (b: BeneficiarioConCuentas, telefono: string | null, enlace: string) => {
+    const wa = construirEnlaceWhatsApp(telefono, mensajeInvitacionTelegram(b.nombre, enlace));
     if (!wa) {
-      const msg = 'Agrega el teléfono del beneficiario (con código de país) para poder enviarle el enlace por WhatsApp.';
+      const msg = 'Agrega el teléfono del beneficiario (en alguna de sus cuentas) para poder enviarle el enlace por WhatsApp.';
       if (Platform.OS === 'web') window.alert(msg);
       else Alert.alert('Falta el teléfono', msg);
       return;
@@ -155,66 +226,166 @@ export default function CuentasUtilizadas() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.titulo}>Cuentas de beneficiarios guardadas</Text>
-      <Text style={styles.subtitulo}>Se usan para autocompletar tus solicitudes.</Text>
+      <Text style={styles.subtitulo}>Cada beneficiario puede tener varias cuentas bancarias. Se usan para autocompletar tus solicitudes.</Text>
 
-      {cuentas.map((c) =>
-        mostrarForm && editandoId === c.id ? (
-          <View key={c.id} style={[styles.card, cardShadow]}>
-            <FormularioCuenta form={form} setForm={setForm} error={error} guardando={guardando} onCancelar={() => setMostrarForm(false)} onGuardar={guardar} />
-          </View>
-        ) : (
-          <View key={c.id} style={[styles.card, cardShadow]}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.nombre}>{c.nombre_beneficiario}</Text>
-              <View style={styles.acciones}>
-                <Pressable onPress={() => abrirEdicion(c)}>
-                  <Text style={styles.editar}>Editar</Text>
-                </Pressable>
-                <Pressable onPress={() => eliminar(c)}>
-                  <Text style={styles.eliminar}>Eliminar</Text>
-                </Pressable>
-              </View>
+      {!cargando &&
+        beneficiarios.map((b) =>
+          editandoBeneficiarioId === b.id ? (
+            <View key={b.id} style={[styles.card, cardShadow]}>
+              <FormularioBeneficiario
+                form={formBeneficiario}
+                setForm={setFormBeneficiario}
+                error={errorBeneficiario}
+                guardando={guardandoBeneficiario}
+                onCancelar={() => setEditandoBeneficiarioId(null)}
+                onGuardar={guardarBeneficiario}
+              />
             </View>
-            <Text style={styles.dato}>C.I. {c.ci} · {c.telefono ?? 'sin teléfono'}</Text>
-            <Text style={styles.dato}>{c.entidad_bancaria} · {c.numero_cuenta}</Text>
-
-            <View style={styles.telegramBloque}>
-              <Text style={styles.telegramTitulo}>Configuración de notificaciones del beneficiario</Text>
-              {c.telegram_connected ? (
-                <Text style={styles.telegramConectado}>✓ Telegram vinculado{c.telegram_username ? ` (@${c.telegram_username})` : ''}</Text>
-              ) : enlacesTelegram[c.id] ? (
-                <View style={styles.telegramAcciones}>
-                  <Pressable style={styles.telegramBoton} onPress={() => copiarEnlace(c.id, enlacesTelegram[c.id])}>
-                    <Text style={styles.telegramBotonTexto}>{copiadoId === c.id ? '✓ Copiado' : 'Copiar enlace'}</Text>
+          ) : (
+            <View key={b.id} style={[styles.card, cardShadow]}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.nombre}>{b.nombre}</Text>
+                <View style={styles.acciones}>
+                  <Pressable onPress={() => abrirEdicionBeneficiario(b)}>
+                    <Text style={styles.editar}>Editar</Text>
                   </Pressable>
-                  <Pressable style={styles.telegramBotonWhatsapp} onPress={() => enviarEnlacePorWhatsApp(c, enlacesTelegram[c.id])}>
-                    <Text style={styles.telegramBotonWhatsappTexto}>Enviar por WhatsApp</Text>
+                  <Pressable onPress={() => eliminarBeneficiario(b)}>
+                    <Text style={styles.eliminar}>Eliminar</Text>
                   </Pressable>
                 </View>
+              </View>
+              <Text style={styles.dato}>C.I. {b.ci}</Text>
+
+              <Text style={styles.cuentasTitulo}>Cuentas bancarias</Text>
+              {b.cuentas.length === 0 && agregandoCuentaEnId !== b.id && <Text style={styles.vacioCuentas}>Aún no agregaste ninguna cuenta.</Text>}
+              {b.cuentas.map((c) =>
+                editandoCuentaId === c.id ? (
+                  <View key={c.id} style={styles.cuentaFormBox}>
+                    <FormularioCuenta
+                      form={formCuenta}
+                      setForm={setFormCuenta}
+                      error={errorCuenta}
+                      guardando={guardandoCuenta}
+                      onCancelar={cerrarFormCuenta}
+                      onGuardar={() => guardarCuenta(b.id)}
+                    />
+                  </View>
+                ) : (
+                  <View key={c.id} style={styles.cuentaFila}>
+                    <Text style={styles.cuentaDato} numberOfLines={1}>
+                      {c.entidad_bancaria} · {c.numero_cuenta}
+                      {c.telefono ? ` · ${c.telefono}` : ''}
+                    </Text>
+                    <View style={styles.acciones}>
+                      <Pressable onPress={() => abrirEdicionCuenta(b.id, c)}>
+                        <Text style={styles.editar}>Editar</Text>
+                      </Pressable>
+                      <Pressable onPress={() => eliminarCuenta(c)}>
+                        <Text style={styles.eliminar}>Eliminar</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )
+              )}
+
+              {agregandoCuentaEnId === b.id && editandoCuentaId === null ? (
+                <View style={styles.cuentaFormBox}>
+                  <FormularioCuenta
+                    form={formCuenta}
+                    setForm={setFormCuenta}
+                    error={errorCuenta}
+                    guardando={guardandoCuenta}
+                    onCancelar={cerrarFormCuenta}
+                    onGuardar={() => guardarCuenta(b.id)}
+                  />
+                </View>
               ) : (
-                <Pressable style={styles.telegramBoton} onPress={() => generarEnlaceTelegram(c)} disabled={generandoTelegramId === c.id}>
-                  <Text style={styles.telegramBotonTexto}>
-                    {generandoTelegramId === c.id ? 'Generando…' : 'Vincular Telegram del beneficiario'}
-                  </Text>
+                <Pressable style={styles.agregarCuentaBtn} onPress={() => abrirNuevaCuenta(b.id)}>
+                  <Text style={styles.agregarCuentaBtnTexto}>+ Agregar cuenta</Text>
                 </Pressable>
               )}
+
+              <View style={styles.telegramBloque}>
+                <Text style={styles.telegramTitulo}>Configuración de notificaciones del beneficiario</Text>
+                {b.telegram_connected ? (
+                  <Text style={styles.telegramConectado}>✓ Telegram vinculado{b.telegram_username ? ` (@${b.telegram_username})` : ''}</Text>
+                ) : enlacesTelegram[b.id] ? (
+                  <View style={styles.telegramAcciones}>
+                    <Pressable style={styles.telegramBoton} onPress={() => copiarEnlace(b.id, enlacesTelegram[b.id])}>
+                      <Text style={styles.telegramBotonTexto}>{copiadoId === b.id ? '✓ Copiado' : 'Copiar enlace'}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.telegramBotonWhatsapp}
+                      onPress={() => enviarEnlacePorWhatsApp(b, b.cuentas[0]?.telefono ?? null, enlacesTelegram[b.id])}
+                    >
+                      <Text style={styles.telegramBotonWhatsappTexto}>Enviar por WhatsApp</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable style={styles.telegramBoton} onPress={() => generarEnlaceTelegram(b)} disabled={generandoTelegramId === b.id}>
+                    <Text style={styles.telegramBotonTexto}>
+                      {generandoTelegramId === b.id ? 'Generando…' : 'Vincular Telegram del beneficiario'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
-          </View>
-        )
-      )}
+          )
+        )}
 
-      {cuentas.length === 0 && !mostrarForm && <Text style={styles.vacio}>Aún no guardaste ninguna cuenta.</Text>}
+      {!cargando && beneficiarios.length === 0 && !mostrarFormNuevoBeneficiario && <Text style={styles.vacio}>Aún no guardaste ningún beneficiario.</Text>}
 
-      {mostrarForm && editandoId === null ? (
+      {mostrarFormNuevoBeneficiario ? (
         <View style={[styles.card, cardShadow]}>
-          <FormularioCuenta form={form} setForm={setForm} error={error} guardando={guardando} onCancelar={() => setMostrarForm(false)} onGuardar={guardar} />
+          <FormularioBeneficiario
+            form={formBeneficiario}
+            setForm={setFormBeneficiario}
+            error={errorBeneficiario}
+            guardando={guardandoBeneficiario}
+            onCancelar={() => setMostrarFormNuevoBeneficiario(false)}
+            onGuardar={guardarBeneficiario}
+          />
         </View>
-      ) : !mostrarForm ? (
-        <Pressable style={styles.agregarBtn} onPress={abrirNueva}>
-          <Text style={styles.agregarBtnTexto}>+ Agregar cuenta</Text>
+      ) : (
+        <Pressable style={styles.agregarBtn} onPress={abrirNuevoBeneficiario}>
+          <Text style={styles.agregarBtnTexto}>+ Agregar beneficiario</Text>
         </Pressable>
-      ) : null}
+      )}
     </ScrollView>
+  );
+}
+
+function FormularioBeneficiario({
+  form,
+  setForm,
+  error,
+  guardando,
+  onCancelar,
+  onGuardar,
+}: {
+  form: FormBeneficiario;
+  setForm: (updater: (f: FormBeneficiario) => FormBeneficiario) => void;
+  error: string | null;
+  guardando: boolean;
+  onCancelar: () => void;
+  onGuardar: () => void;
+}) {
+  return (
+    <>
+      <Field label="Nombre completo" value={form.nombre} onChangeText={(v) => setForm((f) => ({ ...f, nombre: v }))} />
+      <Field label="Cédula (C.I.)" value={form.ci} onChangeText={(v) => setForm((f) => ({ ...f, ci: v }))} />
+
+      {error && <Text style={styles.error}>{error}</Text>}
+
+      <View style={styles.formBotones}>
+        <Pressable style={styles.botonCancelar} onPress={onCancelar}>
+          <Text style={styles.botonCancelarTexto}>Cancelar</Text>
+        </Pressable>
+        <Pressable style={styles.botonGuardar} onPress={onGuardar} disabled={guardando}>
+          <Text style={styles.botonGuardarTexto}>{guardando ? 'Guardando…' : 'Guardar'}</Text>
+        </Pressable>
+      </View>
+    </>
   );
 }
 
@@ -226,8 +397,8 @@ function FormularioCuenta({
   onCancelar,
   onGuardar,
 }: {
-  form: Form;
-  setForm: (updater: (f: Form) => Form) => void;
+  form: FormCuenta;
+  setForm: (updater: (f: FormCuenta) => FormCuenta) => void;
   error: string | null;
   guardando: boolean;
   onCancelar: () => void;
@@ -235,11 +406,14 @@ function FormularioCuenta({
 }) {
   return (
     <>
-      <Field label="Nombre completo" value={form.nombre_beneficiario} onChangeText={(v) => setForm((f) => ({ ...f, nombre_beneficiario: v }))} />
-      <Field label="Teléfono" value={form.telefono ?? ''} onChangeText={(v) => setForm((f) => ({ ...f, telefono: v }))} keyboardType="phone-pad" />
-      <Field label="Cédula (C.I.)" value={form.ci} onChangeText={(v) => setForm((f) => ({ ...f, ci: v }))} />
       <Field label="Entidad bancaria" value={form.entidad_bancaria} onChangeText={(v) => setForm((f) => ({ ...f, entidad_bancaria: v }))} />
       <Field label="N° de cuenta" value={form.numero_cuenta} onChangeText={(v) => setForm((f) => ({ ...f, numero_cuenta: v }))} keyboardType="numeric" />
+      <Field
+        label="Teléfono de esta cuenta (opcional)"
+        value={form.telefono}
+        onChangeText={(v) => setForm((f) => ({ ...f, telefono: v }))}
+        keyboardType="phone-pad"
+      />
 
       {error && <Text style={styles.error}>{error}</Text>}
 
@@ -296,6 +470,13 @@ const styles = StyleSheet.create({
   botonGuardarTexto: { color: colors.text, fontWeight: '700' },
   agregarBtn: { borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', borderRadius: radius.md, padding: 16, alignItems: 'center' },
   agregarBtnTexto: { color: colors.accent, fontWeight: '700' },
+  cuentasTitulo: { color: colors.textMuted, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', marginTop: 8 },
+  vacioCuentas: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic' },
+  cuentaFila: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  cuentaDato: { color: colors.text, fontSize: 14, flex: 1, minWidth: 120 },
+  cuentaFormBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, marginTop: 4 },
+  agregarCuentaBtn: { borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', borderRadius: radius.sm, padding: 10, alignItems: 'center', marginTop: 4 },
+  agregarCuentaBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   telegramBloque: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 10, gap: 8 },
   telegramTitulo: { color: colors.textMuted, fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
   telegramConectado: { color: colors.success, fontSize: 14, fontWeight: '700' },

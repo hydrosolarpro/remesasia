@@ -177,6 +177,28 @@ export interface CuentaUtilizadaCliente {
   telegram_connected_at: string | null;
 }
 
+/** Persona (Fase C) -- puede tener varias cuentas bancarias, ver BeneficiarioCuentaBancaria. Telegram se vincula por persona, no por cuenta. */
+export interface BeneficiarioCliente {
+  id: string;
+  cliente_id: string;
+  nombre: string;
+  ci: string;
+  telegram_chat_id: string | null;
+  telegram_username: string | null;
+  telegram_connected: boolean;
+  telegram_connected_at: string | null;
+  created_at: string;
+}
+
+export interface BeneficiarioCuentaBancaria {
+  id: string;
+  beneficiario_id: string;
+  entidad_bancaria: string;
+  numero_cuenta: string;
+  telefono: string | null;
+  created_at: string;
+}
+
 export interface TasaBcv {
   id: string;
   fecha: string;
