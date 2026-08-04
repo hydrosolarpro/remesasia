@@ -176,12 +176,15 @@ export function EstadisticasView({
       ((ops as any[]) ?? []).map((row) => {
         const miembro = row.operador_peru_miembro_id ? miembros.get(row.operador_peru_miembro_id) : null;
         const ve = miembro?.veId ? ves.get(miembro.veId) : null;
+        // Usa el % congelado en la operación (comision_*_pct_aplicada, ver
+        // migración 0060) para que el historial no cambie si el principal
+        // ajusta el % del operador después.
         const ganancia = calcularGananciaOperacion(
           row.monto_pen,
           row.tasa_pen_ves,
           row.tasa_real_compra,
-          (miembro?.comisionPct ?? 0) / 100,
-          (ve?.comisionPct ?? 0) / 100
+          (row.comision_peru_pct_aplicada ?? miembro?.comisionPct ?? 0) / 100,
+          (row.comision_venezuela_pct_aplicada ?? ve?.comisionPct ?? 0) / 100
         );
         return {
           ...row,

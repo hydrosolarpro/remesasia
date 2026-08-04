@@ -344,8 +344,12 @@ export function PeruDashboardView({
       // hay un VE asignado y esa comisión queda en 0.
       const veIdDeLaOp = miembroOp?.operador_venezuela_id ?? null;
       const veOp = veIdDeLaOp ? vePerfiles.find((v) => v.id === veIdDeLaOp) : null;
-      const comisionPeruPct = (miembroOp?.comision_pct ?? 0) / 100;
-      const comisionVePct = (veOp?.comision_pct ?? 0) / 100;
+      // Usa el % congelado en la operación (comision_*_pct_aplicada, ver
+      // migración 0060) para que el historial no cambie si el principal
+      // ajusta el % del operador después -- cae al % vigente solo para
+      // operaciones anteriores a ese campo.
+      const comisionPeruPct = (op.comision_peru_pct_aplicada ?? miembroOp?.comision_pct ?? 0) / 100;
+      const comisionVePct = (op.comision_venezuela_pct_aplicada ?? veOp?.comision_pct ?? 0) / 100;
       const g = calcularGananciaOperacion(op.monto_pen, op.tasa_pen_ves, op.tasa_real_compra, comisionPeruPct, comisionVePct);
       if (!g) return;
 

@@ -96,6 +96,9 @@ export interface Solicitud {
   operador_peru_miembro_id: string | null;
   /** true cuando el Operador principal derivó esta operación a un miembro de Perú. */
   derivada_de_principal: boolean;
+  /** % de comisión (C1/C2) congelado al momento de check_deposito_ve = true; null en operaciones anteriores a este campo o aún no realizadas. */
+  comision_peru_pct_aplicada: number | null;
+  comision_venezuela_pct_aplicada: number | null;
 }
 
 export interface PerfilNegocio {
