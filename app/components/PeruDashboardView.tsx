@@ -326,7 +326,8 @@ export function PeruDashboardView({
   // de adquisición GUARDADAS EN CADA OPERACIÓN (no la tasa vigente ahora),
   // para que el cálculo sea correcto sin importar cuándo se consulte.
   const gananciaHoy = useMemo(() => {
-    let montoEnviadoVes = 0;
+    let montoBeneficiarioVes = 0;
+    let transferenciaTotalVes = 0;
     let comisionPeruTotalPen = 0;
     let comisionVeTotalVes = 0;
     let comisionVeTotalPen = 0;
@@ -353,7 +354,8 @@ export function PeruDashboardView({
       const g = calcularGananciaOperacion(op.monto_pen, op.tasa_pen_ves, op.tasa_real_compra, comisionPeruPct, comisionVePct);
       if (!g) return;
 
-      montoEnviadoVes += g.beneficiarioVes;
+      montoBeneficiarioVes += g.beneficiarioVes;
+      transferenciaTotalVes += g.transferenciaTotalVes;
       comisionPeruTotalPen += g.comisionPeruPen;
       comisionVeTotalVes += g.comisionVenezuelaVes;
       comisionVeTotalPen += g.comisionVenezuelaPen;
@@ -368,7 +370,8 @@ export function PeruDashboardView({
     });
 
     return {
-      montoEnviadoVes,
+      montoBeneficiarioVes,
+      transferenciaTotalVes,
       comisionPeruTotalPen,
       comisionVeTotalVes,
       comisionVeTotalPen,
@@ -550,11 +553,12 @@ export function PeruDashboardView({
       {puedeGestionar ? (
         <View style={[styles.card, cardShadow, styles.financieroCard]}>
           <Text style={styles.seccionTitulo}>Resumen financiero (hoy)</Text>
-          <FinancieroItem label="Enviado a Venezuela" valor={`VES ${gananciaHoy.montoEnviadoVes.toFixed(2)}`} />
+          <FinancieroItem label="Monto enviado al beneficiario" valor={`VES ${gananciaHoy.montoBeneficiarioVes.toFixed(2)}`} />
+          <FinancieroItem label="Comisión Operador Venezuela" valor={`VES ${gananciaHoy.comisionVeTotalVes.toFixed(2)} · PEN ${gananciaHoy.comisionVeTotalPen.toFixed(2)}`} />
+          <FinancieroItem label="Transferencia enviada al Operador Venezuela" valor={`VES ${gananciaHoy.transferenciaTotalVes.toFixed(2)}`} />
           <FinancieroItem label="Comisión equipo Perú" valor={`PEN ${gananciaHoy.comisionPeruTotalPen.toFixed(2)}`} />
-          <FinancieroItem label="Comisión equipo Venezuela" valor={`VES ${gananciaHoy.comisionVeTotalVes.toFixed(2)} · PEN ${gananciaHoy.comisionVeTotalPen.toFixed(2)}`} />
-          <FinancieroItem label="Ganancia Bruta" valor={`PEN ${gananciaHoy.gananciaBrutaTotal.toFixed(2)} (${gananciaHoy.porcentajeBruta.toFixed(1)}%)`} />
-          <FinancieroItem label="Ganancia Neta" valor={`PEN ${gananciaHoy.gananciaNetaTotal.toFixed(2)} (${gananciaHoy.porcentajeNeta.toFixed(1)}%)`} destacado />
+          <FinancieroItem label="Ganancia bruta" valor={`PEN ${gananciaHoy.gananciaBrutaTotal.toFixed(2)} (${gananciaHoy.porcentajeBruta.toFixed(1)}%)`} />
+          <FinancieroItem label="Ganancia neta" valor={`PEN ${gananciaHoy.gananciaNetaTotal.toFixed(2)} (${gananciaHoy.porcentajeNeta.toFixed(1)}%)`} destacado />
         </View>
       ) : (
         <View style={[styles.card, cardShadow, styles.financieroCard]}>

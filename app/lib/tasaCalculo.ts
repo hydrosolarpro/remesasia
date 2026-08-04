@@ -38,6 +38,8 @@ export function vesADivisa(montoVes: number, xVes: number): number {
 export interface GananciaOperacion {
   /** B: bolívares que recibe el beneficiario (Ms × Tv). */
   beneficiarioVes: number;
+  /** T: total que el remesero envía a Venezuela (B + comisión Vzla), = B/(1-C2). Nunca se mezcla con B. */
+  transferenciaTotalVes: number;
   /** C1(PEN): comisión del operador de Perú que atendió. */
   comisionPeruPen: number;
   /** C2(VES): comisión del Operador Venezuela que atendió, en bolívares. */
@@ -79,6 +81,7 @@ export function calcularGananciaOperacion(
 
   return {
     beneficiarioVes: Number(beneficiarioVes.toFixed(2)),
+    transferenciaTotalVes: Number(totalEnviadoVes.toFixed(2)),
     comisionPeruPen: Number(comisionPeruPen.toFixed(2)),
     comisionVenezuelaVes: Number(comisionVenezuelaVes.toFixed(2)),
     comisionVenezuelaPen: Number(comisionVenezuelaPen.toFixed(2)),

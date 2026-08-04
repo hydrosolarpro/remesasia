@@ -268,18 +268,22 @@ export function EstadisticasView({
     return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, p]) => p);
   }, [operacionesVisibles, rango]);
 
-  // "Ganancia total" (bruta) es visible para todos los roles -- es
-  // informativa del negocio. La Ganancia Neta (lo que le queda al
-  // principal después de pagar comisiones) SOLO la ve el dueño.
+  // "Ganancia bruta" es visible para todos los roles -- es informativa
+  // del negocio. La Ganancia neta (lo que le queda al principal después
+  // de pagar comisiones) y la transferencia total a Venezuela (incluye
+  // la comisión del Operador Venezuela, nunca se mezcla con el monto del
+  // beneficiario) SOLO las ve el dueño.
   const totales = useMemo(() => {
     const montoTotalPen = operacionesVisibles.reduce((acc, o) => acc + o.monto_pen, 0);
     const montoTotalVes = operacionesVisibles.reduce((acc, o) => acc + o.monto_ves, 0);
+    const transferenciaTotalVes = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.transferenciaTotalVes ?? 0), 0);
     const gananciaBrutaTotal = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.gananciaBrutaPen ?? 0), 0);
     const gananciaNetaTotal = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.gananciaNetaPen ?? 0), 0);
     return {
       nOps: operacionesVisibles.length,
       montoTotalPen,
       montoTotalVes,
+      transferenciaTotalVes,
       gananciaBrutaTotal,
       gananciaNetaTotal,
     };
@@ -311,12 +315,13 @@ export function EstadisticasView({
           <div class="resumen">
             <div class="resumen-item"><div class="resumen-label">Operaciones</div><div class="resumen-valor">${totales.nOps}</div></div>
             <div class="resumen-item"><div class="resumen-label">Monto recibido</div><div class="resumen-valor">PEN ${totales.montoTotalPen.toFixed(2)}</div></div>
-            <div class="resumen-item"><div class="resumen-label">Enviado a Venezuela</div><div class="resumen-valor">VES ${totales.montoTotalVes.toFixed(2)}</div></div>
-            <div class="resumen-item"><div class="resumen-label">Ganancia total</div><div class="resumen-valor">PEN ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>
-            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia Neta</div><div class="resumen-valor">PEN ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
+            <div class="resumen-item"><div class="resumen-label">Monto al beneficiario</div><div class="resumen-valor">VES ${totales.montoTotalVes.toFixed(2)}</div></div>
+            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Transferencia a Venezuela</div><div class="resumen-valor">VES ${totales.transferenciaTotalVes.toFixed(2)}</div></div>` : ''}
+            <div class="resumen-item"><div class="resumen-label">Ganancia bruta</div><div class="resumen-valor">PEN ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>
+            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia neta</div><div class="resumen-valor">PEN ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
           </div>
           <table>
-            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th><th>Ganancia</th>${esDuenio ? '<th>Ganancia Neta</th>' : ''}</tr></thead>
+            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th><th>Ganancia bruta</th>${esDuenio ? '<th>Ganancia neta</th>' : ''}</tr></thead>
             <tbody>${filas || '<tr><td colspan="8">Sin operaciones en este período.</td></tr>'}</tbody>
           </table>
         `
@@ -346,6 +351,7 @@ export function EstadisticasView({
         'Recibe (VES)': o.monto_ves,
         'Comisión Perú (PEN)': o.ganancia?.comisionPeruPen ?? 0,
         'Comisión Venezuela (VES)': o.ganancia?.comisionVenezuelaVes ?? 0,
+        ...(esDuenio ? { 'Transferencia a Venezuela (VES)': o.ganancia?.transferenciaTotalVes ?? 0 } : {}),
         'Ganancia bruta (PEN)': o.ganancia?.gananciaBrutaPen ?? 0,
         ...(esDuenio ? { 'Ganancia neta (PEN)': o.ganancia?.gananciaNetaPen ?? 0 } : {}),
         'Validó en Perú': o.validador_peru_nombre ?? '',
@@ -383,9 +389,10 @@ export function EstadisticasView({
             <View style={styles.resumenFila}>
               <ResumenItem label="Operaciones" valor={String(totales.nOps)} />
               <ResumenItem label="Monto" valor={`PEN ${totales.montoTotalPen.toFixed(2)}`} />
-              <ResumenItem label="Enviado a Venezuela" valor={`VES ${totales.montoTotalVes.toFixed(2)}`} />
-              <ResumenItem label="Ganancia total" valor={`PEN ${totales.gananciaBrutaTotal.toFixed(2)}`} />
-              {esDuenio && <ResumenItem label="Ganancia Neta" valor={`PEN ${totales.gananciaNetaTotal.toFixed(2)}`} destacado />}
+              <ResumenItem label="Monto al beneficiario" valor={`VES ${totales.montoTotalVes.toFixed(2)}`} />
+              {esDuenio && <ResumenItem label="Transferencia a Venezuela" valor={`VES ${totales.transferenciaTotalVes.toFixed(2)}`} />}
+              <ResumenItem label="Ganancia bruta" valor={`PEN ${totales.gananciaBrutaTotal.toFixed(2)}`} />
+              {esDuenio && <ResumenItem label="Ganancia neta" valor={`PEN ${totales.gananciaNetaTotal.toFixed(2)}`} destacado />}
             </View>
           </View>
 
@@ -443,8 +450,11 @@ export function EstadisticasView({
                               Comisión Venezuela ({o.operador_ve_atiende ?? '—'}): VES {o.ganancia.comisionVenezuelaVes.toFixed(2)} · PEN{' '}
                               {o.ganancia.comisionVenezuelaPen.toFixed(2)}
                             </Text>
-                            <Text style={styles.detalleDato}>Ganancia: PEN {o.ganancia.gananciaBrutaPen.toFixed(2)}</Text>
-                            {esDuenio && <Text style={styles.detalleDato}>Ganancia Neta: PEN {o.ganancia.gananciaNetaPen.toFixed(2)}</Text>}
+                            {esDuenio && (
+                              <Text style={styles.detalleDato}>Transferencia a Venezuela: VES {o.ganancia.transferenciaTotalVes.toFixed(2)}</Text>
+                            )}
+                            <Text style={styles.detalleDato}>Ganancia bruta: PEN {o.ganancia.gananciaBrutaPen.toFixed(2)}</Text>
+                            {esDuenio && <Text style={styles.detalleDato}>Ganancia neta: PEN {o.ganancia.gananciaNetaPen.toFixed(2)}</Text>}
                           </>
                         )}
                         <Pressable
