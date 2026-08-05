@@ -12,6 +12,7 @@ import {
   obtenerLimitesEquipo,
   obtenerLimitesPlan,
   siguientesPlanes,
+  planDesdeMonto,
   planLabel,
 } from '../../lib/plan';
 import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
@@ -65,6 +66,11 @@ export default function Perfil() {
 
   const [solicitandoPlan, setSolicitandoPlan] = useState<string | null>(null);
   const { periodoVerificado } = useEstadoPlanNegocio(negocioId);
+  // Plan que el Operador principal eligió y ya envió a pagar (pendiente de
+  // que el administrador lo verifique) -- se muestra aparte de "TU PLAN"
+  // (el plan vigente) para que quede claro cuál es el plan que eligió
+  // mientras el administrador todavía no lo confirma.
+  const [pagoPeriodoActual, setPagoPeriodoActual] = useState<{ periodo: string; monto: number; estado: string } | null>(null);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -84,6 +90,14 @@ export default function Perfil() {
 
     if (ctx.tipo === 'principal') {
       cargarEquipos(ctx.negocioId);
+      const periodo = new Date().toISOString().slice(0, 7);
+      const { data: pago } = await supabase
+        .from('pagos_suscripcion')
+        .select('periodo, monto, estado')
+        .eq('operador_peru_id', usuario.id)
+        .eq('periodo', periodo)
+        .maybeSingle();
+      setPagoPeriodoActual(pago as { periodo: string; monto: number; estado: string } | null);
     } else if (ctx.tipo === 'miembro' && ctx.miembroId) {
       cargarMiembro(ctx.miembroId, ctx.negocioId);
     }
@@ -354,6 +368,15 @@ export default function Perfil() {
                 : 'Esperando la verificación de tu primer pago.'}
           </Text>
 
+          {pagoPeriodoActual?.estado === 'pendiente' && (
+            <View style={styles.solicitudPendienteBox}>
+              <Text style={styles.solicitudPendienteTexto}>
+                Elegiste el plan {planLabel(planDesdeMonto(pagoPeriodoActual.monto))} (S/ {pagoPeriodoActual.monto.toFixed(2)}) —
+                pendiente de verificación del administrador.
+              </Text>
+            </View>
+          )}
+
           {siguientesPlanes(usuario.plan).length > 0 && (
             <View style={styles.metaBloque}>
               <Text style={styles.metaTitulo}>Próxima Meta</Text>
@@ -386,7 +409,13 @@ export default function Perfil() {
                   <Text style={styles.miembroEliminarTexto}>✕</Text>
                 </Pressable>
               </View>
-              <FormularioSolicitudPlan plan={solicitandoPlan} onEnviado={() => setSolicitandoPlan(null)} />
+              <FormularioSolicitudPlan
+                plan={solicitandoPlan}
+                onEnviado={() => {
+                  setSolicitandoPlan(null);
+                  cargarContexto();
+                }}
+              />
             </View>
           )}
         </View>
@@ -716,6 +745,14 @@ const styles = StyleSheet.create({
   telefono: { color: colors.textMuted, fontSize: 16, marginBottom: 4 },
   planCardGrande: { gap: 10 },
   planNombreGrande: { color: colors.text, fontSize: 32, fontWeight: '900' },
+  solicitudPendienteBox: {
+    backgroundColor: `${colors.warning}22`,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.sm,
+    padding: 10,
+  },
+  solicitudPendienteTexto: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '600' },
   metaBloque: { marginTop: 8, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   metaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   metaFila: {

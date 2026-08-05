@@ -4,11 +4,24 @@ import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { RoleTag } from '../../components/RoleTag';
 import { RoundCheck } from '../../components/RoundCheck';
-import { diasRestantesDemo, obtenerLimiteClientes, planDesdeMonto, planLabel } from '../../lib/plan';
+import { CalendarioDias } from '../../components/CalendarioFecha';
+import {
+  DIAS_DEMO,
+  ORDEN_PLANES,
+  PRECIO_PLAN,
+  NOMBRE_PLAN,
+  diasRestantesDemo,
+  obtenerLimiteClientes,
+  planDesdeMonto,
+  planLabel,
+} from '../../lib/plan';
 import { PlanOperador } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7);
+const MS_POR_DIA = 86_400_000;
+
+const formatearFechaCorta = (isoFecha: string) => new Date(`${isoFecha}T00:00:00`).toLocaleDateString('es-PE');
 
 interface Pago {
   id: string;
@@ -33,11 +46,36 @@ interface OperadorFila {
   totalEquipoPeru: number;
 }
 
+// Plan vigente de un operador: el del pago verificado del período actual
+// si lo hay, si no el plan oficial guardado en usuarios.plan. Se usa tanto
+// en cada fila como en el resumen de Ganancia Bruta para no calcularlo dos
+// veces con lógicas distintas.
+function calcularPlanActual(op: OperadorFila) {
+  const pagoPeriodo = op.pagos_suscripcion.find((p) => p.periodo === periodoActual());
+  const planActual = pagoPeriodo?.estado === 'verificado' ? planDesdeMonto(pagoPeriodo.monto) : op.plan;
+  const planMonto = pagoPeriodo?.estado === 'verificado' ? pagoPeriodo.monto : undefined;
+  return { pagoPeriodo, planActual, planMonto };
+}
+
+// Precio mensual que corresponde a un operador según su plan vigente: fijo
+// para todos los planes salvo UNLIMITED, que se acuerda caso por caso con
+// el administrador (se toma el monto de su último pago verificado).
+function precioPlanOperador(op: OperadorFila, planActual: string): number {
+  if (planActual === 'unlimited') {
+    const verificados = op.pagos_suscripcion
+      .filter((p) => p.estado === 'verificado')
+      .sort((a, b) => b.periodo.localeCompare(a.periodo));
+    return verificados[0]?.monto ?? 0;
+  }
+  return PRECIO_PLAN[planActual] ?? 0;
+}
+
 export default function PanelControl() {
   const [operadores, setOperadores] = useState<OperadorFila[]>([]);
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
-  const [demoExtendido, setDemoExtendido] = useState<Record<string, boolean>>({});
+  const [demoExtendido, setDemoExtendido] = useState<Record<string, string>>({});
+  const [calendarioDemoAbierto, setCalendarioDemoAbierto] = useState<string | null>(null);
   const [montosUnlimited, setMontosUnlimited] = useState<Record<string, string>>({});
 
   const cargar = useCallback(async () => {
@@ -116,11 +154,19 @@ export default function PanelControl() {
     cargar();
   };
 
-  const extenderDemo = async (operadorId: string) => {
+  // El admin elige libremente la fecha de vencimiento del DEMO en el
+  // calendario; como demo_inicio + DIAS_DEMO define ese vencimiento (ver
+  // fechaFinDemo en lib/plan), para lograr la fecha elegida hay que
+  // "retrofechar" demo_inicio en consecuencia.
+  const extenderDemo = async (operadorId: string, fechaFin: string) => {
     setProcesando(`${operadorId}_ext`);
-    await supabase.from('usuarios').update({ demo_inicio: new Date().toISOString() }).eq('id', operadorId);
-    setDemoExtendido((prev) => ({ ...prev, [operadorId]: true }));
+    const finMs = new Date(`${fechaFin}T00:00:00`).getTime();
+    const demoInicioNuevo = new Date(finMs - DIAS_DEMO * MS_POR_DIA).toISOString();
+    await supabase.from('usuarios').update({ demo_inicio: demoInicioNuevo }).eq('id', operadorId);
+    setDemoExtendido((prev) => ({ ...prev, [operadorId]: fechaFin }));
+    setCalendarioDemoAbierto(null);
     setProcesando(null);
+    cargar();
   };
 
   const guardarMontoUnlimited = async (operadorId: string) => {
@@ -158,11 +204,24 @@ export default function PanelControl() {
 
   const totalOperadores = operadores.length;
   const totalClientesGlobal = operadores.reduce((acc, op) => acc + op.totalClientes, 0);
-  const montoTotalPagado = operadores.reduce((acc, op) => {
-    if (!op.acceso_concedido) return acc;
-    return acc + op.pagos_suscripcion.filter((p) => p.estado === 'verificado').reduce((s, p) => s + p.monto, 0);
-  }, 0);
   const totalVenezuelaGlobal = operadores.reduce((acc, op) => acc + op.totalVenezuela, 0);
+
+  // Ganancia Bruta: para cada operador con acceso concedido, se toma el
+  // precio de su plan vigente (STARTER/PRO/EXPERT/AVANCE/ULTRA fijados por
+  // el administrador en lib/plan, o el monto acordado para UNLIMITED) y se
+  // suman todos los operadores agrupados por plan.
+  const desglosePorPlan: Record<string, { cantidad: number; subtotal: number }> = {};
+  operadores
+    .filter((op) => op.acceso_concedido)
+    .forEach((op) => {
+      const { planActual } = calcularPlanActual(op);
+      const precio = precioPlanOperador(op, planActual);
+      const fila = desglosePorPlan[planActual] ?? { cantidad: 0, subtotal: 0 };
+      fila.cantidad += 1;
+      fila.subtotal += precio;
+      desglosePorPlan[planActual] = fila;
+    });
+  const gananciaBruta = Object.values(desglosePorPlan).reduce((acc, fila) => acc + fila.subtotal, 0);
 
   if (cargando) {
     return (
@@ -189,9 +248,28 @@ export default function PanelControl() {
             <Text style={styles.resumenValor}>{totalClientesGlobal}</Text>
           </View>
           <View style={styles.resumenItem}>
-            <Text style={styles.resumenLabel}>Monto total pagado</Text>
-            <Text style={styles.resumenValor}>S/ {montoTotalPagado.toFixed(2)}</Text>
+            <Text style={styles.resumenLabel}>Ganancia Bruta</Text>
+            <Text style={styles.resumenValor}>S/ {gananciaBruta.toFixed(2)}</Text>
           </View>
+        </View>
+
+        <View style={styles.desgloseWrap}>
+          <Text style={styles.desgloseTitulo}>Desglose de Ganancia Bruta por plan</Text>
+          {ORDEN_PLANES.filter((p) => p !== 'demo').map((planId) => {
+            const fila = desglosePorPlan[planId];
+            const cantidad = fila?.cantidad ?? 0;
+            const subtotal = fila?.subtotal ?? 0;
+            return (
+              <View key={planId} style={styles.desgloseFila}>
+                <Text style={styles.desglosePlan}>{NOMBRE_PLAN[planId] ?? planId.toUpperCase()}</Text>
+                <Text style={styles.desgloseDato}>
+                  {cantidad} operador{cantidad === 1 ? '' : 'es'}
+                  {planId !== 'unlimited' ? ` × S/ ${(PRECIO_PLAN[planId] ?? 0).toFixed(2)}` : ' (monto acordado c/u)'}
+                </Text>
+                <Text style={styles.desgloseSubtotal}>S/ {subtotal.toFixed(2)}</Text>
+              </View>
+            );
+          })}
         </View>
       </View>
 
@@ -206,9 +284,7 @@ export default function PanelControl() {
       </View>
 
       {operadores.map((op, i) => {
-        const pagoPeriodo = op.pagos_suscripcion.find((p) => p.periodo === periodoActual());
-        const planActual = pagoPeriodo?.estado === 'verificado' ? planDesdeMonto(pagoPeriodo.monto) : op.plan;
-        const planMonto = pagoPeriodo?.estado === 'verificado' ? pagoPeriodo.monto : undefined;
+        const { pagoPeriodo, planActual, planMonto } = calcularPlanActual(op);
         const esDemo = op.plan === 'demo' || planActual === 'demo';
         const extendido = demoExtendido[op.id];
         const cupoClientes = obtenerLimiteClientes(planActual);
@@ -243,13 +319,22 @@ export default function PanelControl() {
                   </View>
                 </View>
 
-                <View
-                  style={[
-                    styles.planPill,
-                    planActual === 'demo' ? styles.planPillDemo : planActual === 'starter' ? styles.planPillStarter : styles.planPillPremium,
-                  ]}
-                >
-                  <Text style={styles.planPillTexto}>{planLabel(planActual, planMonto)}</Text>
+                <View style={styles.planBloque}>
+                  <Text style={styles.planBloqueLabel}>Plan del operador principal</Text>
+                  <View
+                    style={[
+                      styles.planPill,
+                      planActual === 'demo' ? styles.planPillDemo : planActual === 'starter' ? styles.planPillStarter : styles.planPillPremium,
+                    ]}
+                  >
+                    <Text style={styles.planPillTexto}>{planLabel(planActual, planMonto)}</Text>
+                  </View>
+                  {pagoPeriodo?.estado === 'pendiente' && (
+                    <Text style={styles.planSolicitado}>
+                      Eligió {planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ {pagoPeriodo.monto.toFixed(2)}) — pendiente de
+                      verificar
+                    </Text>
+                  )}
                 </View>
               </View>
 
@@ -304,17 +389,29 @@ export default function PanelControl() {
               </View>
               {esDemo && (
                 <View style={styles.checkCol}>
-                  <Text style={styles.checkLabel}>Extender DEMO 7 días</Text>
-                  <RoundCheck
-                    checked={extendido || false}
-                    disabled={extendido || false}
-                    loading={procesando === `${op.id}_ext`}
-                    onPress={() => extenderDemo(op.id)}
-                  />
-                  <Text style={styles.checkEstado}>{extendido ? 'Extendido' : 'Pendiente'}</Text>
+                  <Text style={styles.checkLabel}>Extender DEMO</Text>
+                  <Pressable
+                    style={styles.demoExtenderBtn}
+                    disabled={procesando === `${op.id}_ext`}
+                    onPress={() => setCalendarioDemoAbierto((actual) => (actual === op.id ? null : op.id))}
+                  >
+                    <Text style={styles.demoExtenderBtnTexto}>
+                      {procesando === `${op.id}_ext` ? '...' : '📅 Elegir fecha'}
+                    </Text>
+                  </Pressable>
+                  <Text style={styles.checkEstado}>
+                    {extendido ? `Extendido hasta ${formatearFechaCorta(extendido)}` : 'Pendiente'}
+                  </Text>
                 </View>
               )}
             </View>
+
+            {esDemo && calendarioDemoAbierto === op.id && (
+              <View style={styles.calendarioDemoPanel}>
+                <Text style={styles.calendarioDemoTitulo}>Elige la nueva fecha de vencimiento del DEMO</Text>
+                <CalendarioDias valor={extendido ?? ''} onSeleccionar={(fecha) => extenderDemo(op.id, fecha)} />
+              </View>
+            )}
 
             {planActual === 'unlimited' && (
               <View style={styles.unlimitedRow}>
@@ -357,6 +454,12 @@ const styles = StyleSheet.create({
   resumenItem: { alignItems: 'center', minWidth: 100, flexGrow: 1 },
   resumenLabel: { color: colors.textMuted, fontSize: 13 },
   resumenValor: { color: colors.accent, fontSize: 25, fontWeight: '900', marginTop: 2 },
+  desgloseWrap: { gap: 6, marginTop: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  desgloseTitulo: { color: colors.text, fontSize: 14, fontWeight: '800', marginBottom: 2 },
+  desgloseFila: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  desglosePlan: { color: colors.text, fontSize: 13, fontWeight: '800', width: 90 },
+  desgloseDato: { color: colors.textMuted, fontSize: 13, flex: 1, minWidth: 140 },
+  desgloseSubtotal: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   fila: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 2 },
   filaHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   numero: { color: colors.textMuted, fontSize: 14, fontWeight: '800' },
@@ -369,11 +472,14 @@ const styles = StyleSheet.create({
   teamBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
   teamBadgeNum: { color: colors.warning, fontSize: 15, fontWeight: '900' },
   teamBadgeLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  planPill: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4, marginTop: 6 },
+  planBloque: { marginTop: 6, gap: 3 },
+  planBloqueLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  planPill: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
   planPillDemo: { backgroundColor: `${colors.warning}33` },
   planPillStarter: { backgroundColor: `${colors.success}33` },
   planPillPremium: { backgroundColor: `${colors.primary}33` },
   planPillTexto: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  planSolicitado: { color: colors.warning, fontSize: 12, fontWeight: '700' },
   filaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   filaLeft: { flex: 1, gap: 2, minWidth: 200 },
   clienteBox: { backgroundColor: colors.cardAlt, borderRadius: radius.md, padding: 14, alignItems: 'center', justifyContent: 'center', minWidth: 120 },
@@ -388,6 +494,16 @@ const styles = StyleSheet.create({
   checkCol: { alignItems: 'center', gap: 6, flex: 1, minWidth: 110, paddingHorizontal: 4 },
   checkLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   checkEstado: { color: colors.textMuted, fontSize: 12 },
+  demoExtenderBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
+  demoExtenderBtnTexto: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  calendarioDemoPanel: {
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 8,
+  },
+  calendarioDemoTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
   unlimitedRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
   unlimitedLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   unlimitedInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, color: colors.text, fontSize: 16, backgroundColor: colors.cardAlt, maxWidth: 100 },
