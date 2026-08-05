@@ -6,26 +6,29 @@ import { RoleTag } from './RoleTag';
 import { AccesoPendienteAviso } from './AccesoPendienteAviso';
 import { FormularioSolicitudPlan } from './FormularioSolicitudPlan';
 import { PagoSuscripcion, PlanOperador } from '../types/database';
-import { demoVencido } from '../lib/plan';
+import { demoVencido, planPagadoVencido } from '../lib/plan';
 import { colors, radius, cardShadow } from '../constants/theme';
-
-const periodoActual = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
 interface InfoPlanDueno {
   plan: PlanOperador;
   demo_inicio: string | null;
+  plan_inicio: string | null;
   acceso_concedido: boolean;
 }
 
 // Envuelve las pestañas del Operador Perú. Mientras el negocio esté en
-// plan DEMO vigente, acceso libre. Al vencer (o si ya está en STARTER),
-// exige pago del mes verificado Y que el admin conceda el acceso por
+// plan DEMO vigente, acceso libre. Al vencer el DEMO o el ciclo de 30
+// días de un plan pagado (y sin ninguna renovación/cambio ya pagado en
+// espera de activarse), exige pago Y que el admin conceda el acceso por
 // separado — sin forma de saltárselo navegando a otra pestaña, porque
 // reemplaza el árbol de navegación completo.
 export function SuscripcionGate({ children }: PropsWithChildren) {
   const { usuario } = useAuth();
   const [cargando, setCargando] = useState(true);
   const [pago, setPago] = useState<PagoSuscripcion | null>(null);
+  // true si ya hay un pago de renovación/cambio de plan en camino que
+  // activará solo al terminar el ciclo actual (ver cambios_plan_pendientes).
+  const [tieneCambioEnCamino, setTieneCambioEnCamino] = useState(false);
   // La suscripción/plan siempre es la del DUEÑO del negocio: si `usuario`
   // es un miembro de equipo, se resuelve el `operador_peru_id` al que
   // pertenece y se usa el plan de esa cuenta, no la propia (que no tiene
@@ -37,7 +40,12 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
     setCargando(true);
 
     let idDueno = usuario.id;
-    let info: InfoPlanDueno = { plan: usuario.plan, demo_inicio: usuario.demo_inicio, acceso_concedido: usuario.acceso_concedido };
+    let info: InfoPlanDueno = {
+      plan: usuario.plan,
+      demo_inicio: usuario.demo_inicio,
+      plan_inicio: usuario.plan_inicio,
+      acceso_concedido: usuario.acceso_concedido,
+    };
     if (usuario.rol === 'operador_peru_miembro') {
       const { data: miembro } = await supabase
         .from('operador_peru_miembro')
@@ -48,7 +56,7 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
         idDueno = miembro.operador_peru_id;
         const { data: dueno } = await supabase
           .from('usuarios')
-          .select('plan, demo_inicio, acceso_concedido')
+          .select('plan, demo_inicio, plan_inicio, acceso_concedido')
           .eq('id', idDueno)
           .maybeSingle();
         if (dueno) info = dueno as InfoPlanDueno;
@@ -56,13 +64,24 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
     }
     setInfoPlanDueno(info);
 
-    const { data: pagoData } = await supabase
-      .from('pagos_suscripcion')
-      .select('*')
-      .eq('operador_peru_id', idDueno)
-      .eq('periodo', periodoActual())
-      .maybeSingle();
+    const [{ data: pagoData }, { data: cambioData }] = await Promise.all([
+      supabase
+        .from('pagos_suscripcion')
+        .select('*')
+        .eq('operador_peru_id', idDueno)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('cambios_plan_pendientes')
+        .select('id')
+        .eq('operador_peru_id', idDueno)
+        .neq('estado', 'rechazado')
+        .is('activado_at', null)
+        .maybeSingle(),
+    ]);
     setPago(pagoData as PagoSuscripcion | null);
+    setTieneCambioEnCamino(!!cambioData);
     setCargando(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario?.id]);
@@ -104,20 +123,51 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
     return <AccesoPendienteAviso rol="operador_peru" etiqueta={etiquetaMiembro} />;
   }
 
-  // A partir de acá, plan === 'starter': un miembro de equipo hereda el
-  // acceso del dueño una vez que este ya es STARTER (no tiene pago propio
+  // A partir de acá, plan pagado: vencido = ya pasaron sus 30 días desde
+  // plan_inicio. Si hay un cambio ya pagado en camino, el acceso sigue
+  // sin cortarse aunque el ciclo ya haya terminado -- se activa solo
+  // cuando corresponda (ver cron activar-planes-encolados).
+  const vencido = planPagadoVencido(infoPlanDueno.plan_inicio);
+  const bloqueadoPorVencimiento = vencido && !tieneCambioEnCamino;
+
+  // Un miembro de equipo hereda el acceso del dueño (no tiene pago propio
   // que verificar).
   if (usuario.rol === 'operador_peru_miembro') {
-    return infoPlanDueno.acceso_concedido ? <>{children}</> : <AccesoPendienteAviso rol="operador_peru" etiqueta={etiquetaMiembro} />;
+    const bloqueado = !infoPlanDueno.acceso_concedido || bloqueadoPorVencimiento;
+    return bloqueado ? <AccesoPendienteAviso rol="operador_peru" etiqueta={etiquetaMiembro} /> : <>{children}</>;
   }
 
-  if (pago?.estado === 'verificado' && usuario.acceso_concedido) {
+  if (infoPlanDueno.acceso_concedido && !bloqueadoPorVencimiento) {
     return <>{children}</>;
+  }
+
+  // Acceso concedido pero el ciclo ya venció y no hay nada en camino: el
+  // dueño tiene que reactivar -- se le ofrece su último plan real (no
+  // siempre STARTER), ya que puede haber estado en PRO/AVANCE/etc. (acá
+  // ya sabemos que no es 'demo', ese caso se resolvió más arriba).
+  const planParaReactivar = infoPlanDueno.plan;
+
+  if (infoPlanDueno.acceso_concedido && bloqueadoPorVencimiento && pago?.estado !== 'pendiente') {
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <RoleTag rol="operador_peru" />
+        <Text style={styles.titulo}>Tu plan venció</Text>
+        <Text style={styles.avisoTexto}>Renueva o cambia de plan para seguir usando la app sin interrupciones.</Text>
+
+        {pago?.estado === 'rechazado' && (
+          <View style={[styles.card, cardShadow, styles.avisoRechazado]}>
+            <Text style={styles.avisoTexto}>Tu comprobante fue rechazado{pago.motivo_rechazo ? `: ${pago.motivo_rechazo}` : '.'} Sube uno nuevo.</Text>
+          </View>
+        )}
+
+        <FormularioSolicitudPlan plan={planParaReactivar} modo="nueva" onEnviado={cargar} />
+      </ScrollView>
+    );
   }
 
   // Pago verificado, pero el admin todavía no concede el acceso (segundo
   // candado independiente del pago, ver README "Suscripción mensual").
-  if (pago?.estado === 'verificado' && !usuario.acceso_concedido) {
+  if (pago?.estado === 'verificado' && !infoPlanDueno.acceso_concedido) {
     return (
       <View style={styles.center}>
         <RoleTag rol="operador_peru" />
@@ -153,7 +203,7 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
         </View>
       )}
 
-      <FormularioSolicitudPlan plan="starter" onEnviado={cargar} />
+      <FormularioSolicitudPlan plan={planParaReactivar} modo="nueva" onEnviado={cargar} />
     </ScrollView>
   );
 }

@@ -11,6 +11,7 @@ import {
   PRECIO_PLAN,
   NOMBRE_PLAN,
   diasRestantesDemo,
+  fechaFinPlanPagado,
   obtenerLimiteClientes,
   planDesdeMonto,
   planLabel,
@@ -22,12 +23,20 @@ const periodoActual = () => new Date().toISOString().slice(0, 7);
 const MS_POR_DIA = 86_400_000;
 
 const formatearFechaCorta = (isoFecha: string) => new Date(`${isoFecha}T00:00:00`).toLocaleDateString('es-PE');
+const formatearFechaHora = (iso: string) => new Date(iso).toLocaleDateString('es-PE');
 
 interface Pago {
   id: string;
   periodo: string;
   estado: 'pendiente' | 'verificado' | 'rechazado';
   monto: number;
+}
+
+interface CambioPendienteFila {
+  id: string;
+  plan_solicitado: string;
+  monto: number;
+  estado: 'pendiente' | 'verificado';
 }
 
 interface OperadorFila {
@@ -39,6 +48,7 @@ interface OperadorFila {
   acceso_concedido: boolean;
   plan: PlanOperador;
   demo_inicio: string | null;
+  plan_inicio: string | null;
   perfil_negocio: { nombre_negocio: string } | null;
   pagos_suscripcion: Pago[];
   totalClientes: number;
@@ -46,14 +56,16 @@ interface OperadorFila {
   totalEquipoPeru: number;
 }
 
-// Plan vigente de un operador: el del pago verificado del período actual
-// si lo hay, si no el plan oficial guardado en usuarios.plan. Se usa tanto
-// en cada fila como en el resumen de Ganancia Bruta para no calcularlo dos
-// veces con lógicas distintas.
+// Plan vigente de un operador: usuarios.plan/plan_inicio ya son la fuente
+// de verdad (se actualizan atómicamente al activarse un plan -- ver
+// validarPago/guardarMontoUnlimited/admin_validar_cambio_plan). `pagoPeriodo`
+// solo se usa para mostrar si hay un comprobante de ESTE mes pendiente de
+// verificar. `planMonto` completa el monto acordado para UNLIMITED (no
+// tiene precio fijo), tomado del último pago verificado.
 function calcularPlanActual(op: OperadorFila) {
   const pagoPeriodo = op.pagos_suscripcion.find((p) => p.periodo === periodoActual());
-  const planActual = pagoPeriodo?.estado === 'verificado' ? planDesdeMonto(pagoPeriodo.monto) : op.plan;
-  const planMonto = pagoPeriodo?.estado === 'verificado' ? pagoPeriodo.monto : undefined;
+  const planActual = op.plan;
+  const planMonto = planActual === 'unlimited' ? precioPlanOperador(op, planActual) || undefined : undefined;
   return { pagoPeriodo, planActual, planMonto };
 }
 
@@ -77,6 +89,10 @@ export default function PanelControl() {
   const [demoExtendido, setDemoExtendido] = useState<Record<string, string>>({});
   const [calendarioDemoAbierto, setCalendarioDemoAbierto] = useState<string | null>(null);
   const [montosUnlimited, setMontosUnlimited] = useState<Record<string, string>>({});
+  // Renovación/cambio de plan ya pagado, todavía sin activarse -- a lo
+  // más uno abierto por operador (ver cambios_plan_pendientes).
+  const [cambiosPendientes, setCambiosPendientes] = useState<Record<string, CambioPendienteFila>>({});
+  const [procesandoCambio, setProcesandoCambio] = useState<string | null>(null);
 
   // `silencioso` evita el parpadeo de pantalla completa a "cargando" en
   // los refrescos automáticos de fondo (ver polling de 8s más abajo) --
@@ -86,11 +102,22 @@ export default function PanelControl() {
     const { data, error } = await supabase
       .from('usuarios')
       .select(
-        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto)'
+        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, plan_inicio, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto)'
       )
       .eq('rol', 'operador_peru')
       .order('created_at', { ascending: false });
     if (error) console.error('Error cargando operadores:', error.message);
+
+    const { data: cambios } = await supabase
+      .from('cambios_plan_pendientes')
+      .select('id, operador_peru_id, plan_solicitado, monto, estado')
+      .neq('estado', 'rechazado')
+      .is('activado_at', null);
+    const mapaCambios: Record<string, CambioPendienteFila> = {};
+    (cambios ?? []).forEach((c) => {
+      mapaCambios[c.operador_peru_id] = { id: c.id, plan_solicitado: c.plan_solicitado, monto: c.monto, estado: c.estado as 'pendiente' | 'verificado' };
+    });
+    setCambiosPendientes(mapaCambios);
 
     const { data: clientes } = await supabase
       .from('usuarios')
@@ -157,7 +184,10 @@ export default function PanelControl() {
       return;
     }
     const plan = planDesdeMonto(monto);
-    const { error: errorPlan } = await supabase.from('usuarios').update({ plan, acceso_concedido: true }).eq('id', operadorId);
+    const { error: errorPlan } = await supabase
+      .from('usuarios')
+      .update({ plan, acceso_concedido: true, plan_inicio: new Date().toISOString() })
+      .eq('id', operadorId);
     setProcesando(null);
     if (errorPlan) {
       // El pago ya quedó marcado como verificado, pero el plan del
@@ -228,12 +258,45 @@ export default function PanelControl() {
       Alert.alert('No se pudo fijar el monto UNLIMITED', errorPago.message);
       return;
     }
-    const { error: errorPlan } = await supabase.from('usuarios').update({ plan: 'unlimited', acceso_concedido: true }).eq('id', operadorId);
+    const { error: errorPlan } = await supabase
+      .from('usuarios')
+      .update({ plan: 'unlimited', acceso_concedido: true, plan_inicio: new Date().toISOString() })
+      .eq('id', operadorId);
     setProcesando(null);
     if (errorPlan) {
       Alert.alert('Monto guardado, pero no se pudo activar el plan UNLIMITED', errorPlan.message);
     }
     setMontosUnlimited((prev) => ({ ...prev, [operadorId]: '' }));
+    cargar();
+  };
+
+  // Renovación/cambio de plan pagado por adelantado: admin_validar_cambio_plan
+  // decide sola si se activa de inmediato (sin ciclo pagado vigente) o
+  // queda en espera hasta que termine el ciclo actual -- ver la migración
+  // de ciclo_30_dias_planes.
+  const validarCambioPlan = async (cambioId: string) => {
+    setProcesandoCambio(cambioId);
+    const { data, error } = await supabase.rpc('admin_validar_cambio_plan', { p_cambio_id: cambioId });
+    setProcesandoCambio(null);
+    if (error) {
+      Alert.alert('No se pudo validar el cambio de plan', error.message);
+      return;
+    }
+    if (data && !data.ok) {
+      Alert.alert('No se pudo validar el cambio de plan', data.error ?? 'Error desconocido.');
+      return;
+    }
+    cargar();
+  };
+
+  const rechazarCambioPlan = async (cambioId: string) => {
+    setProcesandoCambio(cambioId);
+    const { error } = await supabase.from('cambios_plan_pendientes').update({ estado: 'rechazado' }).eq('id', cambioId);
+    setProcesandoCambio(null);
+    if (error) {
+      Alert.alert('No se pudo rechazar el cambio de plan', error.message);
+      return;
+    }
     cargar();
   };
 
@@ -369,6 +432,43 @@ export default function PanelControl() {
                       Eligió {planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ {pagoPeriodo.monto.toFixed(2)}) — pendiente de
                       verificar
                     </Text>
+                  )}
+                  {planActual !== 'demo' && op.plan_inicio && (
+                    <Text style={styles.planFechas}>
+                      Cambió el {formatearFechaHora(op.plan_inicio)} · Vence el{' '}
+                      {formatearFechaHora(fechaFinPlanPagado(op.plan_inicio).toISOString())}
+                    </Text>
+                  )}
+                  {cambiosPendientes[op.id] && (
+                    <View style={styles.cambioEnColaBox}>
+                      <Text style={styles.cambioEnColaTexto}>
+                        {cambiosPendientes[op.id].estado === 'verificado'
+                          ? `Pasará a ${planLabel(cambiosPendientes[op.id].plan_solicitado)} el ${
+                              op.plan_inicio ? formatearFechaHora(fechaFinPlanPagado(op.plan_inicio).toISOString()) : '—'
+                            }`
+                          : `Eligió ${planLabel(cambiosPendientes[op.id].plan_solicitado)} (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — pendiente de verificar`}
+                      </Text>
+                      {cambiosPendientes[op.id].estado === 'pendiente' && (
+                        <View style={styles.cambioEnColaBotones}>
+                          <Pressable
+                            style={styles.cambioEnColaBtn}
+                            disabled={procesandoCambio === cambiosPendientes[op.id].id}
+                            onPress={() => validarCambioPlan(cambiosPendientes[op.id].id)}
+                          >
+                            <Text style={styles.cambioEnColaBtnTexto}>
+                              {procesandoCambio === cambiosPendientes[op.id].id ? '...' : 'Validar'}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.cambioEnColaBtnRechazar}
+                            disabled={procesandoCambio === cambiosPendientes[op.id].id}
+                            onPress={() => rechazarCambioPlan(cambiosPendientes[op.id].id)}
+                          >
+                            <Text style={styles.cambioEnColaBtnRechazarTexto}>Rechazar</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
                   )}
                 </View>
               </View>
@@ -515,6 +615,22 @@ const styles = StyleSheet.create({
   planPillPremium: { backgroundColor: `${colors.primary}33` },
   planPillTexto: { color: colors.text, fontSize: 13, fontWeight: '800' },
   planSolicitado: { color: colors.warning, fontSize: 12, fontWeight: '700' },
+  planFechas: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  cambioEnColaBox: {
+    marginTop: 4,
+    padding: 8,
+    borderRadius: radius.sm,
+    backgroundColor: `${colors.primary}18`,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    gap: 6,
+  },
+  cambioEnColaTexto: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  cambioEnColaBotones: { flexDirection: 'row', gap: 8 },
+  cambioEnColaBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 },
+  cambioEnColaBtnTexto: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  cambioEnColaBtnRechazar: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 },
+  cambioEnColaBtnRechazarTexto: { color: colors.danger, fontSize: 12, fontWeight: '700' },
   filaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   filaLeft: { flex: 1, gap: 2, minWidth: 200 },
   clienteBox: { backgroundColor: colors.cardAlt, borderRadius: radius.md, padding: 14, alignItems: 'center', justifyContent: 'center', minWidth: 120 },

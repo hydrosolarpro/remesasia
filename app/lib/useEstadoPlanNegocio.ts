@@ -2,46 +2,58 @@ import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { PlanOperador } from '../types/database';
 
+/** Renovación/cambio de plan pagado por adelantado, todavía sin activarse (ver cambios_plan_pendientes). */
+export interface CambioPendienteInfo {
+  id: string;
+  planSolicitado: string;
+  estado: 'pendiente' | 'verificado';
+}
+
 export interface EstadoPlanNegocio {
   cargando: boolean;
   plan: PlanOperador | null;
   demoInicio: string | null;
-  /** Período (YYYY-MM) del último pago verificado -- inicio del ciclo mensual vigente del plan pagado. */
-  periodoVerificado: string | null;
+  /** Momento exacto en que se activó el plan pagado vigente -- ancla su ciclo de 30 días. */
+  planInicio: string | null;
+  cambioPendiente: CambioPendienteInfo | null;
 }
 
-// Lee el plan/fecha de inicio del DEMO, y el período del último pago
-// verificado (para calcular el vencimiento del ciclo mensual de un plan
-// pagado), del Operador Perú dueño de un negocio, dado su id. Usado para
-// la insignia del header (Operador Perú y Operador Venezuela) y para
-// mostrar el estado del plan en Perfil.
+const ESTADO_VACIO: EstadoPlanNegocio = { cargando: true, plan: null, demoInicio: null, planInicio: null, cambioPendiente: null };
+
+// Lee el plan/fecha de inicio del DEMO, el inicio del ciclo del plan
+// pagado vigente, y si hay una renovación/cambio de plan ya pagada en
+// espera de activarse, del Operador Perú dueño de un negocio, dado su
+// id. Usado para la insignia del header (Operador Perú y Operador
+// Venezuela) y para mostrar el estado del plan en Perfil.
 export function useEstadoPlanNegocio(operadorPeruId: string | null | undefined): EstadoPlanNegocio {
-  const [estado, setEstado] = useState<EstadoPlanNegocio>({ cargando: true, plan: null, demoInicio: null, periodoVerificado: null });
+  const [estado, setEstado] = useState<EstadoPlanNegocio>(ESTADO_VACIO);
 
   useEffect(() => {
     if (!operadorPeruId) {
-      setEstado({ cargando: false, plan: null, demoInicio: null, periodoVerificado: null });
+      setEstado({ ...ESTADO_VACIO, cargando: false });
       return;
     }
     let cancelado = false;
     setEstado((e) => ({ ...e, cargando: true }));
     Promise.all([
-      supabase.from('usuarios').select('plan, demo_inicio').eq('id', operadorPeruId).maybeSingle(),
+      supabase.from('usuarios').select('plan, demo_inicio, plan_inicio').eq('id', operadorPeruId).maybeSingle(),
       supabase
-        .from('pagos_suscripcion')
-        .select('periodo')
+        .from('cambios_plan_pendientes')
+        .select('id, plan_solicitado, estado')
         .eq('operador_peru_id', operadorPeruId)
-        .eq('estado', 'verificado')
-        .order('periodo', { ascending: false })
-        .limit(1)
+        .neq('estado', 'rechazado')
+        .is('activado_at', null)
         .maybeSingle(),
-    ]).then(([{ data }, { data: pago }]) => {
+    ]).then(([{ data }, { data: cambio }]) => {
       if (cancelado) return;
       setEstado({
         cargando: false,
         plan: (data?.plan as PlanOperador | undefined) ?? null,
         demoInicio: data?.demo_inicio ?? null,
-        periodoVerificado: pago?.periodo ?? null,
+        planInicio: data?.plan_inicio ?? null,
+        cambioPendiente: cambio
+          ? { id: cambio.id, planSolicitado: cambio.plan_solicitado, estado: cambio.estado as 'pendiente' | 'verificado' }
+          : null,
       });
     });
     return () => {

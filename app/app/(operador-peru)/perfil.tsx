@@ -7,13 +7,15 @@ import { registrarPushToken } from '../../lib/notifications';
 import {
   diasRestantesDemo,
   fechaFinDemo,
-  diasRestantesPeriodo,
-  fechaVencimientoPeriodo,
+  diasRestantesPlanPagado,
+  fechaFinPlanPagado,
+  debeAvisarRenovacion,
   obtenerLimitesEquipo,
   obtenerLimitesPlan,
   siguientesPlanes,
   planDesdeMonto,
   planLabel,
+  ORDEN_PLANES,
 } from '../../lib/plan';
 import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
@@ -65,7 +67,8 @@ export default function Perfil() {
   const [miVe, setMiVe] = useState<OperadorVenezuelaPerfil | null>(null);
 
   const [solicitandoPlan, setSolicitandoPlan] = useState<string | null>(null);
-  const { periodoVerificado } = useEstadoPlanNegocio(negocioId);
+  const [eligiendoPlanCambio, setEligiendoPlanCambio] = useState(false);
+  const { planInicio, cambioPendiente } = useEstadoPlanNegocio(negocioId);
   // Plan que el Operador principal eligió y ya envió a pagar (pendiente de
   // que el administrador lo verifique) -- se muestra aparte de "TU PLAN"
   // (el plan vigente) para que quede claro cuál es el plan que eligió
@@ -363,8 +366,8 @@ export default function Perfil() {
               ? `Quedan ${diasRestantesDemo(usuario.demo_inicio)} días${
                   usuario.demo_inicio ? ` — vence el ${FORMATTER_FECHA.format(fechaFinDemo(usuario.demo_inicio))}` : ''
                 }.`
-              : periodoVerificado
-                ? `Quedan ${diasRestantesPeriodo(periodoVerificado)} días — vence el ${FORMATTER_FECHA.format(fechaVencimientoPeriodo(periodoVerificado))}.`
+              : planInicio
+                ? `Quedan ${diasRestantesPlanPagado(planInicio)} días — vence el ${FORMATTER_FECHA.format(fechaFinPlanPagado(planInicio))}.`
                 : 'Esperando la verificación de tu primer pago.'}
           </Text>
 
@@ -374,6 +377,54 @@ export default function Perfil() {
                 Elegiste el plan {planLabel(planDesdeMonto(pagoPeriodoActual.monto))} (S/ {pagoPeriodoActual.monto.toFixed(2)}) —
                 pendiente de verificación del administrador.
               </Text>
+            </View>
+          )}
+
+          {/* Renovación o cambio de plan ya pagado, esperando activarse solo
+              cuando termine el ciclo actual (ver cambios_plan_pendientes). */}
+          {cambioPendiente && (
+            <View style={styles.solicitudPendienteBox}>
+              <Text style={styles.solicitudPendienteTexto}>
+                Ya tienes un cambio a {planLabel(cambioPendiente.planSolicitado)} en camino —{' '}
+                {cambioPendiente.estado === 'verificado'
+                  ? `se activa el ${planInicio ? FORMATTER_FECHA.format(fechaFinPlanPagado(planInicio)) : '—'}, sin interrupciones.`
+                  : 'pendiente de verificación del administrador.'}
+              </Text>
+            </View>
+          )}
+
+          {/* Aviso de renovación: aparece los últimos DIAS_AVISO_RENOVACION
+              días del ciclo, y solo si no hay ya un cambio en camino. */}
+          {usuario.plan !== 'demo' && !cambioPendiente && debeAvisarRenovacion(planInicio) && (
+            <View style={styles.avisoRenovacionBox}>
+              <Text style={styles.avisoRenovacionTitulo}>
+                Tu plan vence en {diasRestantesPlanPagado(planInicio)} día{diasRestantesPlanPagado(planInicio) === 1 ? '' : 's'}
+              </Text>
+              <Text style={styles.avisoRenovacionTexto}>Renueva o cambia de plan para seguir sin interrupciones.</Text>
+              <View style={styles.avisoRenovacionBotones}>
+                <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(usuario.plan)}>
+                  <Text style={styles.metaSolicitarBtnTexto}>Renovar el mismo plan →</Text>
+                </Pressable>
+                <Pressable style={styles.metaSolicitarBtnOutline} onPress={() => setEligiendoPlanCambio((v) => !v)}>
+                  <Text style={styles.metaSolicitarBtnOutlineTexto}>Cambiar a otro plan →</Text>
+                </Pressable>
+              </View>
+              {eligiendoPlanCambio && (
+                <View style={styles.selectorPlanCambio}>
+                  {ORDEN_PLANES.filter((p) => p !== 'demo' && p !== usuario.plan).map((p) => (
+                    <Pressable
+                      key={p}
+                      style={styles.selectorPlanCambioOpcion}
+                      onPress={() => {
+                        setSolicitandoPlan(p);
+                        setEligiendoPlanCambio(false);
+                      }}
+                    >
+                      <Text style={styles.selectorPlanCambioTexto}>{planLabel(p)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -411,6 +462,7 @@ export default function Perfil() {
               </View>
               <FormularioSolicitudPlan
                 plan={solicitandoPlan}
+                modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
                 onEnviado={() => {
                   setSolicitandoPlan(null);
                   cargarContexto();
@@ -753,6 +805,35 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   solicitudPendienteTexto: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '600' },
+  avisoRenovacionBox: {
+    backgroundColor: `${colors.danger}18`,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 8,
+  },
+  avisoRenovacionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  avisoRenovacionTexto: { color: colors.textMuted, fontSize: 14, lineHeight: 18 },
+  avisoRenovacionBotones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  metaSolicitarBtnOutline: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  metaSolicitarBtnOutlineTexto: { color: colors.primary, fontWeight: '700', fontSize: 14 },
+  selectorPlanCambio: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  selectorPlanCambioOpcion: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.cardAlt,
+  },
+  selectorPlanCambioTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
   metaBloque: { marginTop: 8, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   metaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   metaFila: {

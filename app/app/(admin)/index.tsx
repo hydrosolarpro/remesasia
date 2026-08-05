@@ -5,6 +5,7 @@ import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { planDesdeMonto } from '../../lib/plan';
 import { RoleTag } from '../../components/RoleTag';
 import { ConfiguracionPagosAdmin } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -109,17 +110,20 @@ export default function PanelAdmin() {
       Alert.alert('Error', error.message);
       return;
     }
-    // Al aprobar, el operador pasa automáticamente de DEMO a STARTER (y se
-    // le concede el acceso en el mismo paso, para no dejarlo viendo "en
-    // revisión" después de haber tenido acceso libre durante el DEMO).
+    // Al aprobar, el operador pasa automáticamente de DEMO al plan que
+    // corresponda según el monto pagado (y se le concede el acceso en el
+    // mismo paso, para no dejarlo viendo "en revisión" después de haber
+    // tenido acceso libre durante el DEMO). plan_inicio ancla el ciclo de
+    // 30 días de este plan recién activado.
     if (estado === 'verificado') {
+      const plan = planDesdeMonto(pago.monto);
       const { error: errorPlan } = await supabase
         .from('usuarios')
-        .update({ plan: 'starter', acceso_concedido: true })
+        .update({ plan, acceso_concedido: true, plan_inicio: new Date().toISOString() })
         .eq('id', pago.operador_peru_id);
       if (errorPlan) {
         setProcesandoPago(null);
-        Alert.alert('Pago verificado, pero no se pudo activar el plan STARTER', errorPlan.message);
+        Alert.alert(`Pago verificado, pero no se pudo activar el plan ${plan.toUpperCase()}`, errorPlan.message);
         cargar();
         return;
       }

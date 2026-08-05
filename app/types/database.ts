@@ -24,9 +24,11 @@ export interface Usuario {
   push_token: string | null;
   negocio_operador_peru_id: string | null;
   acceso_concedido: boolean;
-  /** Solo relevante para rol 'operador_peru': plan DEMO (15 días) o STARTER (pagado). */
+  /** Solo relevante para rol 'operador_peru': plan DEMO o un plan pagado. */
   plan: PlanOperador;
   demo_inicio: string | null;
+  /** Momento exacto en que se activó el plan pagado vigente -- ancla su ciclo de 30 días (ver lib/plan.ts). */
+  plan_inicio: string | null;
   created_at: string;
   /** Notificaciones automáticas por Telegram (rol 'cliente'): ver perfil del cliente. */
   telegram_chat_id: string | null;
@@ -243,6 +245,22 @@ export interface PagoSuscripcion {
   motivo_rechazo: string | null;
   verificado_por: string | null;
   verificado_at: string | null;
+  created_at: string;
+}
+
+/** Renovación o cambio de plan pagado por adelantado, mientras el ciclo de 30 días vigente todavía no termina -- ver admin_validar_cambio_plan / activar_planes_encolados en supabase. */
+export interface CambioPlanPendiente {
+  id: string;
+  operador_peru_id: string;
+  plan_solicitado: PlanOperador;
+  monto: number;
+  comprobante_url: string | null;
+  estado: EstadoPago;
+  motivo_rechazo: string | null;
+  verificado_por: string | null;
+  verificado_at: string | null;
+  /** Se llena cuando el cron activa el cambio al terminar el ciclo actual. */
+  activado_at: string | null;
   created_at: string;
 }
 

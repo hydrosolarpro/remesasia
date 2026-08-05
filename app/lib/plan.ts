@@ -105,21 +105,32 @@ export function demoVencido(demoInicio: string | null | undefined): boolean {
   return diasRestantesDemo(demoInicio) <= 0;
 }
 
-const DIAS_PLAN_PAGADO = 30; // Todos los planes pagados son mensuales.
+export const DIAS_PLAN_PAGADO = 30; // Todos los planes pagados duran exactamente 30 días.
 
-// Ciclo mensual de un plan pagado: arranca el primer día del período
-// (YYYY-MM) del último pago verificado y dura 30 días -- ahí se debe
-// renovar (solicitar y pagar el siguiente período).
-export function fechaInicioPeriodo(periodo: string): Date {
-  return new Date(`${periodo}-01T00:00:00`);
+// Ciclo de un plan pagado: arranca en el momento exacto en que el admin
+// valida el pago (usuarios.plan_inicio) y dura 30 días -- ahí se debe
+// renovar o cambiar de plan. Mismo patrón que diasRestantesDemo/
+// demoVencido de arriba, solo que anclado a plan_inicio en vez de
+// demo_inicio.
+export function fechaFinPlanPagado(planInicio: string): Date {
+  return new Date(new Date(planInicio).getTime() + DIAS_PLAN_PAGADO * MS_POR_DIA);
 }
 
-export function fechaVencimientoPeriodo(periodo: string): Date {
-  return new Date(fechaInicioPeriodo(periodo).getTime() + DIAS_PLAN_PAGADO * MS_POR_DIA);
-}
-
-export function diasRestantesPeriodo(periodo: string | null | undefined): number {
-  if (!periodo) return 0;
-  const transcurridos = Math.floor((Date.now() - fechaInicioPeriodo(periodo).getTime()) / MS_POR_DIA);
+export function diasRestantesPlanPagado(planInicio: string | null | undefined): number {
+  if (!planInicio) return 0;
+  const transcurridos = Math.floor((Date.now() - new Date(planInicio).getTime()) / MS_POR_DIA);
   return Math.max(0, DIAS_PLAN_PAGADO - transcurridos);
+}
+
+export function planPagadoVencido(planInicio: string | null | undefined): boolean {
+  return diasRestantesPlanPagado(planInicio) <= 0;
+}
+
+// A partir de cuántos días restantes se muestra el aviso de renovación
+// (ver perfil.tsx, tarjeta "TU PLAN").
+export const DIAS_AVISO_RENOVACION = 3;
+
+export function debeAvisarRenovacion(planInicio: string | null | undefined): boolean {
+  const dias = diasRestantesPlanPagado(planInicio);
+  return dias > 0 && dias <= DIAS_AVISO_RENOVACION;
 }

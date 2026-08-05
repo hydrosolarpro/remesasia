@@ -1,7 +1,7 @@
 import { PropsWithChildren, useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { demoVencido } from '../lib/plan';
+import { demoVencido, planPagadoVencido } from '../lib/plan';
 import { AccesoPendienteAviso } from './AccesoPendienteAviso';
 import { Rol } from '../types/database';
 import { colors } from '../constants/theme';
@@ -28,18 +28,25 @@ export function AccesoNegocioGate({
     }
     let cancelado = false;
     setCargando(true);
-    supabase
-      .from('usuarios')
-      .select('plan, demo_inicio, acceso_concedido')
-      .eq('id', operadorPeruId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelado) return;
-        if (!data) setBloqueado(false);
-        else if (data.plan === 'demo') setBloqueado(demoVencido(data.demo_inicio));
-        else setBloqueado(!data.acceso_concedido);
-        setCargando(false);
-      });
+    Promise.all([
+      supabase.from('usuarios').select('plan, demo_inicio, plan_inicio, acceso_concedido').eq('id', operadorPeruId).maybeSingle(),
+      supabase
+        .from('cambios_plan_pendientes')
+        .select('id')
+        .eq('operador_peru_id', operadorPeruId)
+        .neq('estado', 'rechazado')
+        .is('activado_at', null)
+        .maybeSingle(),
+    ]).then(([{ data }, { data: cambio }]) => {
+      if (cancelado) return;
+      if (!data) setBloqueado(false);
+      else if (data.plan === 'demo') setBloqueado(demoVencido(data.demo_inicio));
+      // Plan pagado: bloqueado si no tiene acceso concedido, o si su
+      // ciclo de 30 días ya venció y no hay ninguna renovación/cambio ya
+      // pagado esperando activarse (ver cambios_plan_pendientes).
+      else setBloqueado(!data.acceso_concedido || (planPagadoVencido(data.plan_inicio) && !cambio));
+      setCargando(false);
+    });
     return () => {
       cancelado = true;
     };

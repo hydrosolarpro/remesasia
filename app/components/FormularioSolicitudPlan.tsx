@@ -13,15 +13,34 @@ const periodoActual = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
 type FormaPago = 'yape' | 'transferencia';
 
-// Formulario de solicitud de pago de la suscripción (upsert en
-// pagos_suscripcion, a la espera de aprobación del admin). Se usa tanto
-// dentro de SuscripcionGate (cuando el DEMO ya venció, siempre para
-// STARTER) como desde "Próxima Meta" en Perfil (operador solicitando
-// subir a un plan superior específico). El monto define qué plan asigna
-// el admin al aprobar (ver planDesdeMonto) -- solo UNLIMITED no tiene
-// precio fijo (se acuerda directamente con el administrador), así que pide
-// un monto manual en vez de uno fijo.
-export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onEnviado?: () => void }) {
+// Formulario de solicitud de pago de la suscripción. Tiene dos modos:
+//
+//   * 'nueva' -- no hay ningún plan pagado vigente (DEMO, nunca pagó, o
+//     el ciclo anterior ya venció): upsert en pagos_suscripcion, igual
+//     que siempre. Lo usa SuscripcionGate.
+//   * 'cambio' -- ya hay un plan pagado vigente y esto es una renovación
+//     o cambio adelantado: inserta en cambios_plan_pendientes en vez de
+//     pagos_suscripcion (esa tabla es única por (operador_peru_id,
+//     periodo) = mes calendario, y una renovación pagada unos días antes
+//     de vencer cae muy seguido en el MISMO mes que el pago vigente --
+//     pisaría esa fila ya verificada). El admin valida con
+//     admin_validar_cambio_plan, que decide solo si se activa de
+//     inmediato o queda en espera hasta que termine el ciclo actual. Lo
+//     usa Perfil (aviso de renovación / "Próxima Meta").
+//
+// El monto define qué plan asigna el admin al aprobar (ver
+// planDesdeMonto) -- solo UNLIMITED no tiene precio fijo (se acuerda
+// directamente con el administrador), así que pide un monto manual en
+// vez de uno fijo.
+export function FormularioSolicitudPlan({
+  plan,
+  modo,
+  onEnviado,
+}: {
+  plan: string;
+  modo: 'nueva' | 'cambio';
+  onEnviado?: () => void;
+}) {
   const { usuario, refreshUsuario } = useAuth();
   const [config, setConfig] = useState<ConfiguracionPagosAdmin | null>(null);
   const [formaPago, setFormaPago] = useState<FormaPago>('yape');
@@ -86,8 +105,9 @@ export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onE
     try {
       await supabase.from('usuarios').update({ nombre: nombre.trim(), telefono: telefono.trim() }).eq('id', usuario.id);
 
-      const periodo = periodoActual();
-      const path = `suscripciones/${usuario.id}/${periodo}.${comprobanteExt}`;
+      const carpeta = modo === 'nueva' ? 'suscripciones' : 'suscripciones-cambio';
+      const nombreArchivo = modo === 'nueva' ? periodoActual() : `${Date.now()}`;
+      const path = `${carpeta}/${usuario.id}/${nombreArchivo}.${comprobanteExt}`;
       // arrayBuffer() en vez de blob(): en React Native fetch(...).blob() de
       // un archivo local es muy lento (ver lib/imagenUtil.ts).
       const arrayBuffer = await (await fetch(comprobanteUri)).arrayBuffer();
@@ -97,17 +117,33 @@ export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onE
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
 
-      const { error: upsertError } = await supabase.from('pagos_suscripcion').upsert(
-        {
+      if (modo === 'nueva') {
+        const { error: upsertError } = await supabase.from('pagos_suscripcion').upsert(
+          {
+            operador_peru_id: usuario.id,
+            periodo: periodoActual(),
+            monto,
+            comprobante_url: publicUrl.publicUrl,
+            estado: 'pendiente',
+          },
+          { onConflict: 'operador_peru_id,periodo' }
+        );
+        if (upsertError) throw upsertError;
+      } else {
+        const { error: insertError } = await supabase.from('cambios_plan_pendientes').insert({
           operador_peru_id: usuario.id,
-          periodo,
+          plan_solicitado: plan,
           monto,
           comprobante_url: publicUrl.publicUrl,
           estado: 'pendiente',
-        },
-        { onConflict: 'operador_peru_id,periodo' }
-      );
-      if (upsertError) throw upsertError;
+        });
+        if (insertError) {
+          if (insertError.code === '23505') {
+            throw new Error('Ya tienes una solicitud de renovación/cambio de plan en curso.');
+          }
+          throw insertError;
+        }
+      }
 
       await refreshUsuario();
       onEnviado?.();
