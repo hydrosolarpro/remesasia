@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
+import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -102,10 +102,13 @@ export default function OnboardingNegocio() {
     const archivo = resultado.assets[0];
     const ext = extensionDeImagen(archivo);
     const path = `negocio/${usuario.id}/${tipo}.${ext}`;
-    const respuesta = await fetch(archivo.uri);
-    const blob = await respuesta.blob();
+    // arrayBuffer() en vez de blob(): en React Native fetch(...).blob() de
+    // un archivo local es muy lento (ver lib/imagenUtil.ts).
+    const arrayBuffer = await (await fetch(archivo.uri)).arrayBuffer();
 
-    const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
+    const { error: uploadError } = await supabase.storage
+      .from('comprobantes')
+      .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(ext) });
     setSubiendoImagen(null);
     if (uploadError) {
       Alert.alert('Error al subir imagen', uploadError.message);

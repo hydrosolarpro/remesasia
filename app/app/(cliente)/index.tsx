@@ -12,7 +12,7 @@ import {
   Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
+import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { calcularConversion, calcularConversionInversa, divisaAVes } from '../../lib/tasaCalculo';
@@ -259,8 +259,13 @@ export default function InicioCliente() {
       solicitudCreadaId = solicitud.id;
 
       const path = `${solicitud.id}/comprobante-cliente.${comprobanteExt}`;
-      const blob = await (await fetch(comprobanteUri)).blob();
-      const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
+      // fetch(...).blob() es muy lento en React Native para archivos locales
+      // (el Blob nativo pasa por un puente adicional); arrayBuffer() lee el
+      // archivo directo y sube mucho más rápido -- ver lib/imagenUtil.ts.
+      const arrayBuffer = await (await fetch(comprobanteUri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage
+        .from('comprobantes')
+        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(comprobanteExt) });
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
       const { error: updateError } = await supabase

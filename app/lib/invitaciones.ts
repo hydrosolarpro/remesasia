@@ -88,10 +88,18 @@ export async function guardarTokenPendiente(token: string) {
   await AsyncStorage.setItem(CLAVE_TOKEN_PENDIENTE, token);
 }
 
-export async function leerYLimpiarTokenPendiente(): Promise<string | null> {
-  const token = await AsyncStorage.getItem(CLAVE_TOKEN_PENDIENTE);
-  if (token) await AsyncStorage.removeItem(CLAVE_TOKEN_PENDIENTE);
-  return token;
+// Separado de "limpiar" a propósito: si se borra el token ANTES de saber
+// si canjearInvitacion() tuvo éxito, un canje fallido (cupo de clientes
+// alcanzado, invitación ya usada, error de red) deja al usuario sin
+// negocio vinculado y sin ninguna forma de reintentar -- el cliente queda
+// registrado pero invisible para cualquier operador. Ver app/index.tsx:
+// solo se llama a limpiarTokenPendiente() después de un canje exitoso.
+export async function leerTokenPendiente(): Promise<string | null> {
+  return AsyncStorage.getItem(CLAVE_TOKEN_PENDIENTE);
+}
+
+export async function limpiarTokenPendiente(): Promise<void> {
+  await AsyncStorage.removeItem(CLAVE_TOKEN_PENDIENTE);
 }
 
 export async function canjearInvitacion(token: string) {

@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { CopyField } from './CopyField';
-import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
+import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin } from '../types/database';
 import { PRECIO_PLAN, planLabel } from '../lib/plan';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -88,8 +88,12 @@ export function FormularioSolicitudPlan({ plan, onEnviado }: { plan: string; onE
 
       const periodo = periodoActual();
       const path = `suscripciones/${usuario.id}/${periodo}.${comprobanteExt}`;
-      const blob = await (await fetch(comprobanteUri)).blob();
-      const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
+      // arrayBuffer() en vez de blob(): en React Native fetch(...).blob() de
+      // un archivo local es muy lento (ver lib/imagenUtil.ts).
+      const arrayBuffer = await (await fetch(comprobanteUri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage
+        .from('comprobantes')
+        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(comprobanteExt) });
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
 

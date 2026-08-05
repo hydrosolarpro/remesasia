@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image, Modal, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { mimeDeExtension } from '../lib/imagenUtil';
 import { PerfilNegocio, Tasa, OperadorPeruMiembro, OperadorVenezuelaPerfil } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
 import { generarYCompartirExcel } from '../lib/excelReporte';
@@ -400,8 +401,12 @@ export function PeruDashboardView({
     setValidando({ id: op.id, tipo: 've' });
     try {
       const path = `${op.id}/comprobante-vz.${comprobanteExt}`;
-      const blob = await (await fetch(comprobanteUri)).blob();
-      const { error: uploadError } = await supabase.storage.from('comprobantes').upload(path, blob, { upsert: true });
+      // arrayBuffer() en vez de blob(): en React Native fetch(...).blob() de
+      // un archivo local es muy lento (ver lib/imagenUtil.ts).
+      const arrayBuffer = await (await fetch(comprobanteUri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage
+        .from('comprobantes')
+        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(comprobanteExt) });
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
 

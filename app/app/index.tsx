@@ -3,7 +3,7 @@ import { Redirect } from 'expo-router';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
-import { canjearInvitacion, leerYLimpiarTokenPendiente } from '../lib/invitaciones';
+import { canjearInvitacion, leerTokenPendiente, limpiarTokenPendiente } from '../lib/invitaciones';
 import { Usuario } from '../types/database';
 import { colors } from '../constants/theme';
 
@@ -48,16 +48,26 @@ export default function Index() {
       }
 
       // 2. Si veníamos de un enlace de invitación (token guardado antes del
-      // login con Google), canjéalo ahora que ya hay sesión...
-      const tokenPendiente = await leerYLimpiarTokenPendiente();
+      // login con Google), canjéalo ahora que ya hay sesión. El token solo
+      // se limpia de AsyncStorage si el canje fue exitoso (resultado.ok) --
+      // si falla (cupo de clientes alcanzado, invitación ya usada, error de
+      // red) se deja guardado para reintentar en el próximo ingreso, en vez
+      // de perderlo y dejar al cliente registrado pero sin negocio
+      // vinculado, invisible para su operador.
+      const tokenPendiente = await leerTokenPendiente();
       if (tokenPendiente) {
         try {
-          await canjearInvitacion(tokenPendiente);
-          const { data } = await supabase.from('usuarios').select('*').eq('id', usuario.id).single();
-          if (data) usuarioActual = data as Usuario;
-          await refreshUsuario();
-        } catch {
-          // Invitación inválida/usada: seguimos con el usuario tal cual estaba.
+          const resultado = await canjearInvitacion(tokenPendiente);
+          if (resultado.ok) {
+            await limpiarTokenPendiente();
+            const { data } = await supabase.from('usuarios').select('*').eq('id', usuario.id).single();
+            if (data) usuarioActual = data as Usuario;
+            await refreshUsuario();
+          } else {
+            console.error('No se pudo canjear la invitación pendiente:', resultado.error);
+          }
+        } catch (err) {
+          console.error('Error canjeando invitación pendiente:', err);
         }
       }
 

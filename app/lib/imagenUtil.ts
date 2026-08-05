@@ -38,6 +38,25 @@ export async function validarTamanoImagen(asset: ImagePicker.ImagePickerAsset): 
   return bytes <= MAX_IMAGEN_KB * 1024;
 }
 
+const EXT_A_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+};
+
+/**
+ * MIME a partir de la extensión (inversa de MIME_A_EXT), para pasarla como
+ * `contentType` explícito al subir un ArrayBuffer a Supabase Storage -- a
+ * diferencia de un Blob, un ArrayBuffer no trae su propio tipo, y sin
+ * `contentType` Storage sube el archivo como texto plano en vez de imagen.
+ */
+export function mimeDeExtension(ext: string): string {
+  return EXT_A_MIME[ext.toLowerCase()] ?? 'image/jpeg';
+}
+
 export function extensionDeImagen(asset: ImagePicker.ImagePickerAsset): string {
   if (asset.fileName?.includes('.')) {
     const ext = asset.fileName.split('.').pop();
