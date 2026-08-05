@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { signInWithGoogle } from '../../lib/googleAuth';
 import { colors, radius } from '../../constants/theme';
+
+const DESTACADOS = [
+  'Confirmación automática para ti y tu familia — sin tener que preguntar, sin esperar respuesta por WhatsApp. Tus seres queridos son avisados en el momento exacto.',
+  'Integración automática sin fronteras — control total de operaciones transnacionales entre Perú y Venezuela en tiempo real.',
+  'Automatización, notificaciones instantáneas y perfil multi-operador.',
+];
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
@@ -22,8 +28,18 @@ export default function Login() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Remesas PERU-VENEZUELA</Text>
-      <Text style={styles.subtitle}>Soles → Bolívares Soberanos</Text>
+      <Image source={require('../../assets/android-icon-foreground.png')} style={styles.logo} resizeMode="contain" />
+      <Text style={styles.title}>Remesas PERÚ-VENEZUELA</Text>
+      <Text style={styles.subtitle}>Y entérate al instante</Text>
+
+      <View style={styles.destacados}>
+        {DESTACADOS.map((texto) => (
+          <View key={texto} style={styles.destacadoFila}>
+            <Text style={styles.destacadoCheck}>✓</Text>
+            <Text style={styles.destacadoTexto}>{texto}</Text>
+          </View>
+        ))}
+      </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -66,8 +82,13 @@ function GoogleIcon() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: 24, justifyContent: 'center', gap: 8 },
-  title: { color: colors.text, fontSize: 30, fontWeight: '800' },
-  subtitle: { color: colors.textMuted, fontSize: 16, marginBottom: 48 },
+  logo: { width: 72, height: 72, alignSelf: 'center', marginBottom: 4 },
+  title: { color: colors.text, fontSize: 28, fontWeight: '800', textAlign: 'center' },
+  subtitle: { color: colors.accent, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 24 },
+  destacados: { gap: 12, marginBottom: 32 },
+  destacadoFila: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  destacadoCheck: { color: colors.success, fontSize: 15, fontWeight: '800', marginTop: 1 },
+  destacadoTexto: { color: colors.textMuted, fontSize: 14, lineHeight: 19, flex: 1 },
   error: { color: colors.danger, marginBottom: 12, fontSize: 15 },
   button: {
     flexDirection: 'row',

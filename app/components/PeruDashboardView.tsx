@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image, Modal, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image, Modal, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { mimeDeExtension } from '../lib/imagenUtil';
@@ -389,11 +389,19 @@ export function PeruDashboardView({
   // marcar cada check, un trigger en la base de datos dispara el envío
   // automático por Telegram (ver supabase/migrations/0040_telegram_notificaciones.sql
   // y supabase/functions/telegram-notificar-deposito).
+  const avisarError = (mensaje: string) => {
+    if (Platform.OS === 'web') window.alert(mensaje);
+    else Alert.alert('No se pudo completar la acción', mensaje);
+  };
+
   const validarPeru = async (op: OperationRowData) => {
     setValidando({ id: op.id, tipo: 'peru' });
     const { error } = await supabase.rpc('validar_deposito_peru', { p_solicitud_id: op.id });
     setValidando(null);
-    if (error) return;
+    if (error) {
+      avisarError(error.message);
+      return;
+    }
     cargar();
   };
 
@@ -417,6 +425,8 @@ export function PeruDashboardView({
       if (error) throw error;
 
       cargar();
+    } catch (err) {
+      avisarError(err instanceof Error ? err.message : 'No se pudo validar el depósito.');
     } finally {
       setValidando(null);
     }
@@ -424,8 +434,12 @@ export function PeruDashboardView({
 
   const resolverRevision = async (op: OperationRowData) => {
     setResolviendoId(op.id);
-    await supabase.rpc('resolver_revision_beneficiario', { p_solicitud_id: op.id });
+    const { error } = await supabase.rpc('resolver_revision_beneficiario', { p_solicitud_id: op.id });
     setResolviendoId(null);
+    if (error) {
+      avisarError(error.message);
+      return;
+    }
     cargar();
   };
 

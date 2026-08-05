@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -16,9 +16,12 @@ export default function SolicitudesCliente() {
   const [horarioFin, setHorarioFin] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<{ id: string; tipo: 'confirmar' | 'reportar' | 'resolver' } | null>(null);
 
-  const cargar = useCallback(async () => {
+  // `silencioso`: evita el parpadeo a pantalla de carga en los refrescos
+  // automáticos de fondo (polling de 8s más abajo) -- solo se usa el
+  // spinner en la carga inicial.
+  const cargar = useCallback(async (silencioso = false) => {
     if (!usuario) return;
-    setCargando(true);
+    if (!silencioso) setCargando(true);
     const { data } = await supabase
       .from('solicitudes')
       .select('*')
@@ -58,6 +61,13 @@ export default function SolicitudesCliente() {
       cargar();
     }, [cargar])
   );
+
+  // Auto-actualización cada 8s: para que el cliente vea en tiempo real
+  // cuando su solicitud pasa a "Realizada" sin tener que recargar.
+  useEffect(() => {
+    const id = setInterval(() => cargar(true), 8_000);
+    return () => clearInterval(id);
+  }, [cargar]);
 
   // El corte de "realizadas hoy" es a la hora de cierre del horario de
   // atención del negocio (perfil_negocio.horario_fin), no a medianoche.
@@ -101,17 +111,30 @@ export default function SolicitudesCliente() {
     return mapa;
   }, [solicitudes]);
 
+  const avisarError = (mensaje: string) => {
+    if (Platform.OS === 'web') window.alert(mensaje);
+    else Alert.alert('No se pudo completar la acción', mensaje);
+  };
+
   const confirmarBeneficiario = async (s: Solicitud) => {
     setEnviando({ id: s.id, tipo: 'confirmar' });
-    await supabase.rpc('confirmar_beneficiario_recibido', { p_solicitud_id: s.id });
+    const { error } = await supabase.rpc('confirmar_beneficiario_recibido', { p_solicitud_id: s.id });
     setEnviando(null);
+    if (error) {
+      avisarError(error.message);
+      return;
+    }
     cargar();
   };
 
   const reportarNoLlego = async (s: Solicitud) => {
     setEnviando({ id: s.id, tipo: 'reportar' });
-    await supabase.rpc('reportar_beneficiario_no_recibido', { p_solicitud_id: s.id });
+    const { error } = await supabase.rpc('reportar_beneficiario_no_recibido', { p_solicitud_id: s.id });
     setEnviando(null);
+    if (error) {
+      avisarError(error.message);
+      return;
+    }
     cargar();
   };
 
@@ -120,8 +143,12 @@ export default function SolicitudesCliente() {
   // resolver "Operaciones por revisar" (ver 0045_cliente_autorresuelve_revision.sql).
   const confirmarResuelto = async (s: Solicitud) => {
     setEnviando({ id: s.id, tipo: 'resolver' });
-    await supabase.rpc('resolver_revision_beneficiario', { p_solicitud_id: s.id });
+    const { error } = await supabase.rpc('resolver_revision_beneficiario', { p_solicitud_id: s.id });
     setEnviando(null);
+    if (error) {
+      avisarError(error.message);
+      return;
+    }
     cargar();
   };
 

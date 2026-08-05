@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -41,8 +41,11 @@ export default function PanelAdmin() {
   const [rechazandoId, setRechazandoId] = useState<string | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState('');
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
+  // `silencioso`: evita el parpadeo a pantalla de carga en los refrescos
+  // automáticos de fondo (polling de 8s más abajo) -- solo se usa el
+  // spinner en la carga inicial.
+  const cargar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     const [{ data: ops }, { data: pagos }, { data: configData }] = await Promise.all([
       supabase
         .from('usuarios')
@@ -67,6 +70,13 @@ export default function PanelAdmin() {
       cargar();
     }, [cargar])
   );
+
+  // Auto-actualización cada 8s: nuevos pagos por verificar u operadores
+  // registrados aparecen solos, sin recargar la pantalla.
+  useEffect(() => {
+    const id = setInterval(() => cargar(true), 8_000);
+    return () => clearInterval(id);
+  }, [cargar]);
 
   const invitarOperador = async () => {
     setGenerandoInvitacion(true);
@@ -94,17 +104,27 @@ export default function PanelAdmin() {
       .from('pagos_suscripcion')
       .update({ estado, verificado_por: usuario!.id, verificado_at: new Date().toISOString(), motivo_rechazo: motivo ?? null })
       .eq('id', pago.id);
-    // Al aprobar, el operador pasa automáticamente de DEMO a STARTER (y se
-    // le concede el acceso en el mismo paso, para no dejarlo viendo "en
-    // revisión" después de haber tenido acceso libre durante el DEMO).
-    if (!error && estado === 'verificado') {
-      await supabase.from('usuarios').update({ plan: 'starter', acceso_concedido: true }).eq('id', pago.operador_peru_id);
-    }
-    setProcesandoPago(null);
     if (error) {
+      setProcesandoPago(null);
       Alert.alert('Error', error.message);
       return;
     }
+    // Al aprobar, el operador pasa automáticamente de DEMO a STARTER (y se
+    // le concede el acceso en el mismo paso, para no dejarlo viendo "en
+    // revisión" después de haber tenido acceso libre durante el DEMO).
+    if (estado === 'verificado') {
+      const { error: errorPlan } = await supabase
+        .from('usuarios')
+        .update({ plan: 'starter', acceso_concedido: true })
+        .eq('id', pago.operador_peru_id);
+      if (errorPlan) {
+        setProcesandoPago(null);
+        Alert.alert('Pago verificado, pero no se pudo activar el plan STARTER', errorPlan.message);
+        cargar();
+        return;
+      }
+    }
+    setProcesandoPago(null);
     cargar();
   };
 

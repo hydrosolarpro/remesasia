@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { RoleTag } from '../../components/RoleTag';
@@ -78,8 +78,11 @@ export default function PanelControl() {
   const [calendarioDemoAbierto, setCalendarioDemoAbierto] = useState<string | null>(null);
   const [montosUnlimited, setMontosUnlimited] = useState<Record<string, string>>({});
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
+  // `silencioso` evita el parpadeo de pantalla completa a "cargando" en
+  // los refrescos automáticos de fondo (ver polling de 8s más abajo) --
+  // solo se muestra el spinner de pantalla completa en la carga inicial.
+  const cargar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     const { data, error } = await supabase
       .from('usuarios')
       .select(
@@ -134,23 +137,45 @@ export default function PanelControl() {
     }, [cargar])
   );
 
+  // Auto-actualización cada 8s: para que el admin vea sin recargar los
+  // nuevos pagos por verificar, cambios de plan, etc.
+  useEffect(() => {
+    const id = setInterval(() => cargar(true), 8_000);
+    return () => clearInterval(id);
+  }, [cargar]);
+
   const validarPago = async (pagoId: string, operadorId: string, monto: number) => {
     setProcesando(pagoId);
     const { data: usuarioAuth } = await supabase.auth.getUser();
-    await supabase
+    const { error: errorPago } = await supabase
       .from('pagos_suscripcion')
       .update({ estado: 'verificado', verificado_por: usuarioAuth.user?.id, verificado_at: new Date().toISOString() })
       .eq('id', pagoId);
+    if (errorPago) {
+      setProcesando(null);
+      Alert.alert('No se pudo validar el pago', errorPago.message);
+      return;
+    }
     const plan = planDesdeMonto(monto);
-    await supabase.from('usuarios').update({ plan, acceso_concedido: true }).eq('id', operadorId);
+    const { error: errorPlan } = await supabase.from('usuarios').update({ plan, acceso_concedido: true }).eq('id', operadorId);
     setProcesando(null);
+    if (errorPlan) {
+      // El pago ya quedó marcado como verificado, pero el plan del
+      // operador no se actualizó -- avisamos para que el admin reintente
+      // en vez de creer que ya quedó todo listo.
+      Alert.alert('Pago verificado, pero no se pudo actualizar el plan', errorPlan.message);
+    }
     cargar();
   };
 
   const concederAcceso = async (operadorId: string) => {
     setProcesando(operadorId);
-    await supabase.from('usuarios').update({ acceso_concedido: true }).eq('id', operadorId);
+    const { error } = await supabase.from('usuarios').update({ acceso_concedido: true }).eq('id', operadorId);
     setProcesando(null);
+    if (error) {
+      Alert.alert('No se pudo conceder el acceso', error.message);
+      return;
+    }
     cargar();
   };
 
@@ -162,10 +187,14 @@ export default function PanelControl() {
     setProcesando(`${operadorId}_ext`);
     const finMs = new Date(`${fechaFin}T00:00:00`).getTime();
     const demoInicioNuevo = new Date(finMs - DIAS_DEMO * MS_POR_DIA).toISOString();
-    await supabase.from('usuarios').update({ demo_inicio: demoInicioNuevo }).eq('id', operadorId);
+    const { error } = await supabase.from('usuarios').update({ demo_inicio: demoInicioNuevo }).eq('id', operadorId);
+    setProcesando(null);
+    if (error) {
+      Alert.alert('No se pudo extender el DEMO', error.message);
+      return;
+    }
     setDemoExtendido((prev) => ({ ...prev, [operadorId]: fechaFin }));
     setCalendarioDemoAbierto(null);
-    setProcesando(null);
     cargar();
   };
 
@@ -181,23 +210,29 @@ export default function PanelControl() {
       .eq('operador_peru_id', operadorId)
       .eq('periodo', periodo)
       .maybeSingle();
-    if (existente) {
-      await supabase
-        .from('pagos_suscripcion')
-        .update({ monto, estado: 'verificado', verificado_por: usuarioAuth.user?.id, verificado_at: new Date().toISOString() })
-        .eq('id', existente.id);
-    } else {
-      await supabase.from('pagos_suscripcion').insert({
-        operador_peru_id: operadorId,
-        periodo,
-        monto,
-        estado: 'verificado',
-        verificado_por: usuarioAuth.user?.id,
-        verificado_at: new Date().toISOString(),
-      });
+    const { error: errorPago } = existente
+      ? await supabase
+          .from('pagos_suscripcion')
+          .update({ monto, estado: 'verificado', verificado_por: usuarioAuth.user?.id, verificado_at: new Date().toISOString() })
+          .eq('id', existente.id)
+      : await supabase.from('pagos_suscripcion').insert({
+          operador_peru_id: operadorId,
+          periodo,
+          monto,
+          estado: 'verificado',
+          verificado_por: usuarioAuth.user?.id,
+          verificado_at: new Date().toISOString(),
+        });
+    if (errorPago) {
+      setProcesando(null);
+      Alert.alert('No se pudo fijar el monto UNLIMITED', errorPago.message);
+      return;
     }
-    await supabase.from('usuarios').update({ plan: 'unlimited', acceso_concedido: true }).eq('id', operadorId);
+    const { error: errorPlan } = await supabase.from('usuarios').update({ plan: 'unlimited', acceso_concedido: true }).eq('id', operadorId);
     setProcesando(null);
+    if (errorPlan) {
+      Alert.alert('Monto guardado, pero no se pudo activar el plan UNLIMITED', errorPlan.message);
+    }
     setMontosUnlimited((prev) => ({ ...prev, [operadorId]: '' }));
     cargar();
   };

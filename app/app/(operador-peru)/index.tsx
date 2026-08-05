@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../lib/auth';
-import { supabase } from '../../lib/supabase';
 import { PeruDashboardView } from '../../components/PeruDashboardView';
 import { resolverContextoOperador, ContextoOperador } from '../../lib/sesionOperador';
 import { AccesoNegocioGate } from '../../components/AccesoNegocioGate';
@@ -11,32 +10,12 @@ export default function PanelOperadorPeru() {
   const { usuario } = useAuth();
   const [ctx, setCtx] = useState<ContextoOperador | null>(null);
 
-  const [errorDebug, setErrorDebug] = useState<string | null>(null);
-
   useEffect(() => {
     if (!usuario) return;
-    (async () => {
-      try {
-        // Verificar si el usuario existe en la tabla usuarios
-        const { data: u, error: uErr } = await supabase.from('usuarios').select('*').eq('id', usuario.id).maybeSingle();
-        if (uErr) throw new Error('Error usuarios: ' + uErr.message);
-        if (!u) throw new Error('El usuario no existe en la tabla "usuarios"');
-
-        const ctx = await resolverContextoOperador(usuario);
-        console.log('Contexto:', ctx);
-        setCtx(ctx);
-        if (!ctx.negocioId) {
-           setErrorDebug(`Rol: ${u.rol}. El sistema no encontró un negocio vinculado. ¿El perfil está bien creado en la tabla de miembros?`);
-        }
-      } catch (e: any) {
-        setErrorDebug(e.message);
-      }
-    })();
+    resolverContextoOperador(usuario)
+      .then(setCtx)
+      .catch((e) => console.error('Error resolviendo contexto de operador:', e));
   }, [usuario]);
-
-  if (errorDebug) {
-    return <View style={{flex:1, padding: 20, justifyContent: 'center'}}><Text style={{color: 'red'}}>ERROR: {errorDebug}</Text></View>;
-  }
 
   if (!usuario || !ctx) {
     return (
@@ -48,10 +27,10 @@ export default function PanelOperadorPeru() {
 
   if (!ctx.negocioId) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Text style={{ color: 'red', textAlign: 'center' }}>
-          Error de vinculación: No se encontró el negocio. {"\n\n"}
-          Contexto recibido: {JSON.stringify(ctx)}
+      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <Text style={{ color: colors.textMuted, textAlign: 'center', fontSize: 16, lineHeight: 20 }}>
+          Todavía no encontramos tu equipo vinculado. Pide al Operador principal de Perú que verifique que tu correo esté
+          registrado correctamente en su Perfil, y vuelve a entrar a la app.
         </Text>
       </View>
     );
