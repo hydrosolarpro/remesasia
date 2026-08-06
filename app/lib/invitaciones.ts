@@ -105,5 +105,5 @@ export async function limpiarTokenPendiente(): Promise<void> {
 export async function canjearInvitacion(token: string) {
   const { data, error } = await supabase.rpc('canjear_invitacion', { p_token: token });
   if (error) throw error;
-  return data as { ok: boolean; tipo?: TipoInvitacion; error?: string };
+  return data as { ok: boolean; tipo?: TipoInvitacion; error?: string; codigo?: string };
 }

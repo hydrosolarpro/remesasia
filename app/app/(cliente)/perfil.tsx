@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Linking } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Linking, Platform, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
@@ -16,7 +16,7 @@ const BOT_TELEGRAM = 'Remesaspv_bot';
 // salto a pantalla blanca. Editando in-place evitamos ese remount y el
 // usuario nunca sale de la pestaña Perfil.
 export default function Perfil() {
-  const { usuario, refreshUsuario } = useAuth();
+  const { usuario, refreshUsuario, signOut } = useAuth();
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -26,6 +26,7 @@ export default function Perfil() {
   const [guardado, setGuardado] = useState(false);
   const [conectandoTelegram, setConectandoTelegram] = useState(false);
   const [operador, setOperador] = useState<{ nombre: string; telefono: string | null; email: string | null } | null>(null);
+  const [dandoDeBaja, setDandoDeBaja] = useState(false);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -84,6 +85,55 @@ export default function Perfil() {
       return;
     }
     pestana.asignar(`https://t.me/${BOT_TELEGRAM}?start=${token}`);
+  };
+
+  // Baja de cuenta a pedido del propio cliente: mismo mecanismo que usa el
+  // operador Perú para eliminar a un cliente (función `eliminar-cliente`)
+  // -- borra su acceso (auth) y marca `eliminado_at`, pero conserva su fila
+  // en `usuarios` para que sus solicitudes anteriores sigan íntegras en los
+  // reportes del operador. Al terminar, se cierra la sesión localmente
+  // porque su cuenta ya no existe del lado del servidor.
+  const darseDeBaja = () => {
+    const confirmarYDarseDeBaja = async () => {
+      if (!usuario) return;
+      setDandoDeBaja(true);
+      const { data, error: invokeError } = await supabase.functions.invoke('eliminar-cliente', {
+        body: { cliente_id: usuario.id },
+      });
+      let mensajeError: string | null = null;
+      if (invokeError) {
+        mensajeError = invokeError.message;
+        const contexto = (invokeError as { context?: unknown }).context;
+        if (contexto instanceof Response) {
+          try {
+            const cuerpo = await contexto.json();
+            if (cuerpo?.error) mensajeError = cuerpo.error;
+          } catch {
+            // Respuesta sin JSON válido: se mantiene invokeError.message.
+          }
+        } else if ((data as { error?: string } | null)?.error) {
+          mensajeError = (data as { error: string }).error;
+        }
+      }
+      if (mensajeError) {
+        setDandoDeBaja(false);
+        if (Platform.OS === 'web') window.alert(mensajeError);
+        else Alert.alert('No se pudo dar de baja tu cuenta', mensajeError);
+        return;
+      }
+      await signOut();
+    };
+
+    const mensaje =
+      '¿Seguro que deseas darte de baja? Perderás el acceso a la app; tus solicitudes anteriores se conservarán en los reportes de tu operador. Esta acción no se puede deshacer.';
+    if (Platform.OS === 'web') {
+      if (window.confirm(mensaje)) confirmarYDarseDeBaja();
+      return;
+    }
+    Alert.alert('Dar de baja mi cuenta', mensaje, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Dar de baja', style: 'destructive', onPress: confirmarYDarseDeBaja },
+    ]);
   };
 
   const empezarEdicion = () => {
@@ -204,6 +254,10 @@ export default function Perfil() {
           </>
         )}
       </View>
+
+      <Pressable style={styles.bajaBtn} onPress={darseDeBaja} disabled={dandoDeBaja}>
+        {dandoDeBaja ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.bajaBtnTexto}>Dar de baja mi cuenta</Text>}
+      </Pressable>
     </ScrollView>
   );
 }
@@ -239,4 +293,6 @@ const styles = StyleSheet.create({
   operadorDato: { color: colors.textMuted, fontSize: 14 },
   whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.md, padding: 14, alignItems: 'center' },
   whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 16, textAlign: 'center', flexShrink: 1, flexWrap: 'wrap' },
+  bajaBtn: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.md, padding: 16, alignItems: 'center', marginTop: 16 },
+  bajaBtnTexto: { color: colors.danger, fontWeight: '700', fontSize: 15 },
 });

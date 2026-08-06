@@ -30,6 +30,18 @@ export default function Invitacion() {
           // continúa con otra cuenta: al volver a entrar, app/index.tsx lo
           // retoma solo.
           await guardarTokenPendiente(token);
+          // Esta invitación es de cliente, pero el celular ya tenía una
+          // sesión con OTRO rol (p.ej. el propio operador probando su
+          // enlace). El enlace debe llevar SIEMPRE directo al registro de
+          // un cliente nuevo, así que se cierra esa sesión sola en vez de
+          // exigir un toque extra en "Cerrar sesión y continuar" -- al
+          // volver a esta pantalla sin sesión, el flujo normal de abajo ya
+          // ofrece "Continuar con Google" para registrarse.
+          if (resultado.codigo === 'rol_distinto') {
+            setCerrandoSesion(true);
+            await signOut();
+            return;
+          }
           setError(resultado.error ?? 'No se pudo usar esta invitación.');
           setProcesando(false);
           return;

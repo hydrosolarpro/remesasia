@@ -12,8 +12,12 @@ import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
  * misma cuenta de Google, se registra como cliente nuevo desde cero
  * (auth.users le asigna un id distinto, no hay conflicto).
  *
- * Invocada directamente por el operador Perú desde el panel "Clientes"
- * (app/app/(operador-peru)/clientes.tsx).
+ * Dos formas de invocarla:
+ * 1) El operador Perú elimina a uno de sus clientes, desde el panel
+ *    "Clientes" (app/app/(operador-peru)/clientes.tsx).
+ * 2) El propio cliente se da de baja desde su Perfil
+ *    (app/app/(cliente)/perfil.tsx) -- mismo `cliente_id` que su propio
+ *    id de sesión, sin necesitar pertenecer a ningún negocio como caller.
  */
 Deno.serve(async (req) => {
   const preflight = manejarPreflight(req);
@@ -40,16 +44,10 @@ Deno.serve(async (req) => {
     }
 
     const { data: rolCaller } = await caller.rpc('rol_actual');
-    if (!rolCaller || !['operador_peru', 'operador_peru_miembro'].includes(rolCaller)) {
-      return new Response(JSON.stringify({ error: 'Solo un operador Perú puede eliminar clientes' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
-    }
+    const esBajaPropia = rolCaller === 'cliente' && cliente_id === user.id;
 
-    const { data: negocioIdCaller } = await caller.rpc('mi_negocio_operador_peru_id');
-    if (!negocioIdCaller) {
-      return new Response(JSON.stringify({ error: 'No se pudo determinar tu negocio' }), {
+    if (!esBajaPropia && (!rolCaller || !['operador_peru', 'operador_peru_miembro'].includes(rolCaller))) {
+      return new Response(JSON.stringify({ error: 'Solo un operador Perú puede eliminar clientes' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
@@ -62,8 +60,25 @@ Deno.serve(async (req) => {
       .eq('id', cliente_id)
       .maybeSingle();
 
-    if (!cliente || cliente.rol !== 'cliente' || cliente.negocio_operador_peru_id !== negocioIdCaller) {
-      return new Response(JSON.stringify({ error: 'Cliente no encontrado en tu negocio' }), {
+    if (!esBajaPropia) {
+      const { data: negocioIdCaller } = await caller.rpc('mi_negocio_operador_peru_id');
+      if (!negocioIdCaller) {
+        return new Response(JSON.stringify({ error: 'No se pudo determinar tu negocio' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+
+      if (!cliente || cliente.rol !== 'cliente' || cliente.negocio_operador_peru_id !== negocioIdCaller) {
+        return new Response(JSON.stringify({ error: 'Cliente no encontrado en tu negocio' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+    }
+
+    if (!cliente || cliente.rol !== 'cliente') {
+      return new Response(JSON.stringify({ error: 'Cliente no encontrado' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
