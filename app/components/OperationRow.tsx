@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Solicitud } from '../types/database';
+import { Solicitud, CanalNotificacion } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { CopyField } from './CopyField';
-import { construirEnlaceWhatsApp, construirEnlaceWhatsAppGenerico, mensajeConfirmacionDeposito } from '../lib/whatsapp';
+import {
+  construirEnlaceWhatsApp,
+  construirEnlaceWhatsAppGenerico,
+  mensajeConfirmacionDeposito,
+  mensajeAvisoClientePeruValidado,
+  mensajeAvisoClienteVeValidado,
+} from '../lib/whatsapp';
 import { formatearBs } from '../lib/formato';
 import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -26,6 +32,8 @@ export interface OperationRowData extends Solicitud {
   cliente_nombre: string;
   cliente_telefono: string | null;
   cliente_email: string | null;
+  /** Preferencia de canal del cliente (Perfil): a qué botones de WhatsApp mostrarle. */
+  cliente_canal_notificacion: CanalNotificacion;
   validador_peru_nombre: string | null;
   validador_ve_nombre: string | null;
   /** Nombre del operador de Perú miembro que atiende la operación (null = el Operador principal). */
@@ -147,6 +155,30 @@ export function OperationRow({
     Linking.openURL(enlaceWhatsApp);
   };
 
+  // Botones de respaldo para avisar al CLIENTE por WhatsApp (el intento
+  // automático ya ocurre al marcar cada check, ver validarPeru/validarVe en
+  // PeruDashboardView) -- solo se ofrecen si el cliente eligió WhatsApp o
+  // Ambos como canal de notificación en su Perfil.
+  const clienteQuiereWhatsApp = op.cliente_canal_notificacion !== 'telegram';
+  const enlaceWhatsAppClientePeru =
+    clienteQuiereWhatsApp && op.check_deposito_peru
+      ? construirEnlaceWhatsAppGenerico(op.cliente_telefono, mensajeAvisoClientePeruValidado(op.cliente_nombre, nombreNegocio, op.monto_pen.toFixed(2)))
+      : null;
+  const enlaceWhatsAppClienteVe =
+    clienteQuiereWhatsApp && op.check_deposito_ve
+      ? construirEnlaceWhatsAppGenerico(op.cliente_telefono, mensajeAvisoClienteVeValidado(op.cliente_nombre, op.beneficiario_nombre, formatearBs(op.monto_ves)))
+      : null;
+
+  const abrirWhatsApp = async (enlace: string | null, mensajeError: string) => {
+    if (!enlace) return;
+    const puedeAbrir = await Linking.canOpenURL(enlace);
+    if (!puedeAbrir) {
+      Alert.alert('No se pudo abrir WhatsApp', mensajeError);
+      return;
+    }
+    Linking.openURL(enlace);
+  };
+
   const enlaceWhatsAppOperador = construirEnlaceWhatsAppGenerico(atendidoPorTelefono, `Hola ${atendidoPor ?? ''}, te escribo por una remesa.`);
   const contactarOperador = async () => {
     if (!enlaceWhatsAppOperador) return;
@@ -263,6 +295,22 @@ export function OperationRow({
           {enlaceWhatsApp && (
             <Pressable style={styles.whatsappBtn} onPress={notificarWhatsApp}>
               <Text style={styles.whatsappBtnTexto}>Notificar por WhatsApp al beneficiario</Text>
+            </Pressable>
+          )}
+          {enlaceWhatsAppClientePeru && (
+            <Pressable
+              style={styles.whatsappBtn}
+              onPress={() => abrirWhatsApp(enlaceWhatsAppClientePeru, 'Verifica el teléfono del cliente.')}
+            >
+              <Text style={styles.whatsappBtnTexto}>Notificar por WhatsApp al cliente</Text>
+            </Pressable>
+          )}
+          {enlaceWhatsAppClienteVe && (
+            <Pressable
+              style={styles.whatsappBtn}
+              onPress={() => abrirWhatsApp(enlaceWhatsAppClienteVe, 'Verifica el teléfono del cliente.')}
+            >
+              <Text style={styles.whatsappBtnTexto}>Notificar por WhatsApp al cliente (depósito en Venezuela)</Text>
             </Pressable>
           )}
 

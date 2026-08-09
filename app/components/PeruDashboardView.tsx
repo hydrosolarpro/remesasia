@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image, Modal, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image, Modal, Alert, Platform, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { mimeDeExtension } from '../lib/imagenUtil';
 import { PerfilNegocio, Tasa, OperadorPeruMiembro, OperadorVenezuelaPerfil } from '../types/database';
 import { OperationRow, OperationRowData, formatearTiempoRespuesta, FORMATTER_FECHA_HORA } from './OperationRow';
+import { construirEnlaceWhatsAppGenerico, mensajeAvisoClientePeruValidado, mensajeAvisoClienteVeValidado } from '../lib/whatsapp';
+import { formatearBs } from '../lib/formato';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../lib/fechaLocal';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
@@ -87,7 +89,7 @@ export function PeruDashboardView({
     let query = supabase
       .from('solicitudes')
       .select(
-        '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre), atendido_por:operador_peru_miembro!solicitudes_operador_peru_miembro_id_fkey(nombre, telefono)'
+        '*, cliente:usuarios!solicitudes_cliente_id_fkey(nombre, telefono, email, canal_notificacion), validador_peru:usuarios!solicitudes_validado_peru_por_fkey(nombre), validador_ve:usuarios!solicitudes_validado_ve_por_fkey(nombre), atendido_por:operador_peru_miembro!solicitudes_operador_peru_miembro_id_fkey(nombre, telefono)'
       )
       .eq('negocio_operador_peru_id', operadorPeruId)
       .order('created_at', { ascending: false })
@@ -135,6 +137,7 @@ export function PeruDashboardView({
           cliente_nombre: row.cliente?.nombre ?? 'Cliente',
           cliente_telefono: row.cliente?.telefono ?? null,
           cliente_email: row.cliente?.email ?? null,
+          cliente_canal_notificacion: row.cliente?.canal_notificacion ?? 'ambos',
           validador_peru_nombre: row.validador_peru?.nombre ?? null,
           validador_ve_nombre: row.validador_ve?.nombre ?? null,
           operador_peru_atiende: row.atendido_por?.nombre ?? null,
@@ -394,6 +397,23 @@ export function PeruDashboardView({
     else Alert.alert('No se pudo completar la acción', mensaje);
   };
 
+  // Best-effort: intenta abrir WhatsApp con el aviso al cliente ya escrito
+  // apenas se valida un check -- requiere que el cliente haya elegido
+  // WhatsApp o Ambos en su Perfil (canal_notificacion) y que tenga
+  // teléfono cargado. Si el navegador bloquea la apertura automática (p.ej.
+  // Safari, si pasó demasiado tiempo desde el toque original) no se avisa
+  // con una alerta -- el botón "Notificar por WhatsApp al cliente" en la
+  // fila de la operación queda como respaldo manual siempre visible.
+  const intentarAvisarClientePorWhatsApp = async (enlace: string | null) => {
+    if (!enlace) return;
+    try {
+      const puedeAbrir = await Linking.canOpenURL(enlace);
+      if (puedeAbrir) await Linking.openURL(enlace);
+    } catch {
+      // Silencioso a propósito: ver comentario arriba.
+    }
+  };
+
   const validarPeru = async (op: OperationRowData) => {
     setValidando({ id: op.id, tipo: 'peru' });
     const { error } = await supabase.rpc('validar_deposito_peru', { p_solicitud_id: op.id });
@@ -401,6 +421,14 @@ export function PeruDashboardView({
     if (error) {
       avisarError(error.message);
       return;
+    }
+    if (op.cliente_canal_notificacion !== 'telegram') {
+      const nombreNegocio = perfil?.nombre_negocio || 'Remesas Perú-Venezuela';
+      const enlace = construirEnlaceWhatsAppGenerico(
+        op.cliente_telefono,
+        mensajeAvisoClientePeruValidado(op.cliente_nombre, nombreNegocio, op.monto_pen.toFixed(2))
+      );
+      intentarAvisarClientePorWhatsApp(enlace);
     }
     cargar();
   };
@@ -423,6 +451,14 @@ export function PeruDashboardView({
         p_comprobante_url: publicUrl.publicUrl,
       });
       if (error) throw error;
+
+      if (op.cliente_canal_notificacion !== 'telegram') {
+        const enlace = construirEnlaceWhatsAppGenerico(
+          op.cliente_telefono,
+          mensajeAvisoClienteVeValidado(op.cliente_nombre, op.beneficiario_nombre, formatearBs(op.monto_ves))
+        );
+        intentarAvisarClientePorWhatsApp(enlace);
+      }
 
       cargar();
     } catch (err) {

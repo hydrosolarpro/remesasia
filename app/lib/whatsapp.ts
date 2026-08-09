@@ -58,3 +58,17 @@ export function construirEnlaceWhatsAppSinDestino(mensaje: string): string {
 export function mensajeConfirmacionDeposito(nombreNegocio: string, entidadBancaria: string, montoVesFormateado: string): string {
   return `Gracias por su confianza en Remesas PERU-VENEZUELA - ${nombreNegocio}, se ha transferido a su cuenta ${entidadBancaria} la cantidad de VES ${montoVesFormateado}, por favor revisar y verificar el depósito en cuenta. Muchas Gracias !!!!.`;
 }
+
+// Aviso al CLIENTE (Perú) apenas el operador valida que su pago llegó en
+// Perú -- antes de esto solo se avisaba por Telegram (si lo tenía
+// conectado); este mensaje es el equivalente por WhatsApp.
+export function mensajeAvisoClientePeruValidado(nombreCliente: string, nombreNegocio: string, montoPenFormateado: string): string {
+  return `Hola ${nombreCliente}, hemos validado tu depósito de S/ ${montoPenFormateado} en ${nombreNegocio}. En breve realizaremos la transferencia a tu beneficiario en Venezuela. ¡Gracias por tu confianza en Remesas PERU-VENEZUELA!`;
+}
+
+// Aviso al CLIENTE (Perú) apenas el operador de Venezuela carga el
+// comprobante de la transferencia a su beneficiario -- hasta ahora el
+// cliente no recibía ningún aviso en este paso, solo el beneficiario.
+export function mensajeAvisoClienteVeValidado(nombreCliente: string, nombreBeneficiario: string, montoVesFormateado: string): string {
+  return `Hola ${nombreCliente}, te informamos que se transfirió VES ${montoVesFormateado} a la cuenta de ${nombreBeneficiario} en Venezuela. Por favor confirma con tu beneficiario que recibió el depósito. ¡Gracias por tu confianza en Remesas PERU-VENEZUELA!`;
+}

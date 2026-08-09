@@ -22,6 +22,7 @@ import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
 import { RoleTag } from '../../components/RoleTag';
 import { MensajeModal } from '../../components/MensajeModal';
+import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import {
   Tasa,
   TasaBcv,
@@ -68,6 +69,7 @@ export default function InicioCliente() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mostrarExito, setMostrarExito] = useState(false);
+  const [mostrarZoomComprobante, setMostrarZoomComprobante] = useState(false);
   // Guarda sincrónica contra doble envío: `enviando` (estado de React) no
   // alcanza a re-renderizar el botón a tiempo si el usuario vuelve a tocar
   // "Enviar solicitud" muy rápido (p.ej. mientras la subida del
@@ -552,13 +554,21 @@ export default function InicioCliente() {
             </View>
 
             <Text style={styles.seccionTitulo}>Comprobante de tu depósito</Text>
-            <Pressable style={styles.subirBtn} onPress={elegirComprobante}>
-              {comprobanteUri ? (
-                <Image source={{ uri: comprobanteUri }} style={styles.comprobantePreview} resizeMode="cover" />
-              ) : (
+            {comprobanteUri ? (
+              <>
+                <Pressable style={styles.subirBtn} onPress={() => setMostrarZoomComprobante(true)}>
+                  <Image source={{ uri: comprobanteUri }} style={styles.comprobantePreview} resizeMode="contain" />
+                  <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
+                </Pressable>
+                <Pressable style={styles.cambiarImagenBtn} onPress={elegirComprobante}>
+                  <Text style={styles.cambiarImagenTexto}>Cambiar imagen</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable style={styles.subirBtn} onPress={elegirComprobante}>
                 <Text style={styles.subirBtnTexto}>Elegir captura del depósito</Text>
-              )}
-            </Pressable>
+              </Pressable>
+            )}
           </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
@@ -575,6 +585,7 @@ export default function InicioCliente() {
       mensaje='Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar su solicitud revise su Lista de "Solicitudes realizadas".'
       onCerrar={() => setMostrarExito(false)}
     />
+    <ZoomableImageModal visible={mostrarZoomComprobante} uri={comprobanteUri} onClose={() => setMostrarZoomComprobante(false)} />
     </>
   );
 }
@@ -679,7 +690,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   subirBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
-  comprobantePreview: { width: '100%', height: 160, borderRadius: radius.sm },
+  comprobantePreview: { width: '100%', height: 200, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
+  verCompletoTexto: { color: colors.accent, fontWeight: '700', fontSize: 13, marginTop: 8 },
+  cambiarImagenBtn: { alignSelf: 'center', marginTop: 8 },
+  cambiarImagenTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 14, textDecorationLine: 'underline' },
   error: { color: colors.danger, fontSize: 15 },
   enviarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 18 },

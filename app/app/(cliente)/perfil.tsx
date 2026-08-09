@@ -6,7 +6,14 @@ import { supabase } from '../../lib/supabase';
 import { registrarPushToken } from '../../lib/notifications';
 import { reservarPestanaExterna } from '../../lib/pestanaExterna';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { CanalNotificacion } from '../../types/database';
 import { colors, radius } from '../../constants/theme';
+
+const OPCIONES_CANAL: { valor: CanalNotificacion; etiqueta: string }[] = [
+  { valor: 'telegram', etiqueta: 'Telegram' },
+  { valor: 'whatsapp', etiqueta: 'WhatsApp' },
+  { valor: 'ambos', etiqueta: 'Ambos' },
+];
 
 const BOT_TELEGRAM = 'Remesaspv_bot';
 
@@ -25,6 +32,7 @@ export default function Perfil() {
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
   const [conectandoTelegram, setConectandoTelegram] = useState(false);
+  const [guardandoCanal, setGuardandoCanal] = useState(false);
   const [operador, setOperador] = useState<{ nombre: string; telefono: string | null; email: string | null } | null>(null);
   const [dandoDeBaja, setDandoDeBaja] = useState(false);
 
@@ -85,6 +93,19 @@ export default function Perfil() {
       return;
     }
     pestana.asignar(`https://t.me/${BOT_TELEGRAM}?start=${token}`);
+  };
+
+  const elegirCanalNotificacion = async (valor: CanalNotificacion) => {
+    if (!usuario || valor === usuario.canal_notificacion) return;
+    setGuardandoCanal(true);
+    const { error: updateError } = await supabase.from('usuarios').update({ canal_notificacion: valor }).eq('id', usuario.id);
+    setGuardandoCanal(false);
+    if (updateError) {
+      if (Platform.OS === 'web') window.alert(updateError.message);
+      else Alert.alert('No se pudo guardar', updateError.message);
+      return;
+    }
+    await refreshUsuario();
   };
 
   // Baja de cuenta a pedido del propio cliente: mismo mecanismo que usa el
@@ -242,6 +263,26 @@ export default function Perfil() {
       </View>
 
       <View style={styles.telegramCard}>
+        <Text style={styles.telegramTitulo}>¿Cómo quieres recibir el aviso de tus depósitos?</Text>
+        <Text style={styles.telegramDato}>Te avisamos apenas se valide cada depósito, en Perú y en Venezuela.</Text>
+        <View style={styles.canalRow}>
+          {OPCIONES_CANAL.map((op) => {
+            const activo = (usuario?.canal_notificacion ?? 'ambos') === op.valor;
+            return (
+              <Pressable
+                key={op.valor}
+                style={[styles.canalChip, activo && styles.canalChipActivo]}
+                onPress={() => elegirCanalNotificacion(op.valor)}
+                disabled={guardandoCanal}
+              >
+                <Text style={[styles.canalChipTexto, activo && styles.canalChipTextoActivo]}>{op.etiqueta}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.telegramCard}>
         <Text style={styles.telegramTitulo}>Notificaciones por Telegram</Text>
         {usuario?.telegram_connected ? (
           <Text style={styles.exito}>✓ Telegram conectado{usuario.telegram_username ? ` (@${usuario.telegram_username})` : ''}</Text>
@@ -286,6 +327,11 @@ const styles = StyleSheet.create({
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   buttonOutlineText: { color: colors.accent, fontWeight: '700' },
   telegramCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 10, marginTop: 8 },
+  canalRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  canalChip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 10 },
+  canalChipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  canalChipTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 14 },
+  canalChipTextoActivo: { color: colors.text },
   telegramTitulo: { color: colors.text, fontSize: 17, fontWeight: '700', flexShrink: 1, flexWrap: 'wrap' },
   telegramDato: { color: colors.textMuted, fontSize: 15, flexShrink: 1, flexWrap: 'wrap' },
   contactoCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 10, marginTop: 8 },

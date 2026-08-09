@@ -36,7 +36,11 @@ export interface Usuario {
   telegram_connected: boolean;
   /** Para clientes: qué miembro de Perú (operador_peru_miembro) los invitó. */
   invitado_por_operador_miembro_id: string | null;
+  /** Preferencia del cliente para recibir avisos de depósito validado (elegida en su Perfil). */
+  canal_notificacion: CanalNotificacion;
 }
+
+export type CanalNotificacion = 'telegram' | 'whatsapp' | 'ambos';
 
 export interface Tasa {
   id: string;

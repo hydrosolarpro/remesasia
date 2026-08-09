@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
       await notificarCliente(supabase, solicitud);
     } else if (tipo === 'venezuela') {
       await notificarBeneficiario(supabase, solicitud);
+      await notificarClienteDepositoVe(supabase, solicitud);
     } else {
       await notificarRevisionResuelta(supabase, solicitud);
     }
@@ -66,9 +67,15 @@ async function nombreNegocioDe(supabase: any, negocioOperadorPeruId: string): Pr
 async function notificarCliente(supabase: any, solicitud: any) {
   const { data: cliente } = await supabase
     .from('usuarios')
-    .select('nombre, telegram_chat_id, telegram_connected')
+    .select('nombre, telegram_chat_id, telegram_connected, canal_notificacion')
     .eq('id', solicitud.cliente_id)
     .single();
+
+  // El cliente eligió recibir solo por WhatsApp en su Perfil -- ese envío lo
+  // hace el operador desde la app al validar (ver lib/whatsapp.ts), no esta
+  // función. Evita mandarle Telegram igual si conectó la cuenta pero
+  // prefiere no recibir avisos por ahí.
+  if (cliente?.canal_notificacion === 'whatsapp') return;
 
   if (!cliente?.telegram_connected || !cliente.telegram_chat_id) {
     console.log(`telegram-notificar-deposito: cliente ${solicitud.cliente_id} sin Telegram conectado, se omite envío`);
@@ -84,6 +91,34 @@ async function notificarCliente(supabase: any, solicitud: any) {
 
   const enviado = await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
   if (!enviado) console.error(`telegram-notificar-deposito: falló el envío al cliente ${solicitud.cliente_id}`);
+}
+
+// Aviso al CLIENTE (no al beneficiario) apenas Venezuela carga el
+// comprobante de la transferencia -- hasta ahora este paso solo avisaba al
+// beneficiario (notificarBeneficiario), dejando al cliente sin ningún aviso
+// de que su remesa ya se completó salvo que revisara la app.
+// deno-lint-ignore no-explicit-any
+async function notificarClienteDepositoVe(supabase: any, solicitud: any) {
+  const { data: cliente } = await supabase
+    .from('usuarios')
+    .select('nombre, telegram_chat_id, telegram_connected, canal_notificacion')
+    .eq('id', solicitud.cliente_id)
+    .single();
+
+  if (cliente?.canal_notificacion === 'whatsapp') return;
+
+  if (!cliente?.telegram_connected || !cliente.telegram_chat_id) {
+    console.log(`telegram-notificar-deposito: cliente ${solicitud.cliente_id} sin Telegram conectado, se omite envío de aviso VE`);
+    return;
+  }
+
+  const mensaje =
+    `✅ Hola ${cliente.nombre}, te informamos que se transfirió VES ${formatearBs(solicitud.monto_ves)} ` +
+    `a la cuenta de ${solicitud.beneficiario_nombre} en Venezuela. ` +
+    `Por favor confirma con tu beneficiario que recibió el depósito. ¡Gracias por tu confianza!`;
+
+  const enviado = await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
+  if (!enviado) console.error(`telegram-notificar-deposito: falló el envío del aviso VE al cliente ${solicitud.cliente_id}`);
 }
 
 // deno-lint-ignore no-explicit-any
