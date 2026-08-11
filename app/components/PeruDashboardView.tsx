@@ -127,23 +127,38 @@ export function PeruDashboardView({
 
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
-    setMiembros((miembrosData as OperadorPeruMiembro[] | null) ?? []);
-    setVePerfiles((vePerfilesData as OperadorVenezuelaPerfil[] | null) ?? []);
+    const listaMiembros = (miembrosData as OperadorPeruMiembro[] | null) ?? [];
+    const listaVePerfiles = (vePerfilesData as OperadorVenezuelaPerfil[] | null) ?? [];
+    setMiembros(listaMiembros);
+    setVePerfiles(listaVePerfiles);
     setPrincipalTelefono(principalData?.telefono ?? null);
     if (opsData) {
+      // La comisión/ganancia de cada operación se calcula acá, una sola vez
+      // por carga, y viaja en cada OperationRowData -- así el operador ve la
+      // ganancia de CADA operación en su tarjeta (no solo el total agregado).
+      const mapaMiembros = new Map(listaMiembros.map((m) => [m.id, m]));
+      const mapaVe = new Map(listaVePerfiles.map((v) => [v.id, v]));
       setOperaciones(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (opsData as any[]).map((row) => ({
-          ...row,
-          cliente_nombre: row.cliente?.nombre ?? 'Cliente',
-          cliente_telefono: row.cliente?.telefono ?? null,
-          cliente_email: row.cliente?.email ?? null,
-          cliente_canal_notificacion: row.cliente?.canal_notificacion ?? 'ambos',
-          validador_peru_nombre: row.validador_peru?.nombre ?? null,
-          validador_ve_nombre: row.validador_ve?.nombre ?? null,
-          operador_peru_atiende: row.atendido_por?.nombre ?? null,
-          operador_peru_atiende_telefono: row.atendido_por?.telefono ?? null,
-        }))
+        (opsData as any[]).map((row) => {
+          const miembroOp = row.operador_peru_miembro_id ? mapaMiembros.get(row.operador_peru_miembro_id) : null;
+          const veOp = miembroOp?.operador_venezuela_id ? mapaVe.get(miembroOp.operador_venezuela_id) : null;
+          const comisionPeruPct = (row.comision_peru_pct_aplicada ?? miembroOp?.comision_pct ?? 0) / 100;
+          const comisionVePct = (row.comision_venezuela_pct_aplicada ?? veOp?.comision_pct ?? 0) / 100;
+          const ganancia = calcularGananciaOperacion(row.monto_pen, row.tasa_pen_ves, row.tasa_real_compra, comisionPeruPct, comisionVePct);
+          return {
+            ...row,
+            cliente_nombre: row.cliente?.nombre ?? 'Cliente',
+            cliente_telefono: row.cliente?.telefono ?? null,
+            cliente_email: row.cliente?.email ?? null,
+            cliente_canal_notificacion: row.cliente?.canal_notificacion ?? 'ambos',
+            validador_peru_nombre: row.validador_peru?.nombre ?? null,
+            validador_ve_nombre: row.validador_ve?.nombre ?? null,
+            operador_peru_atiende: row.atendido_por?.nombre ?? null,
+            operador_peru_atiende_telefono: row.atendido_por?.telefono ?? null,
+            ganancia,
+          };
+        })
       );
     } else {
       setOperaciones([]);
@@ -342,22 +357,20 @@ export function PeruDashboardView({
     let miComisionVes = 0;
 
     realizadas.forEach((op) => {
-      const miembroOp = op.operador_peru_miembro_id ? miembros.find((m) => m.id === op.operador_peru_miembro_id) : null;
+      // La ganancia ya viene calculada desde `cargar()` (ver
+      // OperationRowData.ganancia) -- se reusa acá en vez de recalcularla,
+      // así hay una sola fuente de verdad para el mismo número que ya se ve
+      // en cada tarjeta de operación.
+      const g = op.ganancia;
+      if (!g) return;
+
       // La solicitud no guarda directamente a qué Operador Venezuela
       // pertenece -- se deriva de a quién el principal asignó el miembro de
       // Perú que la atiende (operador_peru_miembro.operador_venezuela_id).
       // Si el principal atiende el cliente directamente (sin miembro), no
       // hay un VE asignado y esa comisión queda en 0.
+      const miembroOp = op.operador_peru_miembro_id ? miembros.find((m) => m.id === op.operador_peru_miembro_id) : null;
       const veIdDeLaOp = miembroOp?.operador_venezuela_id ?? null;
-      const veOp = veIdDeLaOp ? vePerfiles.find((v) => v.id === veIdDeLaOp) : null;
-      // Usa el % congelado en la operación (comision_*_pct_aplicada, ver
-      // migración 0060) para que el historial no cambie si el principal
-      // ajusta el % del operador después -- cae al % vigente solo para
-      // operaciones anteriores a ese campo.
-      const comisionPeruPct = (op.comision_peru_pct_aplicada ?? miembroOp?.comision_pct ?? 0) / 100;
-      const comisionVePct = (op.comision_venezuela_pct_aplicada ?? veOp?.comision_pct ?? 0) / 100;
-      const g = calcularGananciaOperacion(op.monto_pen, op.tasa_pen_ves, op.tasa_real_compra, comisionPeruPct, comisionVePct);
-      if (!g) return;
 
       montoBeneficiarioVes += g.beneficiarioVes;
       transferenciaTotalVes += g.transferenciaTotalVes;
@@ -387,7 +400,7 @@ export function PeruDashboardView({
       miComisionPen,
       miComisionVes,
     };
-  }, [realizadas, miembros, vePerfiles, esMiembroPe, esVenezuela, miembroId, veId, totalesPorEstado.realizadas.montoPen]);
+  }, [realizadas, miembros, esMiembroPe, esVenezuela, miembroId, veId, totalesPorEstado.realizadas.montoPen]);
 
   // El aviso al cliente/beneficiario ya no se abre acá manualmente: al
   // marcar cada check, un trigger en la base de datos dispara el envío

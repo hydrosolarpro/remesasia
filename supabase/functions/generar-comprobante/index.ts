@@ -87,7 +87,9 @@ function renderizarComprobante(solicitud: any): Promise<Uint8Array> {
     doc.on('error', reject);
 
     doc.fontSize(18).text('App Remesas IA', { align: 'center' });
-    doc.fontSize(11).fillColor('#666').text('Comprobante de transferencia PEN → VES', { align: 'center' });
+    // La fuente Helvetica por defecto de pdfkit no tiene el glifo "→" y lo
+    // renderiza como caracteres corruptos -- se usa "->" en su lugar.
+    doc.fontSize(11).fillColor('#666').text('Comprobante de transferencia PEN -> VES', { align: 'center' });
     doc.moveDown(1.5);
 
     doc.fillColor('#000').fontSize(10);
@@ -98,9 +100,7 @@ function renderizarComprobante(solicitud: any): Promise<Uint8Array> {
     fila(doc, 'Cuenta / teléfono', solicitud.beneficiario_cuenta);
     doc.moveDown(0.5);
     fila(doc, 'Monto enviado', `S/ ${Number(solicitud.monto_pen).toFixed(2)}`);
-    fila(doc, 'Tasa PEN/USDT', `S/ ${solicitud.tasa_pen_usdt}`);
-    fila(doc, 'USDT movilizados', Number(solicitud.monto_usdt).toFixed(2));
-    fila(doc, 'Tasa USDT/VES', `Bs ${solicitud.tasa_usdt_ves}`);
+    fila(doc, 'Tasa (S/ 1 = Bs)', `Bs ${Number(solicitud.tasa_pen_ves).toFixed(2)}`);
     doc.moveDown(0.5);
     doc.fontSize(13).text(`Monto recibido: Bs ${Number(solicitud.monto_ves).toFixed(2)}`, { align: 'left' });
 

@@ -74,10 +74,10 @@ export default function PanelAdmin() {
     }, [cargar])
   );
 
-  // Auto-actualización cada 8s: nuevos pagos por verificar u operadores
+  // Auto-actualización cada 5s: nuevos pagos por verificar u operadores
   // registrados aparecen solos, sin recargar la pantalla.
   useEffect(() => {
-    const id = setInterval(() => cargar(true), 8_000);
+    const id = setInterval(() => cargar(true), 5_000);
     return () => clearInterval(id);
   }, [cargar]);
 

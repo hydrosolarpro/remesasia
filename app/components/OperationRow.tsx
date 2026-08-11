@@ -14,6 +14,7 @@ import {
 import { formatearBs } from '../lib/formato';
 import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ZoomableImageModal } from './ZoomableImageModal';
+import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 export const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
@@ -41,6 +42,8 @@ export interface OperationRowData extends Solicitud {
   operador_peru_atiende?: string | null;
   /** Teléfono del operador de Perú miembro que atiende (null = el Operador principal). */
   operador_peru_atiende_telefono?: string | null;
+  /** Ganancia/comisión de esta operación (null si falta la tasa de adquisición del día en que se hizo). */
+  ganancia?: ReturnType<typeof calcularGananciaOperacion>;
 }
 
 const ETIQUETA_METODO_PAGO: Record<OperationRowData['metodo_pago'], string> = {
@@ -265,6 +268,15 @@ export function OperationRow({
           <CopyField label="Recibe" value={`VES ${op.monto_ves.toFixed(2)}`} />
           {op.check_deposito_peru_at && op.check_deposito_ve_at && (
             <CopyField label="Tramo interno PE → VE" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
+          )}
+          {op.ganancia && (
+            <>
+              <CopyField label="Comisión Perú" value={`PEN ${op.ganancia.comisionPeruPen.toFixed(2)}`} />
+              <CopyField
+                label="Comisión Venezuela"
+                value={`VES ${op.ganancia.comisionVenezuelaVes.toFixed(2)} · PEN ${op.ganancia.comisionVenezuelaPen.toFixed(2)}`}
+              />
+            </>
           )}
 
           {op.comprobante_pago_url && (

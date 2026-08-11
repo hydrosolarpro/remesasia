@@ -164,10 +164,10 @@ export default function PanelControl() {
     }, [cargar])
   );
 
-  // Auto-actualización cada 8s: para que el admin vea sin recargar los
+  // Auto-actualización cada 5s: para que el admin vea sin recargar los
   // nuevos pagos por verificar, cambios de plan, etc.
   useEffect(() => {
-    const id = setInterval(() => cargar(true), 8_000);
+    const id = setInterval(() => cargar(true), 5_000);
     return () => clearInterval(id);
   }, [cargar]);
 

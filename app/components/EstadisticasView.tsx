@@ -279,6 +279,12 @@ export function EstadisticasView({
     const transferenciaTotalVes = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.transferenciaTotalVes ?? 0), 0);
     const gananciaBrutaTotal = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.gananciaBrutaPen ?? 0), 0);
     const gananciaNetaTotal = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.gananciaNetaPen ?? 0), 0);
+    // Totalización de comisiones del período elegido (hoy por defecto, o el
+    // filtro que el operador indique en DateRangeFilter) -- el Operador
+    // Venezuela la necesita en VES además de PEN.
+    const comisionPeruTotalPen = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.comisionPeruPen ?? 0), 0);
+    const comisionVeTotalVes = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.comisionVenezuelaVes ?? 0), 0);
+    const comisionVeTotalPen = operacionesVisibles.reduce((acc, o) => acc + (o.ganancia?.comisionVenezuelaPen ?? 0), 0);
     return {
       nOps: operacionesVisibles.length,
       montoTotalPen,
@@ -286,6 +292,9 @@ export function EstadisticasView({
       transferenciaTotalVes,
       gananciaBrutaTotal,
       gananciaNetaTotal,
+      comisionPeruTotalPen,
+      comisionVeTotalVes,
+      comisionVeTotalPen,
     };
   }, [operacionesVisibles]);
 
@@ -302,6 +311,8 @@ export function EstadisticasView({
             <td>${o.operador_ve_atiende ?? '—'}</td>
             <td>PEN ${o.monto_pen.toFixed(2)}</td>
             <td>VES ${o.monto_ves.toFixed(2)}</td>
+            <td>PEN ${(o.ganancia?.comisionPeruPen ?? 0).toFixed(2)}</td>
+            <td>VES ${(o.ganancia?.comisionVenezuelaVes ?? 0).toFixed(2)}</td>
             <td>PEN ${(o.ganancia?.gananciaBrutaPen ?? 0).toFixed(2)}</td>
             ${esDuenio ? `<td>PEN ${(o.ganancia?.gananciaNetaPen ?? 0).toFixed(2)}</td>` : ''}
           </tr>`
@@ -319,10 +330,14 @@ export function EstadisticasView({
             ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Transferencia a Venezuela</div><div class="resumen-valor">VES ${totales.transferenciaTotalVes.toFixed(2)}</div></div>` : ''}
             <div class="resumen-item"><div class="resumen-label">Ganancia bruta</div><div class="resumen-valor">PEN ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>
             ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia neta</div><div class="resumen-valor">PEN ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
+            ${tipoSesion === 'venezuela' ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela</div><div class="resumen-valor">VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>` : ''}
+            ${tipoSesion === 'miembro' ? `<div class="resumen-item"><div class="resumen-label">Mi comisión</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>` : ''}
+            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Comisión equipo Perú</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>` : ''}
+            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela</div><div class="resumen-valor">VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>` : ''}
           </div>
           <table>
-            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th><th>Ganancia bruta</th>${esDuenio ? '<th>Ganancia neta</th>' : ''}</tr></thead>
-            <tbody>${filas || '<tr><td colspan="8">Sin operaciones en este período.</td></tr>'}</tbody>
+            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th><th>Comisión Perú</th><th>Comisión Venezuela</th><th>Ganancia bruta</th>${esDuenio ? '<th>Ganancia neta</th>' : ''}</tr></thead>
+            <tbody>${filas || `<tr><td colspan="${esDuenio ? 10 : 9}">Sin operaciones en este período.</td></tr>`}</tbody>
           </table>
         `
       );
@@ -393,6 +408,27 @@ export function EstadisticasView({
               {esDuenio && <ResumenItem label="Transferencia a Venezuela" valor={`VES ${totales.transferenciaTotalVes.toFixed(2)}`} />}
               <ResumenItem label="Ganancia bruta" valor={`PEN ${totales.gananciaBrutaTotal.toFixed(2)}`} />
               {esDuenio && <ResumenItem label="Ganancia neta" valor={`PEN ${totales.gananciaNetaTotal.toFixed(2)}`} destacado />}
+              {/* Totalización de comisión del período elegido (hoy por
+                  defecto, o el filtro que el operador indique arriba) --
+                  cada rol ve la suya; el Operador Venezuela la ve en VES
+                  además de PEN. */}
+              {tipoSesion === 'venezuela' && (
+                <ResumenItem
+                  label="Comisión Venezuela"
+                  valor={`VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
+                  destacado
+                />
+              )}
+              {tipoSesion === 'miembro' && <ResumenItem label="Mi comisión" valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`} destacado />}
+              {esDuenio && (
+                <>
+                  <ResumenItem label="Comisión equipo Perú" valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`} />
+                  <ResumenItem
+                    label="Comisión Venezuela"
+                    valor={`VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
+                  />
+                </>
+              )}
             </View>
           </View>
 

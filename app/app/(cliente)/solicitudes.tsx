@@ -62,10 +62,10 @@ export default function SolicitudesCliente() {
     }, [cargar])
   );
 
-  // Auto-actualización cada 8s: para que el cliente vea en tiempo real
+  // Auto-actualización cada 5s: para que el cliente vea en tiempo real
   // cuando su solicitud pasa a "Realizada" sin tener que recargar.
   useEffect(() => {
-    const id = setInterval(() => cargar(true), 8_000);
+    const id = setInterval(() => cargar(true), 5_000);
     return () => clearInterval(id);
   }, [cargar]);
 
