@@ -6,6 +6,7 @@ import { descargarYCompartirComprobante } from '../../../lib/pdf';
 import { formatearBs } from '../../../lib/formato';
 import { Solicitud } from '../../../types/database';
 import { EstadoBadge } from '../../../components/EstadoBadge';
+import { ZoomableImageModal } from '../../../components/ZoomableImageModal';
 import { colors, radius, cardShadow } from '../../../constants/theme';
 
 const ETIQUETA_TIPO_TRANSFERENCIA: Record<Solicitud['tipo_transferencia'], string> = {
@@ -20,6 +21,7 @@ const ETIQUETA_TIPO_TRANSFERENCIA: Record<Solicitud['tipo_transferencia'], strin
 export default function DetalleSolicitud() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
+  const [zoom, setZoom] = useState(false);
 
   const cargar = useCallback(async () => {
     const { data } = await supabase.from('solicitudes').select('*').eq('id', id).single();
@@ -87,7 +89,10 @@ export default function DetalleSolicitud() {
       </View>
 
       {solicitud.comprobante_pago_url && (
-        <Image source={{ uri: solicitud.comprobante_pago_url }} style={styles.preview} />
+        <Pressable onPress={() => setZoom(true)}>
+          <Image source={{ uri: solicitud.comprobante_pago_url }} style={styles.preview} />
+          <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
+        </Pressable>
       )}
 
       {solicitud.estado === 'RECHAZADA' && solicitud.motivo_rechazo && (
@@ -105,6 +110,7 @@ export default function DetalleSolicitud() {
           <Text style={styles.buttonText}>Descargar comprobante PDF</Text>
         </Pressable>
       )}
+      <ZoomableImageModal visible={zoom} uri={solicitud.comprobante_pago_url} onClose={() => setZoom(false)} />
     </ScrollView>
   );
 }
@@ -161,4 +167,5 @@ const styles = StyleSheet.create({
   button: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center' },
   buttonText: { color: colors.text, fontWeight: '700' },
   preview: { width: '100%', height: 220, borderRadius: 14, backgroundColor: colors.card },
+  verCompletoTexto: { color: colors.accent, fontWeight: '700', fontSize: 13, textAlign: 'center', marginTop: 4 },
 });

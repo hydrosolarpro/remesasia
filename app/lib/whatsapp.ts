@@ -60,15 +60,16 @@ export function mensajeConfirmacionDeposito(nombreNegocio: string, entidadBancar
 }
 
 // Aviso al CLIENTE (Perú) apenas el operador valida que su pago llegó en
-// Perú -- antes de esto solo se avisaba por Telegram (si lo tenía
-// conectado); este mensaje es el equivalente por WhatsApp.
+// Perú -- mismo texto que el aviso automático de Telegram (notificarCliente
+// en supabase/functions/telegram-notificar-deposito), para que el cliente
+// reciba el mismo mensaje sin importar el canal.
 export function mensajeAvisoClientePeruValidado(nombreCliente: string, nombreNegocio: string, montoPenFormateado: string): string {
-  return `Hola ${nombreCliente}, hemos validado tu depósito de S/ ${montoPenFormateado} en ${nombreNegocio}. En breve realizaremos la transferencia a tu beneficiario en Venezuela. ¡Gracias por tu confianza en Remesas PERU-VENEZUELA!`;
+  return `✅ Gracias ${nombreCliente} por tu confianza en ${nombreNegocio}. Tu depósito de S/ ${montoPenFormateado} fue validado. En breve se realizará la transferencia a la cuenta en Venezuela que ha solicitado. Revisa tus "Solicitudes" en el aplicativo Remesas PERU-VENEZUELA.`;
 }
 
 // Aviso al CLIENTE (Perú) apenas el operador de Venezuela carga el
-// comprobante de la transferencia a su beneficiario -- hasta ahora el
-// cliente no recibía ningún aviso en este paso, solo el beneficiario.
+// comprobante de la transferencia a su beneficiario -- mismo texto que el
+// aviso automático de Telegram (notificarClienteDepositoVe).
 export function mensajeAvisoClienteVeValidado(nombreCliente: string, nombreBeneficiario: string, montoVesFormateado: string): string {
-  return `Hola ${nombreCliente}, te informamos que se transfirió VES ${montoVesFormateado} a la cuenta de ${nombreBeneficiario} en Venezuela. Por favor confirma con tu beneficiario que recibió el depósito. ¡Gracias por tu confianza en Remesas PERU-VENEZUELA!`;
+  return `✅ Hola ${nombreCliente}, te informamos que se transfirió VES ${montoVesFormateado} a la cuenta de ${nombreBeneficiario} en Venezuela. Por favor confirma con tu beneficiario que recibió el depósito. ¡Gracias por tu confianza!`;
 }

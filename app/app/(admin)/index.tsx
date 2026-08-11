@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
 import { planDesdeMonto } from '../../lib/plan';
 import { RoleTag } from '../../components/RoleTag';
+import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { ConfiguracionPagosAdmin } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -41,6 +42,7 @@ export default function PanelAdmin() {
   const [procesandoPago, setProcesandoPago] = useState<string | null>(null);
   const [rechazandoId, setRechazandoId] = useState<string | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [zoomUri, setZoomUri] = useState<string | null>(null);
 
   // `silencioso`: evita el parpadeo a pantalla de carga en los refrescos
   // automáticos de fondo (polling de 8s más abajo) -- solo se usa el
@@ -170,7 +172,12 @@ export default function PanelAdmin() {
             <Text style={styles.dato}>
               Período {pago.periodo} · S/ {pago.monto.toFixed(2)}
             </Text>
-            {pago.comprobante_url && <Image source={{ uri: pago.comprobante_url }} style={styles.comprobante} resizeMode="contain" />}
+            {pago.comprobante_url && (
+              <Pressable onPress={() => setZoomUri(pago.comprobante_url)}>
+                <Image source={{ uri: pago.comprobante_url }} style={styles.comprobante} resizeMode="contain" />
+                <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
+              </Pressable>
+            )}
 
             {rechazandoId === pago.id ? (
               <View style={{ gap: 6, marginTop: 8 }}>
@@ -248,6 +255,7 @@ export default function PanelAdmin() {
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutTexto}>Cerrar sesión</Text>
       </Pressable>
+      <ZoomableImageModal visible={!!zoomUri} uri={zoomUri} onClose={() => setZoomUri(null)} />
     </ScrollView>
   );
 }
@@ -363,6 +371,7 @@ const styles = StyleSheet.create({
   dato: { color: colors.textMuted, fontSize: 14 },
   fecha: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
   comprobante: { width: '100%', height: 160, borderRadius: radius.sm, backgroundColor: colors.card, marginTop: 6 },
+  verCompletoTexto: { color: colors.accent, fontWeight: '700', fontSize: 13, textAlign: 'center', marginTop: 4 },
   accionesRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   aprobarBtn: { flex: 1, backgroundColor: colors.success, borderRadius: radius.sm, padding: 10, alignItems: 'center' },
   aprobarBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 15 },

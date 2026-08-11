@@ -6,6 +6,7 @@ import { construirEnlaceWhatsApp, construirEnlaceWhatsAppGenerico } from '../lib
 import { formatearBs } from '../lib/formato';
 import { FORMATTER_FECHA_HORA, formatearTiempoRespuesta } from './OperationRow';
 import { RoundCheck } from './RoundCheck';
+import { ZoomableImageModal } from './ZoomableImageModal';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const ETIQUETA_METODO_PAGO: Record<Solicitud['metodo_pago'], string> = {
@@ -54,6 +55,7 @@ export function ClienteSolicitudRow({
   operadorTelefono?: string | null;
 }) {
   const [abierto, setAbierto] = useState(false);
+  const [zoom, setZoom] = useState(false);
 
   // "En curso" destaca cuándo se envió; "realizada" destaca cuándo se
   // efectuó el depósito en Venezuela (lo que el cliente quiere ver primero
@@ -170,10 +172,12 @@ export function ClienteSolicitudRow({
 
           {solicitud.comprobante_vz_url && (
             <>
-              <Pressable style={styles.imagenToggle} onPress={() => Linking.openURL(solicitud.comprobante_vz_url!)}>
-                <Text style={styles.imagenToggleTexto}>Comprobante del depósito en Venezuela</Text>
+              <Pressable style={styles.imagenToggle} onPress={() => setZoom(true)}>
+                <Text style={styles.imagenToggleTexto}>Comprobante del depósito en Venezuela · 🔍 toca para hacer zoom</Text>
               </Pressable>
-              <Image source={{ uri: solicitud.comprobante_vz_url }} style={styles.comprobante} resizeMode="contain" />
+              <Pressable onPress={() => setZoom(true)}>
+                <Image source={{ uri: solicitud.comprobante_vz_url }} style={styles.comprobante} resizeMode="contain" />
+              </Pressable>
               <View style={styles.accionesRow}>
                 <Pressable style={styles.descargarBtn} onPress={() => Linking.openURL(solicitud.comprobante_vz_url!)}>
                   <Text style={styles.descargarBtnTexto}>Descargar</Text>
@@ -195,6 +199,7 @@ export function ClienteSolicitudRow({
           </Pressable>
         </View>
       )}
+      <ZoomableImageModal visible={zoom} uri={solicitud.comprobante_vz_url} onClose={() => setZoom(false)} />
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Solicitud, CanalNotificacion } from '../types/database';
 import { RoundCheck } from './RoundCheck';
@@ -13,6 +13,7 @@ import {
 } from '../lib/whatsapp';
 import { formatearBs } from '../lib/formato';
 import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
+import { ZoomableImageModal } from './ZoomableImageModal';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 export const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
@@ -91,6 +92,8 @@ export function OperationRow({
   validandoVe,
   onResolverRevision,
   resolviendoRevision,
+  onRecargarComprobanteVe,
+  recargandoComprobanteVe,
   atendidoPor,
   atendidoPorTelefono,
   derivadaDePrincipal,
@@ -112,6 +115,9 @@ export function OperationRow({
   /** Solo relevante cuando op.en_revision=true (lista "Operaciones por revisar"). */
   onResolverRevision?: () => void;
   resolviendoRevision?: boolean;
+  /** Vuelve a subir el comprobante VE mientras la operación está en revisión (Perú principal, Perú miembro o Venezuela). */
+  onRecargarComprobanteVe?: (comprobanteUri: string, comprobanteExt: string) => void;
+  recargandoComprobanteVe?: boolean;
   /** Nombre del operador de Perú que atiende esta operación (p.ej. "Operador principal de Perú"). */
   atendidoPor?: string;
   /** Teléfono del operador de Perú que atiende, para el botón de WhatsApp. */
@@ -137,6 +143,22 @@ export function OperationRow({
       return;
     }
     onValidarVe(resultado.assets[0].uri, extensionDeImagen(resultado.assets[0]));
+  };
+
+  const tocarRecargarComprobante = async () => {
+    if (!onRecargarComprobanteVe) return;
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos para subir el comprobante corregido.');
+      return;
+    }
+    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    if (resultado.canceled) return;
+    if (!(await validarTamanoImagen(resultado.assets[0]))) {
+      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
+      return;
+    }
+    onRecargarComprobanteVe(resultado.assets[0].uri, extensionDeImagen(resultado.assets[0]));
   };
 
   // Botón de respaldo para reenviar manualmente (el envío automático ya
@@ -285,6 +307,19 @@ export function OperationRow({
             <View style={styles.revisionCard}>
               <Text style={styles.revisionTitulo}>⚠️ El cliente reportó que el depósito no llegó a la cuenta del beneficiario</Text>
               {op.en_revision_at && <Text style={styles.checkHora}>Reportado: {FORMATTER_FECHA_HORA.format(new Date(op.en_revision_at))}</Text>}
+              {onRecargarComprobanteVe && (
+                <Pressable style={styles.recargarBtn} onPress={tocarRecargarComprobante} disabled={recargandoComprobanteVe}>
+                  {recargandoComprobanteVe ? (
+                    <ActivityIndicator color={colors.text} />
+                  ) : (
+                    <Text style={styles.recargarBtnTexto}>🔄 Recargar comprobante de depósito en Venezuela</Text>
+                  )}
+                </Pressable>
+              )}
+              <Text style={styles.revisionAyuda}>
+                El cliente marcará "resuelto" desde su app apenas confirme que el dinero ya está en la cuenta del beneficiario. También puedes
+                marcarlo tú si ya lo verificaste con él.
+              </Text>
               <View style={styles.checkCol}>
                 <Text style={styles.checkLabel}>Marcar como resuelto</Text>
                 <RoundCheck checked={false} loading={resolviendoRevision} onPress={onResolverRevision} />
@@ -327,13 +362,20 @@ export function OperationRow({
 
 function ImagenDesplegable({ titulo, uri }: { titulo: string; uri: string }) {
   const [visible, setVisible] = useState(false);
+  const [zoom, setZoom] = useState(false);
   return (
     <View>
       <Pressable style={styles.imagenToggle} onPress={() => setVisible((v) => !v)}>
         <Text style={styles.imagenToggleTexto}>{titulo}</Text>
         <Text style={styles.imagenToggleChevron}>{visible ? '▲' : '▼'}</Text>
       </Pressable>
-      {visible && <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />}
+      {visible && (
+        <Pressable onPress={() => setZoom(true)}>
+          <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />
+          <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
+        </Pressable>
+      )}
+      <ZoomableImageModal visible={zoom} uri={uri} onClose={() => setZoom(false)} />
     </View>
   );
 }
@@ -381,6 +423,7 @@ const styles = StyleSheet.create({
   imagenToggleTexto: { color: colors.accent, fontSize: 16, fontWeight: '700' },
   imagenToggleChevron: { color: colors.textMuted, fontSize: 12 },
   comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },
+  verCompletoTexto: { color: colors.accent, fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 2 },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 },
   checkCol: { alignItems: 'center', gap: 6, flex: 1 },
   // Etiquetas de los botones de check más grandes (antes 11px).
@@ -415,4 +458,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   revisionTitulo: { color: colors.danger, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  revisionAyuda: { color: colors.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 17 },
+  recargarBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  recargarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14, textAlign: 'center' },
 });

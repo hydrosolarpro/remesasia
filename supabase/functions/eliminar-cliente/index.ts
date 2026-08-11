@@ -3,12 +3,13 @@ import { supabaseCaller } from '../_shared/supabaseCaller.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
- * "Elimina" un cliente: borrado lógico (marca `eliminado_at`) + borra su
- * cuenta de autenticación, para que desaparezca de "Clientes registrados"
- * y libere su cupo, sin importar cuántas solicitudes tenga. La fila de
- * `usuarios` se conserva a propósito -- así sus solicitudes pasadas
- * siguen mostrando su nombre y datos completos en reportes/exportes
- * (Excel/PDF), en vez de quedar huérfanas. Si vuelve a entrar con la
+ * "Elimina" un cliente: borrado lógico (marca `eliminado_at` y borra el
+ * `email`) + borra su cuenta de autenticación, para que desaparezca de
+ * "Clientes registrados" y libere su cupo, sin importar cuántas
+ * solicitudes tenga. La fila de `usuarios` se conserva a propósito -- así
+ * sus solicitudes pasadas siguen mostrando su nombre y datos completos en
+ * reportes/exportes (Excel/PDF), en vez de quedar huérfanas; el correo sí
+ * se borra por pedido explícito del negocio. Si vuelve a entrar con la
  * misma cuenta de Google, se registra como cliente nuevo desde cero
  * (auth.users le asigna un id distinto, no hay conflicto).
  *
@@ -91,7 +92,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { error: deleteError } = await admin.from('usuarios').update({ eliminado_at: new Date().toISOString() }).eq('id', cliente_id);
+    const { error: deleteError } = await admin
+      .from('usuarios')
+      .update({ eliminado_at: new Date().toISOString(), email: null })
+      .eq('id', cliente_id);
     if (deleteError) {
       console.error('eliminar-cliente: error marcando eliminado_at', deleteError);
       return new Response(JSON.stringify({ error: 'No se pudo eliminar el registro del cliente' }), {

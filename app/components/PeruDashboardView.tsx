@@ -68,6 +68,7 @@ export function PeruDashboardView({
   const [esloganBorrador, setEsloganBorrador] = useState('');
   const [vistaOperaciones, setVistaOperaciones] = useState<'en_curso' | 'realizadas' | 'por_revisar' | 'derivadas'>('en_curso');
   const [resolviendoId, setResolviendoId] = useState<string | null>(null);
+  const [recargandoId, setRecargandoId] = useState<string | null>(null);
 
   // Derivación de solicitudes (solo Operador principal): modal con la lista
   // de miembros de Perú a los que puede derivar sus solicitudes de clientes.
@@ -397,6 +398,22 @@ export function PeruDashboardView({
     else Alert.alert('No se pudo completar la acción', mensaje);
   };
 
+  // En web, una pestaña/ventana solo se puede abrir de forma síncrona
+  // dentro del gesto de click original -- si se abre recién después de un
+  // await (la llamada RPC, la subida del comprobante) el navegador la
+  // bloquea en silencio y el aviso "automático" nunca aparece. Truco: se
+  // abre una pestaña en blanco YA, dentro del mismo gesto, y se la
+  // redirige a la URL final de WhatsApp una vez que se conoce (o se cierra
+  // si al final no hay a quién avisar).
+  const abrirPestanaWhatsAppPrevia = (): Window | null => {
+    if (Platform.OS !== 'web') return null;
+    try {
+      return window.open('', '_blank');
+    } catch {
+      return null;
+    }
+  };
+
   // Best-effort: intenta abrir WhatsApp con el aviso al cliente ya escrito
   // apenas se valida un check -- requiere que el cliente haya elegido
   // WhatsApp o Ambos en su Perfil (canal_notificacion) y que tenga
@@ -404,7 +421,12 @@ export function PeruDashboardView({
   // Safari, si pasó demasiado tiempo desde el toque original) no se avisa
   // con una alerta -- el botón "Notificar por WhatsApp al cliente" en la
   // fila de la operación queda como respaldo manual siempre visible.
-  const intentarAvisarClientePorWhatsApp = async (enlace: string | null) => {
+  const intentarAvisarClientePorWhatsApp = async (enlace: string | null, pestanaPrevia?: Window | null) => {
+    if (pestanaPrevia) {
+      if (enlace) pestanaPrevia.location.href = enlace;
+      else pestanaPrevia.close();
+      return;
+    }
     if (!enlace) return;
     try {
       const puedeAbrir = await Linking.canOpenURL(enlace);
@@ -416,25 +438,30 @@ export function PeruDashboardView({
 
   const validarPeru = async (op: OperationRowData) => {
     setValidando({ id: op.id, tipo: 'peru' });
+    const quiereWhatsApp = op.cliente_canal_notificacion !== 'telegram';
+    const pestanaWhatsApp = quiereWhatsApp ? abrirPestanaWhatsAppPrevia() : null;
     const { error } = await supabase.rpc('validar_deposito_peru', { p_solicitud_id: op.id });
     setValidando(null);
     if (error) {
+      pestanaWhatsApp?.close();
       avisarError(error.message);
       return;
     }
-    if (op.cliente_canal_notificacion !== 'telegram') {
+    if (quiereWhatsApp) {
       const nombreNegocio = perfil?.nombre_negocio || 'Remesas Perú-Venezuela';
       const enlace = construirEnlaceWhatsAppGenerico(
         op.cliente_telefono,
         mensajeAvisoClientePeruValidado(op.cliente_nombre, nombreNegocio, op.monto_pen.toFixed(2))
       );
-      intentarAvisarClientePorWhatsApp(enlace);
+      intentarAvisarClientePorWhatsApp(enlace, pestanaWhatsApp);
     }
     cargar();
   };
 
   const validarVe = async (op: OperationRowData, comprobanteUri: string, comprobanteExt: string) => {
     setValidando({ id: op.id, tipo: 've' });
+    const quiereWhatsApp = op.cliente_canal_notificacion !== 'telegram';
+    const pestanaWhatsApp = quiereWhatsApp ? abrirPestanaWhatsAppPrevia() : null;
     try {
       const path = `${op.id}/comprobante-vz.${comprobanteExt}`;
       // arrayBuffer() en vez de blob(): en React Native fetch(...).blob() de
@@ -452,29 +479,81 @@ export function PeruDashboardView({
       });
       if (error) throw error;
 
-      if (op.cliente_canal_notificacion !== 'telegram') {
+      if (quiereWhatsApp) {
         const enlace = construirEnlaceWhatsAppGenerico(
           op.cliente_telefono,
           mensajeAvisoClienteVeValidado(op.cliente_nombre, op.beneficiario_nombre, formatearBs(op.monto_ves))
         );
-        intentarAvisarClientePorWhatsApp(enlace);
+        intentarAvisarClientePorWhatsApp(enlace, pestanaWhatsApp);
+      } else {
+        pestanaWhatsApp?.close();
       }
 
       cargar();
     } catch (err) {
+      pestanaWhatsApp?.close();
       avisarError(err instanceof Error ? err.message : 'No se pudo validar el depósito.');
     } finally {
       setValidando(null);
     }
   };
 
+  // Vuelve a subir el comprobante de depósito en Venezuela para una
+  // operación "en revisión" (el cliente reportó que el dinero no llegó a
+  // la cuenta del beneficiario) -- a diferencia del check normal de
+  // validación (solo Venezuela o el principal), esto lo puede hacer
+  // cualquiera de los tres roles que puede estar resolviendo el caso:
+  // Perú principal, Perú miembro o Venezuela. No marca el caso como
+  // resuelto por sí solo -- eso lo hace el cliente (o un operador) con
+  // "Marcar como resuelto" una vez que confirma que el dinero ya está en
+  // la cuenta del beneficiario.
+  const recargarComprobanteVe = async (op: OperationRowData, comprobanteUri: string, comprobanteExt: string) => {
+    setRecargandoId(op.id);
+    try {
+      const path = `${op.id}/comprobante-vz.${comprobanteExt}`;
+      const arrayBuffer = await (await fetch(comprobanteUri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage
+        .from('comprobantes')
+        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(comprobanteExt) });
+      if (uploadError) throw uploadError;
+      const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
+      // Mismo path que el comprobante original (upsert): se agrega un
+      // parámetro de versión para que no se siga viendo la imagen vieja
+      // cacheada bajo la misma URL.
+      const urlConVersion = `${publicUrl.publicUrl}?v=${Date.now()}`;
+
+      const { error } = await supabase.rpc('validar_deposito_venezuela', {
+        p_solicitud_id: op.id,
+        p_comprobante_url: urlConVersion,
+      });
+      if (error) throw error;
+      cargar();
+    } catch (err) {
+      avisarError(err instanceof Error ? err.message : 'No se pudo recargar el comprobante.');
+    } finally {
+      setRecargandoId(null);
+    }
+  };
+
   const resolverRevision = async (op: OperationRowData) => {
     setResolviendoId(op.id);
+    const quiereWhatsApp = op.cliente_canal_notificacion !== 'telegram';
+    const pestanaWhatsApp = quiereWhatsApp ? abrirPestanaWhatsAppPrevia() : null;
     const { error } = await supabase.rpc('resolver_revision_beneficiario', { p_solicitud_id: op.id });
     setResolviendoId(null);
     if (error) {
+      pestanaWhatsApp?.close();
       avisarError(error.message);
       return;
+    }
+    if (quiereWhatsApp) {
+      const enlace = construirEnlaceWhatsAppGenerico(
+        op.cliente_telefono,
+        mensajeAvisoClienteVeValidado(op.cliente_nombre, op.beneficiario_nombre, formatearBs(op.monto_ves))
+      );
+      intentarAvisarClientePorWhatsApp(enlace, pestanaWhatsApp);
+    } else {
+      pestanaWhatsApp?.close();
     }
     cargar();
   };
@@ -783,6 +862,8 @@ export function PeruDashboardView({
                 atendidoPorTelefono={atendidoPorTelefono(op)}
                 onResolverRevision={() => resolverRevision(op)}
                 resolviendoRevision={resolviendoId === op.id}
+                onRecargarComprobanteVe={(comprobanteUri, comprobanteExt) => recargarComprobanteVe(op, comprobanteUri, comprobanteExt)}
+                recargandoComprobanteVe={recargandoId === op.id}
               />
             ))}
           </View>

@@ -8,7 +8,13 @@ import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
  * Disparada por el trigger `trg_telegram_notificar_deposito`
  * (ver supabase/migrations/0040_telegram_notificaciones.sql), uno por cada
  * check que se marca en `solicitudes`: `check_deposito_peru` (avisa al
- * cliente) y `check_deposito_ve` (avisa al beneficiario en Venezuela).
+ * cliente) y `check_deposito_ve` (avisa al beneficiario en Venezuela y al
+ * cliente). Cuando se resuelve una revisión ("por revisar" -- el cliente
+ * había reportado que el dinero no llegó, ver
+ * supabase/migrations/0045_cliente_autorresuelve_revision.sql), se reusan
+ * los mismos dos avisos de `venezuela` en vez de un mensaje aparte, porque
+ * el resultado final es el mismo: el dinero sí está en la cuenta del
+ * beneficiario.
  *
  * Si el destinatario no tiene Telegram conectado, o Telegram devuelve un
  * error, no se lanza excepción: solo se registra en los logs. El depósito
@@ -37,11 +43,13 @@ Deno.serve(async (req) => {
 
     if (tipo === 'peru') {
       await notificarCliente(supabase, solicitud);
-    } else if (tipo === 'venezuela') {
+    } else if (tipo === 'venezuela' || tipo === 'revision_resuelta') {
+      // Una revisión resuelta ("por revisar" -> el dinero sí está en la
+      // cuenta del beneficiario) termina en el mismo resultado que una
+      // validación normal en Venezuela -- reutiliza los mismos avisos ya
+      // definidos en vez de un mensaje genérico aparte.
       await notificarBeneficiario(supabase, solicitud);
       await notificarClienteDepositoVe(supabase, solicitud);
-    } else {
-      await notificarRevisionResuelta(supabase, solicitud);
     }
 
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
@@ -156,33 +164,4 @@ async function notificarBeneficiario(supabase: any, solicitud: any) {
 
   const enviado = await sendTelegramMessage(chatId, mensaje);
   if (!enviado) console.error(`telegram-notificar-deposito: falló el envío al beneficiario de solicitud ${solicitud.id}`);
-}
-
-// deno-lint-ignore no-explicit-any
-async function notificarRevisionResuelta(supabase: any, solicitud: any) {
-  const { data: cliente } = await supabase
-    .from('usuarios')
-    .select('nombre, telegram_chat_id, telegram_connected')
-    .eq('id', solicitud.cliente_id)
-    .single();
-
-  const mensaje =
-    `${cliente?.nombre ?? 'Cliente'} y ${solicitud.beneficiario_nombre}, Disculpen los inconvenientes. ` +
-    `Se ha revisado y solucionado con éxito!!!, revisar nuevamente el depósito en cuenta beneficiario, ` +
-    `valide nuevamente en la parte de solicitudes.`;
-
-  if (cliente?.telegram_connected && cliente.telegram_chat_id) {
-    const enviado = await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
-    if (!enviado) console.error(`telegram-notificar-deposito: falló el envío de revisión resuelta al cliente ${solicitud.cliente_id}`);
-  } else {
-    console.log(`telegram-notificar-deposito: cliente ${solicitud.cliente_id} sin Telegram conectado, se omite envío de revisión resuelta`);
-  }
-
-  const chatIdBenef = await chatIdBeneficiario(supabase, solicitud);
-  if (chatIdBenef) {
-    const enviado = await sendTelegramMessage(chatIdBenef, mensaje);
-    if (!enviado) console.error(`telegram-notificar-deposito: falló el envío de revisión resuelta al beneficiario de solicitud ${solicitud.id}`);
-  } else {
-    console.log(`telegram-notificar-deposito: beneficiario de solicitud ${solicitud.id} sin Telegram conectado, se omite envío de revisión resuelta`);
-  }
 }
