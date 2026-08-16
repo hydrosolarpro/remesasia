@@ -55,19 +55,20 @@ export function ClienteSolicitudRow({
   operadorTelefono?: string | null;
 }) {
   const [abierto, setAbierto] = useState(false);
-  const [zoom, setZoom] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState<number | null>(null);
 
   // "En curso" destaca cuándo se envió; "realizada" destaca cuándo se
   // efectuó el depósito en Venezuela (lo que el cliente quiere ver primero
   // una vez completada).
   const fechaPrincipal = solicitud.check_deposito_ve && solicitud.check_deposito_ve_at ? solicitud.check_deposito_ve_at : solicitud.created_at;
 
-  const enlaceWhatsApp = solicitud.comprobante_vz_url
-    ? construirEnlaceWhatsApp(
-        solicitud.beneficiario_telefono,
-        `Hola ${solicitud.beneficiario_nombre}, aquí está el comprobante de tu remesa de VES ${formatearBs(solicitud.monto_ves)}: ${solicitud.comprobante_vz_url}`
-      )
-    : null;
+  const enlaceWhatsApp =
+    solicitud.comprobante_vz_urls.length > 0
+      ? construirEnlaceWhatsApp(
+          solicitud.beneficiario_telefono,
+          `Hola ${solicitud.beneficiario_nombre}, aquí está el comprobante de tu remesa de VES ${formatearBs(solicitud.monto_ves)}: ${solicitud.comprobante_vz_urls.join(' ')}`
+        )
+      : null;
 
   const enviarWhatsApp = async () => {
     if (!enlaceWhatsApp) return;
@@ -170,24 +171,28 @@ export function ClienteSolicitudRow({
             </View>
           )}
 
-          {solicitud.comprobante_vz_url && (
+          {solicitud.comprobante_vz_urls.length > 0 && (
             <>
-              <Pressable style={styles.imagenToggle} onPress={() => setZoom(true)}>
-                <Text style={styles.imagenToggleTexto}>Comprobante del depósito en Venezuela · 🔍 toca para hacer zoom</Text>
-              </Pressable>
-              <Pressable onPress={() => setZoom(true)}>
-                <Image source={{ uri: solicitud.comprobante_vz_url }} style={styles.comprobante} resizeMode="contain" />
-              </Pressable>
-              <View style={styles.accionesRow}>
-                <Pressable style={styles.descargarBtn} onPress={() => Linking.openURL(solicitud.comprobante_vz_url!)}>
-                  <Text style={styles.descargarBtnTexto}>Descargar</Text>
-                </Pressable>
-                {enlaceWhatsApp && (
-                  <Pressable style={styles.whatsappBtn} onPress={enviarWhatsApp}>
-                    <Text style={styles.whatsappBtnTexto}>Enviar por WhatsApp</Text>
-                  </Pressable>
-                )}
+              <View style={styles.imagenToggle}>
+                <Text style={styles.imagenToggleTexto}>Comprobante del depósito en Venezuela · 🔍 toca una imagen para hacer zoom</Text>
               </View>
+              <View style={styles.comprobantesGrid}>
+                {solicitud.comprobante_vz_urls.map((uri, i) => (
+                  <View key={uri} style={styles.comprobanteItem}>
+                    <Pressable onPress={() => setZoomIndex(i)}>
+                      <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />
+                    </Pressable>
+                    <Pressable onPress={() => Linking.openURL(uri)}>
+                      <Text style={styles.descargarLink}>Descargar</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+              {enlaceWhatsApp && (
+                <Pressable style={styles.whatsappBtn} onPress={enviarWhatsApp}>
+                  <Text style={styles.whatsappBtnTexto}>Enviar por WhatsApp</Text>
+                </Pressable>
+              )}
             </>
           )}
 
@@ -199,7 +204,11 @@ export function ClienteSolicitudRow({
           </Pressable>
         </View>
       )}
-      <ZoomableImageModal visible={zoom} uri={solicitud.comprobante_vz_url} onClose={() => setZoom(false)} />
+      <ZoomableImageModal
+        visible={zoomIndex !== null}
+        uri={zoomIndex !== null ? (solicitud.comprobante_vz_urls[zoomIndex] ?? null) : null}
+        onClose={() => setZoomIndex(null)}
+      />
     </View>
   );
 }
@@ -248,11 +257,11 @@ const styles = StyleSheet.create({
   enRevisionTexto: { color: colors.accent, fontSize: 14, fontWeight: '700', textAlign: 'center' },
   imagenToggle: { backgroundColor: colors.cardAlt, borderRadius: radius.sm, padding: 10, marginTop: 4 },
   imagenToggleTexto: { color: colors.accent, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },
-  accionesRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  descargarBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, alignItems: 'center' },
-  descargarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
-  whatsappBtn: { flex: 1, backgroundColor: colors.success, borderRadius: radius.sm, padding: 10, alignItems: 'center' },
+  comprobantesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  comprobanteItem: { width: '48%' },
+  comprobante: { width: '100%', height: 140, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
+  descargarLink: { color: colors.textMuted, fontWeight: '700', fontSize: 13, textAlign: 'center', marginTop: 4, textDecorationLine: 'underline' },
+  whatsappBtn: { backgroundColor: colors.success, borderRadius: radius.sm, padding: 10, alignItems: 'center', marginTop: 8 },
   whatsappBtnTexto: { color: '#fff', fontWeight: '700', fontSize: 14 },
   verDetalleBtn: { marginTop: 10, alignItems: 'center' },
   verDetalleBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },

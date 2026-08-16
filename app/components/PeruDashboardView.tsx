@@ -477,24 +477,29 @@ export function PeruDashboardView({
     cargar();
   };
 
-  const validarVe = async (op: OperationRowData, comprobanteUri: string, comprobanteExt: string) => {
+  const validarVe = async (op: OperationRowData, comprobantes: { uri: string; ext: string }[]) => {
     setValidando({ id: op.id, tipo: 've' });
     const quiereWhatsApp = op.cliente_canal_notificacion !== 'telegram';
     const pestanaWhatsApp = quiereWhatsApp ? abrirPestanaWhatsAppPrevia() : null;
     try {
-      const path = `${op.id}/comprobante-vz.${comprobanteExt}`;
       // arrayBuffer() en vez de blob(): en React Native fetch(...).blob() de
       // un archivo local es muy lento (ver lib/imagenUtil.ts).
-      const arrayBuffer = await (await fetch(comprobanteUri)).arrayBuffer();
-      const { error: uploadError } = await supabase.storage
-        .from('comprobantes')
-        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(comprobanteExt) });
-      if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
+      const urls: string[] = [];
+      for (let i = 0; i < comprobantes.length; i++) {
+        const { uri, ext } = comprobantes[i];
+        const path = `${op.id}/comprobante-vz-${i}.${ext}`;
+        const arrayBuffer = await (await fetch(uri)).arrayBuffer();
+        const { error: uploadError } = await supabase.storage
+          .from('comprobantes')
+          .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(ext) });
+        if (uploadError) throw uploadError;
+        const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
+        urls.push(publicUrl.publicUrl);
+      }
 
       const { error } = await supabase.rpc('validar_deposito_venezuela', {
         p_solicitud_id: op.id,
-        p_comprobante_url: publicUrl.publicUrl,
+        p_comprobante_urls: urls,
       });
       if (error) throw error;
 
@@ -543,7 +548,7 @@ export function PeruDashboardView({
 
       const { error } = await supabase.rpc('validar_deposito_venezuela', {
         p_solicitud_id: op.id,
-        p_comprobante_url: urlConVersion,
+        p_comprobante_urls: [urlConVersion],
       });
       if (error) throw error;
       cargar();
@@ -786,7 +791,7 @@ export function PeruDashboardView({
                 puedeValidarPeru={!esVenezuela}
                 puedeValidarVe={esVenezuela || (esPrincipal && puedeValidarVeAunSinSerElMismo)}
                 onValidarPeru={() => validarPeru(op)}
-                onValidarVe={(comprobanteUri, comprobanteExt) => validarVe(op, comprobanteUri, comprobanteExt)}
+                onValidarVe={(comprobantes) => validarVe(op, comprobantes)}
                 validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
                 validandoVe={validando?.id === op.id && validando.tipo === 've'}
                 atendidoPor={atendidoPor(op)}

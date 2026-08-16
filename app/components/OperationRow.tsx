@@ -111,8 +111,8 @@ export function OperationRow({
   puedeValidarPeru: boolean;
   puedeValidarVe: boolean;
   onValidarPeru: () => void;
-  /** El check VE exige subir la foto del depósito hecho en Venezuela primero. */
-  onValidarVe: (comprobanteUri: string, comprobanteExt: string) => void;
+  /** El check VE exige subir la(s) foto(s) del depósito hecho en Venezuela primero. */
+  onValidarVe: (comprobantes: { uri: string; ext: string }[]) => void;
   validandoPeru: boolean;
   validandoVe: boolean;
   /** Solo relevante cuando op.en_revision=true (lista "Operaciones por revisar"). */
@@ -139,13 +139,22 @@ export function OperationRow({
       Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos para subir el comprobante del depósito en Venezuela.');
       return;
     }
-    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsMultipleSelection: true });
     if (resultado.canceled) return;
-    if (!(await validarTamanoImagen(resultado.assets[0]))) {
-      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
-      return;
+    const comprobantes: { uri: string; ext: string }[] = [];
+    let algunaPesada = false;
+    for (const asset of resultado.assets) {
+      if (!(await validarTamanoImagen(asset))) {
+        algunaPesada = true;
+        continue;
+      }
+      comprobantes.push({ uri: asset.uri, ext: extensionDeImagen(asset) });
     }
-    onValidarVe(resultado.assets[0].uri, extensionDeImagen(resultado.assets[0]));
+    if (algunaPesada) {
+      Alert.alert('Imagen muy pesada', `Una o más imágenes superan el límite de ${MAX_IMAGEN_KB} KB y no se agregaron.`);
+    }
+    if (comprobantes.length === 0) return;
+    onValidarVe(comprobantes);
   };
 
   const tocarRecargarComprobante = async () => {
@@ -282,8 +291,8 @@ export function OperationRow({
           {op.comprobante_pago_urls.length > 0 && (
             <ImagenDesplegable titulo="Comprobante de pago en Perú (cliente)" uris={op.comprobante_pago_urls} />
           )}
-          {op.comprobante_vz_url && (
-            <ImagenDesplegable titulo="Comprobante de depósito en Venezuela" uris={[op.comprobante_vz_url]} />
+          {op.comprobante_vz_urls.length > 0 && (
+            <ImagenDesplegable titulo="Comprobante de depósito en Venezuela" uris={op.comprobante_vz_urls} />
           )}
 
           <View style={styles.checksRow}>

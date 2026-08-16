@@ -80,7 +80,8 @@ export interface Solicitud {
   comprobante_pago_urls: string[];
   motivo_rechazo: string | null;
   tasa_real_compra: number | null;
-  comprobante_vz_url: string | null;
+  /** Imágenes del comprobante de depósito en Venezuela, subidas por el operador VE (una o varias). */
+  comprobante_vz_urls: string[];
   comprobante_pdf_url: string | null;
   check_deposito_peru: boolean;
   check_deposito_peru_at: string | null;
