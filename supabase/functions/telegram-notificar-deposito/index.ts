@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
-import { sendTelegramMessage } from '../_shared/telegram.ts';
+import { sendTelegramMessage, sendTelegramPhotos } from '../_shared/telegram.ts';
 import { formatearBs } from '../_shared/formato.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
@@ -125,7 +125,14 @@ async function notificarClienteDepositoVe(supabase: any, solicitud: any) {
     `a la cuenta de ${solicitud.beneficiario_nombre} en Venezuela. ` +
     `Por favor confirma con tu beneficiario que recibió el depósito. ¡Gracias por tu confianza!`;
 
-  const enviado = await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
+  // Adjunta la(s) foto(s) del comprobante de depósito en Venezuela como
+  // imagen (con el mensaje de caption) en vez de solo texto -- así el
+  // cliente ve de una vez el comprobante que subió el operador VE.
+  const urls: string[] = Array.isArray(solicitud.comprobante_vz_urls) ? solicitud.comprobante_vz_urls : [];
+  const enviado =
+    urls.length > 0
+      ? await sendTelegramPhotos(cliente.telegram_chat_id, urls, mensaje)
+      : await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
   if (!enviado) console.error(`telegram-notificar-deposito: falló el envío del aviso VE al cliente ${solicitud.cliente_id}`);
 }
 
@@ -162,6 +169,10 @@ async function notificarBeneficiario(supabase: any, solicitud: any) {
     `por una cantidad de Bs ${formatearBs(solicitud.monto_ves)}, solicitado por ${nombreCliente}. ` +
     `Por favor verificar dicho deposito en cuenta. En caso contrario comunicarse con ${nombreCliente}.`;
 
-  const enviado = await sendTelegramMessage(chatId, mensaje);
+  // Adjunta la(s) foto(s) del comprobante de depósito en Venezuela: el
+  // beneficiario puede compararla directo contra su cuenta en vez de solo
+  // confiar en el texto.
+  const urls: string[] = Array.isArray(solicitud.comprobante_vz_urls) ? solicitud.comprobante_vz_urls : [];
+  const enviado = urls.length > 0 ? await sendTelegramPhotos(chatId, urls, mensaje) : await sendTelegramMessage(chatId, mensaje);
   if (!enviado) console.error(`telegram-notificar-deposito: falló el envío al beneficiario de solicitud ${solicitud.id}`);
 }

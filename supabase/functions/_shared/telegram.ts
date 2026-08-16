@@ -46,6 +46,23 @@ export async function sendTelegramPhoto(chatId: string, imageUrl: string, captio
   return llamarApi('sendPhoto', { chat_id: chatId, photo: imageUrl, caption });
 }
 
+/**
+ * Envía una o varias imágenes (comprobantes de depósito). Con 1 imagen usa
+ * sendPhoto normal; con 2+ arma un álbum (sendMediaGroup, tope de Telegram:
+ * 10 por álbum) con el caption solo en la primera -- así el destinatario ve
+ * todos los comprobantes juntos en vez de mensajes de foto sueltos.
+ */
+export async function sendTelegramPhotos(chatId: string, imageUrls: string[], caption?: string): Promise<boolean> {
+  if (imageUrls.length === 0) return true;
+  if (imageUrls.length === 1) return sendTelegramPhoto(chatId, imageUrls[0], caption);
+  const media = imageUrls.slice(0, 10).map((url, i) => ({
+    type: 'photo',
+    media: url,
+    ...(i === 0 && caption ? { caption } : {}),
+  }));
+  return llamarApi('sendMediaGroup', { chat_id: chatId, media });
+}
+
 export async function sendTelegramDocument(chatId: string, fileUrl: string, caption?: string): Promise<boolean> {
   return llamarApi('sendDocument', { chat_id: chatId, document: fileUrl, caption });
 }
