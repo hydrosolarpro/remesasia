@@ -279,11 +279,11 @@ export function OperationRow({
             </>
           )}
 
-          {op.comprobante_pago_url && (
-            <ImagenDesplegable titulo="Comprobante de pago en Perú (cliente)" uri={op.comprobante_pago_url} />
+          {op.comprobante_pago_urls.length > 0 && (
+            <ImagenDesplegable titulo="Comprobante de pago en Perú (cliente)" uris={op.comprobante_pago_urls} />
           )}
           {op.comprobante_vz_url && (
-            <ImagenDesplegable titulo="Comprobante de depósito en Venezuela" uri={op.comprobante_vz_url} />
+            <ImagenDesplegable titulo="Comprobante de depósito en Venezuela" uris={[op.comprobante_vz_url]} />
           )}
 
           <View style={styles.checksRow}>
@@ -372,9 +372,9 @@ export function OperationRow({
   );
 }
 
-function ImagenDesplegable({ titulo, uri }: { titulo: string; uri: string }) {
+function ImagenDesplegable({ titulo, uris }: { titulo: string; uris: string[] }) {
   const [visible, setVisible] = useState(false);
-  const [zoom, setZoom] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState<number | null>(null);
   return (
     <View>
       <Pressable style={styles.imagenToggle} onPress={() => setVisible((v) => !v)}>
@@ -382,12 +382,18 @@ function ImagenDesplegable({ titulo, uri }: { titulo: string; uri: string }) {
         <Text style={styles.imagenToggleChevron}>{visible ? '▲' : '▼'}</Text>
       </Pressable>
       {visible && (
-        <Pressable onPress={() => setZoom(true)}>
-          <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />
-          <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
-        </Pressable>
+        <>
+          <View style={styles.comprobantesGrid}>
+            {uris.map((uri, i) => (
+              <Pressable key={uri} style={styles.comprobanteItem} onPress={() => setZoomIndex(i)}>
+                <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.verCompletoTexto}>🔍 Toca una imagen para verla completa y hacer zoom</Text>
+        </>
       )}
-      <ZoomableImageModal visible={zoom} uri={uri} onClose={() => setZoom(false)} />
+      <ZoomableImageModal visible={zoomIndex !== null} uri={zoomIndex !== null ? (uris[zoomIndex] ?? null) : null} onClose={() => setZoomIndex(null)} />
     </View>
   );
 }
@@ -434,7 +440,9 @@ const styles = StyleSheet.create({
   },
   imagenToggleTexto: { color: colors.accent, fontSize: 16, fontWeight: '700' },
   imagenToggleChevron: { color: colors.textMuted, fontSize: 12 },
-  comprobante: { width: '100%', height: 180, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 4 },
+  comprobantesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  comprobanteItem: { width: '48%' },
+  comprobante: { width: '100%', height: 140, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
   verCompletoTexto: { color: colors.accent, fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 2 },
   checksRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 },
   checkCol: { alignItems: 'center', gap: 6, flex: 1 },

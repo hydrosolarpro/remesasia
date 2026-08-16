@@ -21,7 +21,7 @@ const ETIQUETA_TIPO_TRANSFERENCIA: Record<Solicitud['tipo_transferencia'], strin
 export default function DetalleSolicitud() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
-  const [zoom, setZoom] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState<number | null>(null);
 
   const cargar = useCallback(async () => {
     const { data } = await supabase.from('solicitudes').select('*').eq('id', id).single();
@@ -88,11 +88,17 @@ export default function DetalleSolicitud() {
         <Row label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[solicitud.tipo_transferencia]} />
       </View>
 
-      {solicitud.comprobante_pago_url && (
-        <Pressable onPress={() => setZoom(true)}>
-          <Image source={{ uri: solicitud.comprobante_pago_url }} style={styles.preview} />
-          <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
-        </Pressable>
+      {solicitud.comprobante_pago_urls.length > 0 && (
+        <View style={styles.comprobantesGrid}>
+          {solicitud.comprobante_pago_urls.map((uri, i) => (
+            <Pressable key={uri} style={styles.comprobanteItem} onPress={() => setZoomIndex(i)}>
+              <Image source={{ uri }} style={styles.preview} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {solicitud.comprobante_pago_urls.length > 0 && (
+        <Text style={styles.verCompletoTexto}>🔍 Toca una imagen para verla completa y hacer zoom</Text>
       )}
 
       {solicitud.estado === 'RECHAZADA' && solicitud.motivo_rechazo && (
@@ -110,7 +116,11 @@ export default function DetalleSolicitud() {
           <Text style={styles.buttonText}>Descargar comprobante PDF</Text>
         </Pressable>
       )}
-      <ZoomableImageModal visible={zoom} uri={solicitud.comprobante_pago_url} onClose={() => setZoom(false)} />
+      <ZoomableImageModal
+        visible={zoomIndex !== null}
+        uri={zoomIndex !== null ? (solicitud.comprobante_pago_urls[zoomIndex] ?? null) : null}
+        onClose={() => setZoomIndex(null)}
+      />
     </ScrollView>
   );
 }
@@ -166,6 +176,8 @@ const styles = StyleSheet.create({
   text: { color: colors.textMuted, fontSize: 15 },
   button: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center' },
   buttonText: { color: colors.text, fontWeight: '700' },
-  preview: { width: '100%', height: 220, borderRadius: 14, backgroundColor: colors.card },
+  comprobantesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  comprobanteItem: { width: '47%' },
+  preview: { width: '100%', height: 160, borderRadius: 14, backgroundColor: colors.card },
   verCompletoTexto: { color: colors.accent, fontWeight: '700', fontSize: 13, textAlign: 'center', marginTop: 4 },
 });

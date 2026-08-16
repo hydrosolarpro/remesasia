@@ -64,12 +64,14 @@ export default function InicioCliente() {
   const [beneficiarioCuenta, setBeneficiarioCuenta] = useState('');
   const [guardarCuenta, setGuardarCuenta] = useState(true);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('yape');
-  const [comprobanteUri, setComprobanteUri] = useState<string | null>(null);
-  const [comprobanteExt, setComprobanteExt] = useState('jpg');
+  // El depósito puede necesitar más de una captura (p.ej. comprobante +
+  // confirmación del banco) -- se guardan todas y se suben juntas al
+  // enviar la solicitud.
+  const [comprobantes, setComprobantes] = useState<{ uri: string; ext: string }[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mostrarExito, setMostrarExito] = useState(false);
-  const [mostrarZoomComprobante, setMostrarZoomComprobante] = useState(false);
+  const [zoomComprobanteIndex, setZoomComprobanteIndex] = useState<number | null>(null);
   // Guarda sincrónica contra doble envío: `enviando` (estado de React) no
   // alcanza a re-renderizar el botón a tiempo si el usuario vuelve a tocar
   // "Enviar solicitud" muy rápido (p.ej. mientras la subida del
@@ -187,20 +189,31 @@ export default function InicioCliente() {
 
   const beneficiarioSeleccionado = beneficiariosGuardados.find((b) => b.id === beneficiarioSeleccionadoId) ?? null;
 
-  const elegirComprobante = async () => {
+  const agregarComprobantes = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
       Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos.');
       return;
     }
-    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsMultipleSelection: true });
     if (resultado.canceled) return;
-    if (!(await validarTamanoImagen(resultado.assets[0]))) {
-      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
-      return;
+    const nuevos: { uri: string; ext: string }[] = [];
+    let algunaPesada = false;
+    for (const asset of resultado.assets) {
+      if (!(await validarTamanoImagen(asset))) {
+        algunaPesada = true;
+        continue;
+      }
+      nuevos.push({ uri: asset.uri, ext: extensionDeImagen(asset) });
     }
-    setComprobanteUri(resultado.assets[0].uri);
-    setComprobanteExt(extensionDeImagen(resultado.assets[0]));
+    if (algunaPesada) {
+      Alert.alert('Imagen muy pesada', `Una o más imágenes superan el límite de ${MAX_IMAGEN_KB} KB y no se agregaron.`);
+    }
+    if (nuevos.length > 0) setComprobantes((prev) => [...prev, ...nuevos]);
+  };
+
+  const quitarComprobante = (index: number) => {
+    setComprobantes((prev) => prev.filter((_, i) => i !== index));
   };
 
   const enviarSolicitud = async () => {
@@ -220,8 +233,8 @@ export default function InicioCliente() {
       enviandoRef.current = false;
       return;
     }
-    if (!comprobanteUri) {
-      setError('Sube la imagen de tu depósito.');
+    if (comprobantes.length === 0) {
+      setError('Sube al menos una imagen de tu depósito.');
       enviandoRef.current = false;
       return;
     }
@@ -260,19 +273,24 @@ export default function InicioCliente() {
       if (insertError || !solicitud) throw insertError ?? new Error('No se pudo crear la solicitud.');
       solicitudCreadaId = solicitud.id;
 
-      const path = `${solicitud.id}/comprobante-cliente.${comprobanteExt}`;
       // fetch(...).blob() es muy lento en React Native para archivos locales
       // (el Blob nativo pasa por un puente adicional); arrayBuffer() lee el
       // archivo directo y sube mucho más rápido -- ver lib/imagenUtil.ts.
-      const arrayBuffer = await (await fetch(comprobanteUri)).arrayBuffer();
-      const { error: uploadError } = await supabase.storage
-        .from('comprobantes')
-        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(comprobanteExt) });
-      if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
+      const urlsComprobantes: string[] = [];
+      for (let i = 0; i < comprobantes.length; i++) {
+        const { uri, ext } = comprobantes[i];
+        const path = `${solicitud.id}/comprobante-cliente-${i}.${ext}`;
+        const arrayBuffer = await (await fetch(uri)).arrayBuffer();
+        const { error: uploadError } = await supabase.storage
+          .from('comprobantes')
+          .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(ext) });
+        if (uploadError) throw uploadError;
+        const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
+        urlsComprobantes.push(publicUrl.publicUrl);
+      }
       const { error: updateError } = await supabase
         .from('solicitudes')
-        .update({ comprobante_pago_url: publicUrl.publicUrl })
+        .update({ comprobante_pago_urls: urlsComprobantes })
         .eq('id', solicitud.id);
       if (updateError) throw updateError;
       solicitudCreadaId = null; // Completa: ya no hay nada que revertir.
@@ -305,7 +323,7 @@ export default function InicioCliente() {
 
       setMontoPen('');
       limpiarBeneficiario();
-      setComprobanteUri(null);
+      setComprobantes([]);
       setMostrarExito(true);
     } catch (err) {
       if (solicitudCreadaId) {
@@ -554,21 +572,26 @@ export default function InicioCliente() {
             </View>
 
             <Text style={styles.seccionTitulo}>Comprobante de tu depósito</Text>
-            {comprobanteUri ? (
+            {comprobantes.length > 0 && (
               <>
-                <Pressable style={styles.subirBtn} onPress={() => setMostrarZoomComprobante(true)}>
-                  <Image source={{ uri: comprobanteUri }} style={styles.comprobantePreview} resizeMode="contain" />
-                  <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
-                </Pressable>
-                <Pressable style={styles.cambiarImagenBtn} onPress={elegirComprobante}>
-                  <Text style={styles.cambiarImagenTexto}>Cambiar imagen</Text>
-                </Pressable>
+                <View style={styles.comprobantesGrid}>
+                  {comprobantes.map((c, i) => (
+                    <View key={c.uri} style={styles.comprobanteItem}>
+                      <Pressable onPress={() => setZoomComprobanteIndex(i)}>
+                        <Image source={{ uri: c.uri }} style={styles.comprobantePreview} resizeMode="contain" />
+                      </Pressable>
+                      <Pressable style={styles.quitarImagenBtn} onPress={() => quitarComprobante(i)} hitSlop={8}>
+                        <Text style={styles.quitarImagenTexto}>✕ Quitar</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.verCompletoTexto}>🔍 Toca una imagen para verla completa y hacer zoom</Text>
               </>
-            ) : (
-              <Pressable style={styles.subirBtn} onPress={elegirComprobante}>
-                <Text style={styles.subirBtnTexto}>Elegir captura del depósito</Text>
-              </Pressable>
             )}
+            <Pressable style={styles.subirBtn} onPress={agregarComprobantes}>
+              <Text style={styles.subirBtnTexto}>{comprobantes.length === 0 ? 'Elegir captura del depósito' : '+ Agregar otra imagen'}</Text>
+            </Pressable>
           </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
@@ -585,7 +608,11 @@ export default function InicioCliente() {
       mensaje='Solicitud enviada exitosamente, en breve realizaremos la transferencia. Para verificar su solicitud revise su Lista de "Solicitudes realizadas".'
       onCerrar={() => setMostrarExito(false)}
     />
-    <ZoomableImageModal visible={mostrarZoomComprobante} uri={comprobanteUri} onClose={() => setMostrarZoomComprobante(false)} />
+    <ZoomableImageModal
+      visible={zoomComprobanteIndex !== null}
+      uri={zoomComprobanteIndex !== null ? (comprobantes[zoomComprobanteIndex]?.uri ?? null) : null}
+      onClose={() => setZoomComprobanteIndex(null)}
+    />
     </>
   );
 }
@@ -690,10 +717,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   subirBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
-  comprobantePreview: { width: '100%', height: 200, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
+  comprobantesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
+  comprobanteItem: { width: '47%' },
+  comprobantePreview: { width: '100%', height: 150, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
   verCompletoTexto: { color: colors.accent, fontWeight: '700', fontSize: 13, marginTop: 8 },
-  cambiarImagenBtn: { alignSelf: 'center', marginTop: 8 },
-  cambiarImagenTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 14, textDecorationLine: 'underline' },
+  quitarImagenBtn: { alignSelf: 'center', marginTop: 4 },
+  quitarImagenTexto: { color: colors.danger, fontWeight: '700', fontSize: 12 },
   error: { color: colors.danger, fontSize: 15 },
   enviarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 18 },

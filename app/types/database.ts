@@ -76,7 +76,8 @@ export interface Solicitud {
   beneficiario_telefono: string | null;
   tipo_transferencia: TipoTransferencia;
   metodo_pago: MetodoPago;
-  comprobante_pago_url: string | null;
+  /** Imágenes del comprobante de depósito del cliente (una o varias). */
+  comprobante_pago_urls: string[];
   motivo_rechazo: string | null;
   tasa_real_compra: number | null;
   comprobante_vz_url: string | null;
