@@ -46,8 +46,15 @@ function esperarRender() {
 // se agrega debajo de las 3 imágenes al exportar "Descargar los 3 (PDF)".
 export const EstadisticaGraficos = forwardRef<
   EstadisticaGraficosHandle,
-  { puntos: PuntoGrafico[]; tituloBase: string; contenidoExtraHtml?: string }
->(function EstadisticaGraficos({ puntos, tituloBase, contenidoExtraHtml }, ref) {
+  {
+    puntos: PuntoGrafico[];
+    tituloBase: string;
+    contenidoExtraHtml?: string;
+    /** Nombre y logo del negocio (cargados por el Operador principal de Perú), para el encabezado del PDF. */
+    nombreNegocio?: string | null;
+    logoUrl?: string | null;
+  }
+>(function EstadisticaGraficos({ puntos, tituloBase, contenidoExtraHtml, nombreNegocio, logoUrl }, ref) {
   const [tipo, setTipo] = useState<TipoGrafico>('barra');
   const [exportandoUno, setExportandoUno] = useState(false);
   const [exportandoTodos, setExportandoTodos] = useState(false);
@@ -79,7 +86,10 @@ export const EstadisticaGraficos = forwardRef<
         ventanaWeb?.close();
         return;
       }
-      await generarYCompartirPdf(tituloDe(tipo), new Date().toLocaleString('es-PE'), `<img src="${imagen}" />`, ventanaWeb);
+      await generarYCompartirPdf(tituloDe(tipo), new Date().toLocaleString('es-PE'), `<img src="${imagen}" />`, ventanaWeb, {
+        nombreNegocio,
+        logoUrl,
+      });
     } finally {
       setExportandoUno(false);
     }
@@ -113,7 +123,8 @@ export const EstadisticaGraficos = forwardRef<
         tituloBase,
         `Barras, circular y línea · ${new Date().toLocaleString('es-PE')}`,
         cuerpoGraficos + (contenidoExtraHtml ?? ''),
-        ventanaWeb
+        ventanaWeb,
+        { nombreNegocio, logoUrl }
       );
     } finally {
       setExportandoTodos(false);

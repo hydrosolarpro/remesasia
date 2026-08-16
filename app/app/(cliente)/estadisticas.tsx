@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -34,6 +34,18 @@ export default function EstadisticasCliente() {
   const [depositos, setDepositos] = useState<Solicitud[]>([]);
   const [buscado, setBuscado] = useState(false);
   const [listaAbierta, setListaAbierta] = useState(false);
+  // Nombre y logo del negocio, para el encabezado del PDF exportado.
+  const [perfilNegocio, setPerfilNegocio] = useState<{ nombre_negocio: string | null; logo_url: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!usuario?.negocio_operador_peru_id) return;
+    supabase
+      .from('perfil_negocio')
+      .select('nombre_negocio, logo_url')
+      .eq('operador_peru_id', usuario.negocio_operador_peru_id)
+      .maybeSingle()
+      .then(({ data }) => setPerfilNegocio(data));
+  }, [usuario?.negocio_operador_peru_id]);
 
   const buscar = async (nuevoRango: RangoFecha | null) => {
     setRango(nuevoRango);
@@ -130,7 +142,14 @@ export default function EstadisticasCliente() {
         </View>
       )}
 
-      {!cargando && puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto solicitado vs. período (PEN)" />}
+      {!cargando && puntos.length > 1 && (
+        <EstadisticaGraficos
+          puntos={puntos}
+          tituloBase="Monto solicitado vs. período (PEN)"
+          nombreNegocio={perfilNegocio?.nombre_negocio}
+          logoUrl={perfilNegocio?.logo_url}
+        />
+      )}
 
       {!cargando && buscado && depositos.length === 0 && <Text style={styles.vacio}>No hay depósitos en ese período.</Text>}
 

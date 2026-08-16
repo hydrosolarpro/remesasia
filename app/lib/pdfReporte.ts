@@ -14,6 +14,9 @@ const ESTILOS_BASE = `
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #0A0E1B; padding: 32px 40px; }
+    .marca { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; page-break-after: avoid; break-after: avoid; }
+    .marca-logo { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; display: block; margin: 0; }
+    .marca-nombre { font-size: 24px; font-weight: 900; color: #0A0E1B; }
     h1 { font-size: 20px; margin: 0 0 4px; }
     .subtitulo { color: #666; font-size: 12px; margin: 0 0 24px; }
     h2 { font-size: 14px; margin: 0 0 4px; page-break-after: avoid; break-after: avoid; }
@@ -61,11 +64,24 @@ export function prepararVentanaWeb(): Window | null {
  * navegador (con su diálogo "Guardar como PDF") recibe siempre el reporte
  * completo, sin importar qué esté desplegado en la pantalla de la app.
  */
-export async function generarYCompartirPdf(titulo: string, subtitulo: string, cuerpoHtml: string, ventanaWeb?: Window | null) {
+export async function generarYCompartirPdf(
+  titulo: string,
+  subtitulo: string,
+  cuerpoHtml: string,
+  ventanaWeb?: Window | null,
+  marca?: { nombreNegocio?: string | null; logoUrl?: string | null }
+) {
+  // Nombre y logo del negocio (los que cargó el Operador principal de
+  // Perú en su perfil), bien visibles al inicio del reporte -- si no hay
+  // nombre cargado, se omite el bloque entero en vez de mostrar algo vacío.
+  const marcaHtml = marca?.nombreNegocio
+    ? `<div class="marca">${marca.logoUrl ? `<img class="marca-logo" src="${marca.logoUrl}" />` : ''}<div class="marca-nombre">${marca.nombreNegocio}</div></div>`
+    : '';
   const html = `
     <html>
       <head>${ESTILOS_BASE}</head>
       <body>
+        ${marcaHtml}
         <h1>${titulo}</h1>
         <p class="subtitulo">${subtitulo}</p>
         ${cuerpoHtml}

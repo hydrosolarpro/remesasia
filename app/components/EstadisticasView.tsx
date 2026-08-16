@@ -113,6 +113,18 @@ export function EstadisticasView({
   // operador (miembro de Perú u Operador Venezuela) -- para identificar en
   // el resumen a quién corresponde la comisión mostrada.
   const [nombrePropio, setNombrePropio] = useState<string | null>(null);
+  // Nombre y logo del negocio (cargados por el Operador principal de Perú
+  // en su perfil), para mostrarlos al inicio de los PDF exportados.
+  const [perfilNegocio, setPerfilNegocio] = useState<{ nombre_negocio: string | null; logo_url: string | null } | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from('perfil_negocio')
+      .select('nombre_negocio, logo_url')
+      .eq('operador_peru_id', operadorPeruId)
+      .maybeSingle()
+      .then(({ data }) => setPerfilNegocio(data));
+  }, [operadorPeruId]);
 
   const esHoy = rango !== null && rango.desde === HOY();
 
@@ -416,7 +428,8 @@ export function EstadisticasView({
         'Estadísticas de operaciones',
         `Período: ${rango.etiqueta}${soloMisClientes ? ' — solo mis clientes' : ''}`,
         construirResumenHtml() + cuerpoGraficos + construirTablaHtml(),
-        ventanaWeb
+        ventanaWeb,
+        { nombreNegocio: perfilNegocio?.nombre_negocio, logoUrl: perfilNegocio?.logo_url }
       );
     } finally {
       setGenerandoPdf(false);
@@ -560,6 +573,8 @@ export function EstadisticasView({
               puntos={puntos}
               tituloBase="Monto vs. período (PEN)"
               contenidoExtraHtml={construirResumenHtml() + construirTablaHtml()}
+              nombreNegocio={perfilNegocio?.nombre_negocio}
+              logoUrl={perfilNegocio?.logo_url}
             />
           )}
 
