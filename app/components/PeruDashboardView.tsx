@@ -308,6 +308,12 @@ export function PeruDashboardView({
   const exportarExcel = async () => {
     setExportando(true);
     try {
+      // Cada rol ve solo su propia comisión en el Excel -- nunca la del
+      // otro lado -- igual que en el panel y en Estadísticas; el principal
+      // ve ambas, como siempre.
+      const verComisionPeru = puedeGestionar || esMiembroPe;
+      const verComisionVenezuela = puedeGestionar || esVenezuela;
+
       const filas = realizadasFiltradas.map((op) => ({
         '#': numeracion.get(op.id) ?? '',
         Cliente: op.cliente_nombre,
@@ -321,6 +327,8 @@ export function PeruDashboardView({
         'Monto (S/)': op.monto_pen,
         'Forma de pago': op.metodo_pago === 'yape' ? 'Yape' : op.metodo_pago === 'plin' ? 'Plin' : 'Transferencia bancaria',
         'Recibe (Bs)': op.monto_ves,
+        ...(verComisionPeru ? { 'Comisión Perú (S/)': op.ganancia?.comisionPeruPen ?? 0 } : {}),
+        ...(verComisionVenezuela ? { 'Comisión Venezuela (Bs)': op.ganancia?.comisionVenezuelaVes ?? 0 } : {}),
         'Operador de Perú que atiende': atendidoPor(op),
         'Validado en Perú': op.check_deposito_peru_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_peru_at)) : '',
         'Validado en Venezuela': op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '',
@@ -329,7 +337,36 @@ export function PeruDashboardView({
             ? formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)
             : '',
       }));
-      await generarYCompartirExcel('operaciones-realizadas', 'Operaciones', filas);
+
+      // Fila de totales -- suma exactamente lo exportado (realizadasFiltradas,
+      // que puede ser un subconjunto si el operador usó el buscador), no el
+      // total del día sin filtrar.
+      const filaTotal = {
+        '#': '',
+        Cliente: 'TOTAL',
+        Teléfono: '',
+        Correo: '',
+        'Beneficiario (VE)': '',
+        'C.I.': '',
+        'Tipo de transferencia': '',
+        'Entidad bancaria': '',
+        'N° cuenta': '',
+        'Monto (S/)': realizadasFiltradas.reduce((acc, op) => acc + op.monto_pen, 0),
+        'Forma de pago': '',
+        'Recibe (Bs)': realizadasFiltradas.reduce((acc, op) => acc + op.monto_ves, 0),
+        ...(verComisionPeru
+          ? { 'Comisión Perú (S/)': realizadasFiltradas.reduce((acc, op) => acc + (op.ganancia?.comisionPeruPen ?? 0), 0) }
+          : {}),
+        ...(verComisionVenezuela
+          ? { 'Comisión Venezuela (Bs)': realizadasFiltradas.reduce((acc, op) => acc + (op.ganancia?.comisionVenezuelaVes ?? 0), 0) }
+          : {}),
+        'Operador de Perú que atiende': '',
+        'Validado en Perú': '',
+        'Validado en Venezuela': '',
+        'Tiempo de respuesta': '',
+      };
+
+      await generarYCompartirExcel('operaciones-realizadas', 'Operaciones', [...filas, filaTotal]);
     } finally {
       setExportando(false);
     }
@@ -721,9 +758,16 @@ export function PeruDashboardView({
       ) : (
         <View style={[styles.card, cardShadow, styles.financieroCard]}>
           <Text style={styles.seccionTitulo}>Mi comisión (hoy)</Text>
+          {/* Cada operador ve solo lo suyo, en su propia moneda: el de
+              Venezuela en VES, el de Perú miembro en PEN -- nunca la
+              comisión ni la ganancia bruta del otro lado. */}
+          <FinancieroItem
+            label="Monto total de mis operaciones"
+            valor={esVenezuela ? `VES ${formatearBs(totalesPorEstado.realizadas.montoVes)}` : `PEN ${totalesPorEstado.realizadas.montoPen.toFixed(2)}`}
+          />
           <FinancieroItem
             label="Comisión ganada"
-            valor={esVenezuela ? `VES ${gananciaHoy.miComisionVes.toFixed(2)} · PEN ${gananciaHoy.miComisionPen.toFixed(2)}` : `PEN ${gananciaHoy.miComisionPen.toFixed(2)}`}
+            valor={esVenezuela ? `VES ${formatearBs(gananciaHoy.miComisionVes)}` : `PEN ${gananciaHoy.miComisionPen.toFixed(2)}`}
             destacado
           />
         </View>
@@ -798,6 +842,8 @@ export function PeruDashboardView({
                 atendidoPorTelefono={atendidoPorTelefono(op)}
                 derivadaDePrincipal={op.derivada_de_principal}
                 onDerivar={esPrincipal && !op.operador_peru_miembro_id ? () => abrirDerivacion(op) : undefined}
+                verComisionPeru={puedeGestionar || esMiembroPe}
+                verComisionVenezuela={puedeGestionar || esVenezuela}
               />
             ))}
           </View>
@@ -835,6 +881,8 @@ export function PeruDashboardView({
                 atendidoPor={atendidoPor(op)}
                 atendidoPorTelefono={atendidoPorTelefono(op)}
                 derivadaDePrincipal={op.derivada_de_principal}
+                verComisionPeru={puedeGestionar || esMiembroPe}
+                verComisionVenezuela={puedeGestionar || esVenezuela}
               />
             ))}
           </View>
@@ -861,6 +909,8 @@ export function PeruDashboardView({
                 atendidoPor={atendidoPor(op)}
                 atendidoPorTelefono={atendidoPorTelefono(op)}
                 derivadaDePrincipal={op.derivada_de_principal}
+                verComisionPeru={puedeGestionar || esMiembroPe}
+                verComisionVenezuela={puedeGestionar || esVenezuela}
               />
             ))}
           </View>
@@ -888,6 +938,8 @@ export function PeruDashboardView({
                 resolviendoRevision={resolviendoId === op.id}
                 onRecargarComprobanteVe={(comprobanteUri, comprobanteExt) => recargarComprobanteVe(op, comprobanteUri, comprobanteExt)}
                 recargandoComprobanteVe={recargandoId === op.id}
+                verComisionPeru={puedeGestionar || esMiembroPe}
+                verComisionVenezuela={puedeGestionar || esVenezuela}
               />
             ))}
           </View>

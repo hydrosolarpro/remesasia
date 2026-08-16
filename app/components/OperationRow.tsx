@@ -101,6 +101,8 @@ export function OperationRow({
   atendidoPorTelefono,
   derivadaDePrincipal,
   onDerivar,
+  verComisionPeru,
+  verComisionVenezuela,
   style,
 }: {
   op: OperationRowData;
@@ -129,6 +131,9 @@ export function OperationRow({
   derivadaDePrincipal?: boolean;
   /** Botón "Derivar" (solo lo usa el Operador principal sobre sus propias operaciones). */
   onDerivar?: () => void;
+  /** Cada operador ve solo SU comisión -- el de Perú nunca ve la de Venezuela y viceversa; el principal ve ambas. */
+  verComisionPeru: boolean;
+  verComisionVenezuela: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -278,14 +283,12 @@ export function OperationRow({
           {op.check_deposito_peru_at && op.check_deposito_ve_at && (
             <CopyField label="Tramo interno PE → VE" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
           )}
-          {op.ganancia && (
-            <>
-              <CopyField label="Comisión Perú" value={`PEN ${op.ganancia.comisionPeruPen.toFixed(2)}`} />
-              <CopyField
-                label="Comisión Venezuela"
-                value={`VES ${op.ganancia.comisionVenezuelaVes.toFixed(2)} · PEN ${op.ganancia.comisionVenezuelaPen.toFixed(2)}`}
-              />
-            </>
+          {op.ganancia && verComisionPeru && <CopyField label="Comisión Perú" value={`PEN ${op.ganancia.comisionPeruPen.toFixed(2)}`} />}
+          {op.ganancia && verComisionVenezuela && (
+            <CopyField
+              label="Comisión Venezuela"
+              value={`VES ${op.ganancia.comisionVenezuelaVes.toFixed(2)} · PEN ${op.ganancia.comisionVenezuelaPen.toFixed(2)}`}
+            />
           )}
 
           {op.comprobante_pago_urls.length > 0 && (

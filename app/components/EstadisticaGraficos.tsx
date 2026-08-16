@@ -73,11 +73,7 @@ export const EstadisticaGraficos = forwardRef<
     try {
       const imagen = await capturar();
       if (!imagen) return;
-      await generarYCompartirPdf(
-        tituloDe(tipo),
-        new Date().toLocaleString('es-PE'),
-        `<img src="${imagen}" style="width:100%; border-radius:12px; margin-top:8px;" />`
-      );
+      await generarYCompartirPdf(tituloDe(tipo), new Date().toLocaleString('es-PE'), `<img src="${imagen}" />`);
     } finally {
       setExportandoUno(false);
     }
@@ -104,12 +100,7 @@ export const EstadisticaGraficos = forwardRef<
     try {
       const imagenes = await capturarImagenes();
       const cuerpoGraficos = imagenes
-        .map(
-          (im) => `
-            <h2 style="font-size:14px; margin:24px 0 4px;">${im.titulo}</h2>
-            <img src="${im.uri}" style="width:100%; border-radius:12px;" />
-          `
-        )
+        .map((im) => `<div class="grafico-bloque"><h2>${im.titulo}</h2><img src="${im.uri}" /></div>`)
         .join('');
       await generarYCompartirPdf(
         tituloBase,
