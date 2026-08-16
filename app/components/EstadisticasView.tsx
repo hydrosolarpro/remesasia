@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linki
 import { supabase } from '../lib/supabase';
 import { DateRangeFilter } from './DateRangeFilter';
 import { EstadisticaGraficos, EstadisticaGraficosHandle } from './EstadisticaGraficos';
-import { generarYCompartirPdf } from '../lib/pdfReporte';
+import { generarYCompartirPdf, prepararVentanaWeb } from '../lib/pdfReporte';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { RangoFecha, calcularRango } from '../lib/dateRange';
 import { Solicitud } from '../types/database';
@@ -399,6 +399,9 @@ export function EstadisticasView({
 
   const exportarPdf = async () => {
     if (!rango) return;
+    // Antes del primer await: en web, si se abre después de capturar los
+    // gráficos, el navegador la bloquea como pop-up (ver prepararVentanaWeb).
+    const ventanaWeb = prepararVentanaWeb();
     setGenerandoPdf(true);
     try {
       const imagenes = (await graficosRef.current?.capturarImagenes()) ?? [];
@@ -406,10 +409,14 @@ export function EstadisticasView({
         .map((im) => `<div class="grafico-bloque"><h2>${im.titulo}</h2><img src="${im.uri}" /></div>`)
         .join('');
 
+      // El detalle de operaciones y el resumen se arman siempre desde los
+      // datos (no dependen de si el acordeón está abierto en pantalla), así
+      // que el PDF sale completo sin importar qué esté desplegado.
       await generarYCompartirPdf(
         'Estadísticas de operaciones',
         `Período: ${rango.etiqueta}${soloMisClientes ? ' — solo mis clientes' : ''}`,
-        construirResumenHtml() + cuerpoGraficos + construirTablaHtml()
+        construirResumenHtml() + cuerpoGraficos + construirTablaHtml(),
+        ventanaWeb
       );
     } finally {
       setGenerandoPdf(false);

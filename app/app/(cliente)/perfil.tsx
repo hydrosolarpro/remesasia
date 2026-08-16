@@ -7,6 +7,7 @@ import { registrarPushToken } from '../../lib/notifications';
 import { reservarPestanaExterna } from '../../lib/pestanaExterna';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { CanalNotificacion } from '../../types/database';
+import { InstalarAppCard } from '../../components/InstalarAppCard';
 import { colors, radius } from '../../constants/theme';
 
 const OPCIONES_CANAL: { valor: CanalNotificacion; etiqueta: string }[] = [
@@ -295,6 +296,8 @@ export default function Perfil() {
           </>
         )}
       </View>
+
+      <InstalarAppCard />
 
       <Pressable style={styles.bajaBtn} onPress={darseDeBaja} disabled={dandoDeBaja}>
         {dandoDeBaja ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.bajaBtnTexto}>Dar de baja mi cuenta</Text>}

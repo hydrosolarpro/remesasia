@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -32,10 +33,35 @@ const ESTILOS_BASE = `
 `;
 
 /**
- * Genera un PDF a partir de HTML (encabezado + estilos ya incluidos) y abre
- * el diálogo de compartir/guardar del sistema.
+ * Abre la pestaña donde se va a imprimir el reporte -- hay que llamarla
+ * ANTES de cualquier `await` en el manejador del botón (p.ej. antes de
+ * capturar las imágenes de los gráficos), porque los navegadores solo
+ * permiten `window.open` sin bloquearlo como pop-up si ocurre de forma
+ * síncrona dentro del gesto del usuario (el clic). En nativo no hace falta
+ * (usa Print.printToFileAsync + compartir), así que devuelve `null`.
  */
-export async function generarYCompartirPdf(titulo: string, subtitulo: string, cuerpoHtml: string) {
+export function prepararVentanaWeb(): Window | null {
+  if (Platform.OS !== 'web') return null;
+  const ventana = window.open('', '_blank');
+  ventana?.document.write('<p style="font-family:sans-serif;padding:24px;color:#666;">Generando reporte…</p>');
+  return ventana;
+}
+
+/**
+ * Genera un PDF a partir de HTML (encabezado + estilos ya incluidos).
+ *
+ * En nativo usa Print.printToFileAsync (genera el archivo de verdad) y lo
+ * comparte con el selector del sistema. En web, `Print.printToFileAsync` de
+ * expo-print NO genera ningún PDF -- es un stub que solo llama a
+ * `window.print()` sobre la página actual, ignorando el HTML recibido. Eso
+ * causaba que el PDF "impreso" fuera en realidad la app en vivo (por eso
+ * salía distinto a los gráficos reales, y "truncado" si una sección como
+ * el detalle de operaciones estaba colapsada en pantalla). Acá en cambio se
+ * escribe este HTML en una pestaña propia y se imprime esa -- así el
+ * navegador (con su diálogo "Guardar como PDF") recibe siempre el reporte
+ * completo, sin importar qué esté desplegado en la pantalla de la app.
+ */
+export async function generarYCompartirPdf(titulo: string, subtitulo: string, cuerpoHtml: string, ventanaWeb?: Window | null) {
   const html = `
     <html>
       <head>${ESTILOS_BASE}</head>
@@ -47,6 +73,24 @@ export async function generarYCompartirPdf(titulo: string, subtitulo: string, cu
       </body>
     </html>
   `;
+
+  if (Platform.OS === 'web') {
+    const ventana = ventanaWeb !== undefined ? ventanaWeb : window.open('', '_blank');
+    if (!ventana) return null;
+    ventana.document.open();
+    ventana.document.write(html);
+    ventana.document.close();
+    // Pequeña espera para que el navegador termine de maquetar/pintar el
+    // HTML recién escrito (imágenes en base64 incluidas) antes de abrir el
+    // diálogo de impresión -- si se llama a print() en el mismo tick, a
+    // veces se ve en blanco. setTimeout (no requestAnimationFrame) porque
+    // esta pestaña puede abrirse en segundo plano según el navegador, y ahí
+    // rAF no se dispara hasta que vuelve a estar visible.
+    await new Promise<void>((resolve) => setTimeout(resolve, 150));
+    ventana.focus();
+    ventana.print();
+    return null;
+  }
 
   const { uri } = await Print.printToFileAsync({ html, base64: false });
   if (await Sharing.isAvailableAsync()) {

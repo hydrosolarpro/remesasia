@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from '
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, LayoutChangeEvent } from 'react-native';
 import { BarChart, PieChart, LineChart } from 'react-native-gifted-charts';
 import ViewShot, { ViewShotRef } from 'react-native-view-shot';
-import { generarYCompartirPdf } from '../lib/pdfReporte';
+import { generarYCompartirPdf, prepararVentanaWeb } from '../lib/pdfReporte';
 import { colors, radius } from '../constants/theme';
 
 export interface PuntoGrafico {
@@ -69,11 +69,17 @@ export const EstadisticaGraficos = forwardRef<
   const tituloDe = (t: TipoGrafico) => `${tituloBase} — ${TIPOS.find((x) => x.valor === t)?.etiqueta}`;
 
   const descargarActual = async () => {
+    // Se abre ANTES del primer await (ver prepararVentanaWeb): si se abre
+    // después de capturar la imagen, el navegador la bloquea como pop-up.
+    const ventanaWeb = prepararVentanaWeb();
     setExportandoUno(true);
     try {
       const imagen = await capturar();
-      if (!imagen) return;
-      await generarYCompartirPdf(tituloDe(tipo), new Date().toLocaleString('es-PE'), `<img src="${imagen}" />`);
+      if (!imagen) {
+        ventanaWeb?.close();
+        return;
+      }
+      await generarYCompartirPdf(tituloDe(tipo), new Date().toLocaleString('es-PE'), `<img src="${imagen}" />`, ventanaWeb);
     } finally {
       setExportandoUno(false);
     }
@@ -96,6 +102,7 @@ export const EstadisticaGraficos = forwardRef<
   useImperativeHandle(ref, () => ({ capturarImagenes }), [capturarImagenes]);
 
   const descargarTodos = async () => {
+    const ventanaWeb = prepararVentanaWeb();
     setExportandoTodos(true);
     try {
       const imagenes = await capturarImagenes();
@@ -105,7 +112,8 @@ export const EstadisticaGraficos = forwardRef<
       await generarYCompartirPdf(
         tituloBase,
         `Barras, circular y línea · ${new Date().toLocaleString('es-PE')}`,
-        cuerpoGraficos + (contenidoExtraHtml ?? '')
+        cuerpoGraficos + (contenidoExtraHtml ?? ''),
+        ventanaWeb
       );
     } finally {
       setExportandoTodos(false);

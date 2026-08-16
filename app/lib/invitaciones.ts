@@ -19,7 +19,7 @@ const CLAVE_TOKEN_PENDIENTE = 'remesasia_invitacion_pendiente';
 // como parte del link. Pasó justo con EXPO_PUBLIC_LANDING_BASE_URL: un
 // cliente invitado por un miembro terminaba registrado bajo el token por
 // defecto (el del operador principal) porque el "?op=" nunca se enviaba.
-const BASE_URL = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? Constants.expoConfig?.extra?.webBaseUrl ?? 'http://localhost:8081').trim();
+export const BASE_URL = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? Constants.expoConfig?.extra?.webBaseUrl ?? 'http://localhost:8081').trim();
 
 // Landing de captación de clientes (remesas-per-venezuela-env-oya,
 // desplegada aparte en Vercel). Es la MISMA página para todos los

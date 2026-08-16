@@ -25,6 +25,7 @@ import { ClientesMiembroList } from '../../components/ClientesMiembroList';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { InstalarAppCard } from '../../components/InstalarAppCard';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 const FORMATTER_FECHA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -673,6 +674,8 @@ export default function Perfil() {
           <Text style={styles.buttonOutlineText}>Editar datos del negocio</Text>
         </Pressable>
       )}
+
+      <InstalarAppCard puedeEnviar />
 
       {/* Modal de asignación: elige qué operadores de Perú atiende cada VE */}
       <Modal visible={!!asignandoVe} transparent animationType="fade" onRequestClose={() => setAsignandoVe(null)}>
