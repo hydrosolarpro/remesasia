@@ -130,6 +130,9 @@ export const EstadisticaGraficos = forwardRef<
   const anchoUtil = Math.max(anchoDisponible - ESPACIO_EJE_Y, 60);
   const pieRadio = anchoDisponible > 0 ? Math.max(50, Math.min(90, anchoDisponible / 2 - 30)) : 90;
   const pieRadioInterno = Math.round(pieRadio * 0.61);
+  // initialSpacing + endSpacing (mitad cada uno) + (n-1)*spacing ≈ n*spacing,
+  // así el total ocupa exactamente anchoUtil sin importar cuántos puntos haya.
+  const espaciadoLinea = puntos.length > 0 ? Math.max(24, anchoUtil / puntos.length) : anchoUtil;
 
   return (
     <View style={[styles.card, styles.cardShadow]}>
@@ -194,10 +197,11 @@ export const EstadisticaGraficos = forwardRef<
                 </View>
                 <View style={styles.leyenda}>
                   {puntos.map((p, i) => (
-                    <View key={p.etiqueta} style={styles.leyendaFila}>
+                    <View key={p.etiqueta} style={styles.leyendaChip}>
                       <View style={[styles.leyendaColor, { backgroundColor: PALETA[i % PALETA.length] }]} />
-                      <Text style={styles.leyendaTexto}>{p.etiqueta}</Text>
-                      <Text style={styles.leyendaValor}>PEN {p.monto.toFixed(2)}</Text>
+                      <Text style={styles.leyendaTexto} numberOfLines={1}>
+                        {p.etiqueta}: PEN {p.monto.toFixed(2)}
+                      </Text>
                     </View>
                   ))}
                 </View>
@@ -208,10 +212,22 @@ export const EstadisticaGraficos = forwardRef<
               <LineChart
                 data={puntos.map((p) => ({ value: Math.round(p.monto), label: p.etiqueta, dataPointText: String(Math.round(p.monto)) }))}
                 width={anchoUtil}
-                adjustToWidth
+                // Espaciado explícito en vez de `adjustToWidth` (mismo
+                // resultado -- todos los puntos entran en anchoUtil -- por
+                // el camino normal/más probado de la librería).
+                initialSpacing={espaciadoLinea / 2}
+                endSpacing={espaciadoLinea / 2}
+                spacing={espaciadoLinea}
                 color={colors.primary}
                 thickness={3}
                 curved
+                // Sin `areaChart`: en la librería, el relleno de área solo
+                // define su `clip-path` cuando se usa un rango parcial
+                // (startIndex/endIndex distintos de todo el rango); en nuestro
+                // caso -- rango completo, el normal -- esa definición nunca se
+                // crea, y el navegador oculta cualquier elemento SVG que
+                // apunte a un clip-path inexistente (bug conocido de
+                // Chromium/WebKit), dejando el gráfico entero invisible.
                 dataPointsColor={colors.accent}
                 textColor1={colors.text}
                 textFontSize={10}
@@ -219,11 +235,6 @@ export const EstadisticaGraficos = forwardRef<
                 xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 10 }}
                 noOfSections={4}
                 hideRules
-                areaChart
-                startFillColor={colors.primary}
-                endFillColor={colors.primary}
-                startOpacity={0.25}
-                endOpacity={0.02}
               />
             )}
           </>
@@ -264,11 +275,15 @@ const styles = StyleSheet.create({
   tipoChipTextoActivo: { color: colors.text },
   capturaWrap: { backgroundColor: colors.card },
   pieWrap: { alignItems: 'center', paddingVertical: 8 },
-  leyenda: { marginTop: 12, gap: 6 },
-  leyendaFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  leyendaColor: { width: 10, height: 10, borderRadius: 5, marginTop: 3 },
-  leyendaTexto: { color: colors.textMuted, fontSize: 14, flex: 1, flexShrink: 1 },
-  leyendaValor: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  // Chips compactos que se ajustan a su propio contenido y se acomodan en
+  // filas (flexWrap) centradas -- antes cada fila ocupaba todo el ancho
+  // con la etiqueta pegada a la izquierda y el monto empujado al extremo
+  // derecho (flex:1), dejando un hueco enorme en el medio que se veía como
+  // "la leyenda se va a los costados".
+  leyenda: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
+  leyendaChip: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' },
+  leyendaColor: { width: 10, height: 10, borderRadius: 5 },
+  leyendaTexto: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
   descargasRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   descargaBtn: { flex: 1, minWidth: 150, backgroundColor: colors.primary, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
   descargaBtnSecundario: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border },
