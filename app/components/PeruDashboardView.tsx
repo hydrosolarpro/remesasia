@@ -61,6 +61,7 @@ export function PeruDashboardView({
   const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
   const [vePerfiles, setVePerfiles] = useState<OperadorVenezuelaPerfil[]>([]);
   const [principalTelefono, setPrincipalTelefono] = useState<string | null>(null);
+  const [principalNombre, setPrincipalNombre] = useState<string | null>(null);
   const [validando, setValidando] = useState<{ id: string; tipo: 'peru' | 've' } | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [exportando, setExportando] = useState(false);
@@ -122,7 +123,7 @@ export function PeruDashboardView({
           .eq('operador_peru_id', operadorPeruId)
           .order('created_at', { ascending: true }),
         supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId),
-        supabase.from('usuarios').select('telefono').eq('id', operadorPeruId).maybeSingle(),
+        supabase.from('usuarios').select('nombre, telefono').eq('id', operadorPeruId).maybeSingle(),
       ]);
 
     setPerfil(perfilData as PerfilNegocio | null);
@@ -132,6 +133,7 @@ export function PeruDashboardView({
     setMiembros(listaMiembros);
     setVePerfiles(listaVePerfiles);
     setPrincipalTelefono(principalData?.telefono ?? null);
+    setPrincipalNombre(principalData?.nombre ?? null);
     if (opsData) {
       // La comisión/ganancia de cada operación se calcula acá, una sola vez
       // por carga, y viaja en cada OperationRowData -- así el operador ve la
@@ -292,10 +294,14 @@ export function PeruDashboardView({
     return mapa;
   }, [operaciones]);
 
-  // Nombre del operador de Perú que atiende cada operación. `null` = la
-  // atiende el Operador principal de Perú directamente.
+  // Nombre del operador de Perú que atiende cada operación (según su rol):
+  // el del miembro de Perú si la solicitud está ligada a uno, o si no el
+  // del Operador principal -- siempre el nombre real, con la etiqueta de
+  // rol solo como respaldo si por algún motivo no se pudo cargar el nombre.
   const atendidoPor = (op: OperationRowData): string =>
-    op.operador_peru_miembro_id ? (op.operador_peru_atiende ?? 'Operador de Perú miembro') : 'Operador principal de Perú';
+    op.operador_peru_miembro_id
+      ? op.operador_peru_atiende ?? 'Operador de Perú miembro'
+      : principalNombre ?? 'Operador principal de Perú';
   const atendidoPorTelefono = (op: OperationRowData): string | null =>
     op.operador_peru_miembro_id ? op.operador_peru_atiende_telefono ?? null : principalTelefono;
 

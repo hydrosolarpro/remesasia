@@ -215,7 +215,7 @@ export default function OnboardingNegocio() {
         </View>
       </Section>
 
-      <Section titulo="Teléfono de pago (Yape / Plin)">
+      <Section titulo="Datos de teléfonos para plataformas de pago de banca móvil (Yape/Plin/otros)">
         <Text style={styles.ayuda}>El cliente verá este número para pagarte por Yape o Plin, con opción de copiarlo.</Text>
         <Label texto="Teléfono Yape" />
         <TextInput

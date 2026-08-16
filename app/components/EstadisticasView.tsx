@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { DateRangeFilter } from './DateRangeFilter';
-import { EstadisticaGraficos } from './EstadisticaGraficos';
+import { EstadisticaGraficos, EstadisticaGraficosHandle } from './EstadisticaGraficos';
 import { generarYCompartirPdf } from '../lib/pdfReporte';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { RangoFecha, calcularRango } from '../lib/dateRange';
@@ -10,7 +10,17 @@ import { Solicitud } from '../types/database';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { construirEnlaceWhatsAppGenerico } from '../lib/whatsapp';
 import { formatearTiempoRespuesta } from './OperationRow';
+import { formatearBs } from '../lib/formato';
 import { colors, radius, cardShadow } from '../constants/theme';
+
+// Junta nombres únicos (sin vacíos) en una sola línea legible; si hay
+// varios, recorta la lista para que quepa en el resumen y no la desborde.
+function formatearListaNombres(nombres: (string | null | undefined)[], maxMostrados = 3): string {
+  const unicos = [...new Set(nombres.filter((n): n is string => !!n))];
+  if (unicos.length === 0) return '';
+  if (unicos.length <= maxMostrados) return unicos.join(', ');
+  return `${unicos.slice(0, maxMostrados).join(', ')} y ${unicos.length - maxMostrados} más`;
+}
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
@@ -89,6 +99,7 @@ export function EstadisticasView({
   miembrosAsignadosIds?: string[];
 }) {
   const scrollRef = useRef<ScrollView>(null);
+  const graficosRef = useRef<EstadisticaGraficosHandle>(null);
   const [cargando, setCargando] = useState(false);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [exportandoExcel, setExportandoExcel] = useState(false);
@@ -98,6 +109,10 @@ export function EstadisticasView({
   const [buscado, setBuscado] = useState(false);
   const [soloMisClientes, setSoloMisClientes] = useState(false);
   const [telefonosAbiertos, setTelefonosAbiertos] = useState<Set<string>>(new Set());
+  // Nombre completo del propio operador cuando la sesión es de un solo
+  // operador (miembro de Perú u Operador Venezuela) -- para identificar en
+  // el resumen a quién corresponde la comisión mostrada.
+  const [nombrePropio, setNombrePropio] = useState<string | null>(null);
 
   const esHoy = rango !== null && rango.desde === HOY();
 
@@ -113,17 +128,24 @@ export function EstadisticasView({
   }
 
   // Datos de cada miembro de Perú (nombre, teléfono, % comisión, VE
-  // asignado), del principal (teléfono) y de cada Operador Venezuela
-  // (nombre, % comisión) -- se usan para calcular la ganancia/comisión de
-  // cada operación y para mostrar quién la atendió (+ su WhatsApp).
-  const cargarEquipo = async (): Promise<{ miembros: Map<string, MiembroInfo>; ves: Map<string, VeInfo>; principalTelefono: string | null }> => {
+  // asignado), del principal (nombre completo, teléfono) y de cada
+  // Operador Venezuela (nombre, % comisión) -- se usan para calcular la
+  // ganancia/comisión de cada operación y para mostrar quién la atendió
+  // (+ su WhatsApp), con el nombre real siempre que se pueda en vez de la
+  // etiqueta genérica "Operador principal de Perú".
+  const cargarEquipo = async (): Promise<{
+    miembros: Map<string, MiembroInfo>;
+    ves: Map<string, VeInfo>;
+    principalTelefono: string | null;
+    principalNombre: string | null;
+  }> => {
     const [{ data: miembrosData }, { data: vesData }, { data: principalData }] = await Promise.all([
       supabase
         .from('operador_peru_miembro')
         .select('id, nombre, telefono, comision_pct, operador_venezuela_id')
         .eq('operador_peru_id', operadorPeruId),
       supabase.from('operador_venezuela_perfil').select('id, nombre, comision_pct').eq('operador_peru_id', operadorPeruId),
-      supabase.from('usuarios').select('telefono').eq('id', operadorPeruId).maybeSingle(),
+      supabase.from('usuarios').select('nombre, telefono').eq('id', operadorPeruId).maybeSingle(),
     ]);
     const miembros = new Map<string, MiembroInfo>();
     for (const m of (miembrosData as { id: string; nombre: string; telefono: string | null; comision_pct: number; operador_venezuela_id: string | null }[] | null) ?? [])
@@ -131,7 +153,7 @@ export function EstadisticasView({
     const ves = new Map<string, VeInfo>();
     for (const v of (vesData as { id: string; nombre: string; comision_pct: number }[] | null) ?? [])
       ves.set(v.id, { nombre: v.nombre, comisionPct: v.comision_pct });
-    return { miembros, ves, principalTelefono: principalData?.telefono ?? null };
+    return { miembros, ves, principalTelefono: principalData?.telefono ?? null, principalNombre: principalData?.nombre ?? null };
   };
 
   // Trae los datos del rango sin tocar scroll ni el spinner de carga --
@@ -139,7 +161,7 @@ export function EstadisticasView({
   // silencioso por Realtime, que NO debe interrumpir al usuario si en ese
   // momento está escribiendo en el buscador o leyendo resultados.
   const cargarDatos = async (rangoConsulta: RangoFecha) => {
-    const [{ miembros, ves, principalTelefono }, { data: ops }] = await Promise.all([
+    const [{ miembros, ves, principalTelefono, principalNombre }, { data: ops }] = await Promise.all([
       cargarEquipo(),
       (() => {
         let query = supabase
@@ -171,6 +193,9 @@ export function EstadisticasView({
       })(),
     ]);
 
+    if (tipoSesion === 'miembro' && miembroId) setNombrePropio(miembros.get(miembroId)?.nombre ?? null);
+    else if (tipoSesion === 'venezuela' && veId) setNombrePropio(ves.get(veId)?.nombre ?? null);
+
     setOperaciones(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ((ops as any[]) ?? []).map((row) => {
@@ -192,7 +217,7 @@ export function EstadisticasView({
           validador_ve_nombre: row.validador_ve?.nombre ?? null,
           cliente_nombre: row.cliente?.nombre ?? 'Cliente',
           cliente_telefono: row.cliente?.telefono ?? null,
-          operador_peru_atiende: miembro?.nombre ?? 'Operador principal de Perú',
+          operador_peru_atiende: miembro?.nombre ?? principalNombre ?? 'Operador principal de Perú',
           operador_peru_atiende_telefono: miembro ? miembro.telefono : principalTelefono,
           operador_ve_atiende: ve?.nombre ?? null,
           ganancia,
@@ -298,48 +323,92 @@ export function EstadisticasView({
     };
   }, [operacionesVisibles]);
 
+  // Quién cobra la comisión mostrada en el resumen -- nombre completo del
+  // operador de Perú y del de Venezuela (varios nombres si el período
+  // incluye a más de uno), para que el resumen y el PDF completo digan
+  // claramente a quién le corresponde el pago, no solo el monto.
+  const nombresOperadoresPeru = useMemo(() => formatearListaNombres(operacionesVisibles.map((o) => o.operador_peru_atiende)), [operacionesVisibles]);
+  const nombresOperadoresVe = useMemo(() => formatearListaNombres(operacionesVisibles.map((o) => o.operador_ve_atiende)), [operacionesVisibles]);
+
+  // Resumen y detalle en HTML, reutilizados tanto por "Descargar PDF" (el
+  // reporte completo de esta pantalla) como por "Descargar los 3 (PDF)" de
+  // EstadisticaGraficos, para que ambos incluyan siempre los gráficos, el
+  // detalle de operaciones y el resumen -- no solo una parte.
+  const construirResumenHtml = () => `
+    <div class="resumen">
+      <div class="resumen-item"><div class="resumen-label">Operaciones</div><div class="resumen-valor">${totales.nOps}</div></div>
+      <div class="resumen-item"><div class="resumen-label">Monto</div><div class="resumen-valor">PEN ${totales.montoTotalPen.toFixed(2)}</div></div>
+      <div class="resumen-item"><div class="resumen-label">Monto al beneficiario</div><div class="resumen-valor">VES ${formatearBs(totales.montoTotalVes)}</div></div>
+      ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Transferencia a Venezuela</div><div class="resumen-valor">VES ${formatearBs(totales.transferenciaTotalVes)}</div></div>` : ''}
+      <div class="resumen-item"><div class="resumen-label">Ganancia bruta</div><div class="resumen-valor">PEN ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>
+      ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia neta</div><div class="resumen-valor">PEN ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
+      ${
+        tipoSesion === 'venezuela'
+          ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela${nombrePropio ? ` — ${nombrePropio}` : ''}</div><div class="resumen-valor">VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>`
+          : ''
+      }
+      ${
+        tipoSesion === 'miembro'
+          ? `<div class="resumen-item"><div class="resumen-label">Mi comisión${nombrePropio ? ` — ${nombrePropio}` : ''}</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>`
+          : ''
+      }
+      ${
+        esDuenio
+          ? `<div class="resumen-item"><div class="resumen-label">Comisión equipo Perú${nombresOperadoresPeru ? ` — ${nombresOperadoresPeru}` : ''}</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>`
+          : ''
+      }
+      ${
+        esDuenio
+          ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela${nombresOperadoresVe ? ` — ${nombresOperadoresVe}` : ''}</div><div class="resumen-valor">VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>`
+          : ''
+      }
+    </div>
+  `;
+
+  const construirTablaHtml = () => {
+    const filas = operacionesVisibles
+      .map(
+        (o) => `<tr>
+          <td>${new Date(o.created_at).toLocaleDateString('es-PE')}</td>
+          <td>${o.beneficiario_nombre}</td>
+          <td>${o.operador_peru_atiende ?? '—'}</td>
+          <td>${o.operador_ve_atiende ?? '—'}</td>
+          <td>PEN ${o.monto_pen.toFixed(2)}</td>
+          <td>VES ${formatearBs(o.monto_ves)}</td>
+          <td>PEN ${(o.ganancia?.comisionPeruPen ?? 0).toFixed(2)}</td>
+          <td>VES ${formatearBs(o.ganancia?.comisionVenezuelaVes ?? 0)}</td>
+          <td>PEN ${(o.ganancia?.gananciaBrutaPen ?? 0).toFixed(2)}</td>
+          ${esDuenio ? `<td>PEN ${(o.ganancia?.gananciaNetaPen ?? 0).toFixed(2)}</td>` : ''}
+        </tr>`
+      )
+      .join('');
+    return `
+      <h2 style="font-size:14px; margin:24px 0 4px;">Detalle de operaciones (${operacionesVisibles.length})</h2>
+      <table>
+        <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th><th>Comisión Perú</th><th>Comisión Venezuela</th><th>Ganancia bruta</th>${esDuenio ? '<th>Ganancia neta</th>' : ''}</tr></thead>
+        <tbody>${filas || `<tr><td colspan="${esDuenio ? 10 : 9}">Sin operaciones en este período.</td></tr>`}</tbody>
+      </table>
+    `;
+  };
+
   const exportarPdf = async () => {
     if (!rango) return;
     setGenerandoPdf(true);
     try {
-      const filas = operacionesVisibles
+      const imagenes = (await graficosRef.current?.capturarImagenes()) ?? [];
+      const cuerpoGraficos = imagenes
         .map(
-          (o) => `<tr>
-            <td>${new Date(o.created_at).toLocaleDateString('es-PE')}</td>
-            <td>${o.beneficiario_nombre}</td>
-            <td>${o.operador_peru_atiende ?? '—'}</td>
-            <td>${o.operador_ve_atiende ?? '—'}</td>
-            <td>PEN ${o.monto_pen.toFixed(2)}</td>
-            <td>VES ${o.monto_ves.toFixed(2)}</td>
-            <td>PEN ${(o.ganancia?.comisionPeruPen ?? 0).toFixed(2)}</td>
-            <td>VES ${(o.ganancia?.comisionVenezuelaVes ?? 0).toFixed(2)}</td>
-            <td>PEN ${(o.ganancia?.gananciaBrutaPen ?? 0).toFixed(2)}</td>
-            ${esDuenio ? `<td>PEN ${(o.ganancia?.gananciaNetaPen ?? 0).toFixed(2)}</td>` : ''}
-          </tr>`
+          (im) => `
+            <h2 style="font-size:14px; margin:24px 0 4px;">${im.titulo}</h2>
+            <img src="${im.uri}" style="width:100%; border-radius:12px;" />
+          `
         )
         .join('');
 
       await generarYCompartirPdf(
         'Estadísticas de operaciones',
         `Período: ${rango.etiqueta}${soloMisClientes ? ' — solo mis clientes' : ''}`,
-        `
-          <div class="resumen">
-            <div class="resumen-item"><div class="resumen-label">Operaciones</div><div class="resumen-valor">${totales.nOps}</div></div>
-            <div class="resumen-item"><div class="resumen-label">Monto recibido</div><div class="resumen-valor">PEN ${totales.montoTotalPen.toFixed(2)}</div></div>
-            <div class="resumen-item"><div class="resumen-label">Monto al beneficiario</div><div class="resumen-valor">VES ${totales.montoTotalVes.toFixed(2)}</div></div>
-            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Transferencia a Venezuela</div><div class="resumen-valor">VES ${totales.transferenciaTotalVes.toFixed(2)}</div></div>` : ''}
-            <div class="resumen-item"><div class="resumen-label">Ganancia bruta</div><div class="resumen-valor">PEN ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>
-            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia neta</div><div class="resumen-valor">PEN ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
-            ${tipoSesion === 'venezuela' ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela</div><div class="resumen-valor">VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>` : ''}
-            ${tipoSesion === 'miembro' ? `<div class="resumen-item"><div class="resumen-label">Mi comisión</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>` : ''}
-            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Comisión equipo Perú</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>` : ''}
-            ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela</div><div class="resumen-valor">VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>` : ''}
-          </div>
-          <table>
-            <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th><th>Comisión Perú</th><th>Comisión Venezuela</th><th>Ganancia bruta</th>${esDuenio ? '<th>Ganancia neta</th>' : ''}</tr></thead>
-            <tbody>${filas || `<tr><td colspan="${esDuenio ? 10 : 9}">Sin operaciones en este período.</td></tr>`}</tbody>
-          </table>
-        `
+        construirResumenHtml() + cuerpoGraficos + construirTablaHtml()
       );
     } finally {
       setGenerandoPdf(false);
@@ -404,35 +473,57 @@ export function EstadisticasView({
             <View style={styles.resumenFila}>
               <ResumenItem label="Operaciones" valor={String(totales.nOps)} />
               <ResumenItem label="Monto" valor={`PEN ${totales.montoTotalPen.toFixed(2)}`} />
-              <ResumenItem label="Monto al beneficiario" valor={`VES ${totales.montoTotalVes.toFixed(2)}`} />
-              {esDuenio && <ResumenItem label="Transferencia a Venezuela" valor={`VES ${totales.transferenciaTotalVes.toFixed(2)}`} />}
+              <ResumenItem label="Monto al beneficiario" valor={`VES ${formatearBs(totales.montoTotalVes)}`} />
+              {esDuenio && <ResumenItem label="Transferencia a Venezuela" valor={`VES ${formatearBs(totales.transferenciaTotalVes)}`} />}
               <ResumenItem label="Ganancia bruta" valor={`PEN ${totales.gananciaBrutaTotal.toFixed(2)}`} />
               {esDuenio && <ResumenItem label="Ganancia neta" valor={`PEN ${totales.gananciaNetaTotal.toFixed(2)}`} destacado />}
               {/* Totalización de comisión del período elegido (hoy por
                   defecto, o el filtro que el operador indique arriba) --
                   cada rol ve la suya; el Operador Venezuela la ve en VES
-                  además de PEN. */}
+                  además de PEN. Se identifica con nombre completo a quién
+                  corresponde el pago (uno mismo, o -- para el dueño -- los
+                  operadores que la ganaron en el período). */}
               {tipoSesion === 'venezuela' && (
                 <ResumenItem
                   label="Comisión Venezuela"
-                  valor={`VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
+                  detalle={nombrePropio ?? undefined}
+                  valor={`VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
                   destacado
                 />
               )}
-              {tipoSesion === 'miembro' && <ResumenItem label="Mi comisión" valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`} destacado />}
+              {tipoSesion === 'miembro' && (
+                <ResumenItem
+                  label="Mi comisión"
+                  detalle={nombrePropio ?? undefined}
+                  valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`}
+                  destacado
+                />
+              )}
               {esDuenio && (
                 <>
-                  <ResumenItem label="Comisión equipo Perú" valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`} />
+                  <ResumenItem
+                    label="Comisión equipo Perú"
+                    detalle={nombresOperadoresPeru || undefined}
+                    valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`}
+                  />
                   <ResumenItem
                     label="Comisión Venezuela"
-                    valor={`VES ${totales.comisionVeTotalVes.toFixed(2)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
+                    detalle={nombresOperadoresVe || undefined}
+                    valor={`VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
                   />
                 </>
               )}
             </View>
           </View>
 
-          {puntos.length > 1 && <EstadisticaGraficos puntos={puntos} tituloBase="Monto vs. período (PEN)" />}
+          {puntos.length > 1 && (
+            <EstadisticaGraficos
+              ref={graficosRef}
+              puntos={puntos}
+              tituloBase="Monto vs. período (PEN)"
+              contenidoExtraHtml={construirResumenHtml() + construirTablaHtml()}
+            />
+          )}
 
           {operacionesVisibles.length > 0 && (
             <View style={[styles.card, cardShadow]}>
@@ -466,7 +557,7 @@ export function EstadisticasView({
                           <Text style={styles.detalleDato}>Tiempo de respuesta total: {formatearTiempoRespuesta(o.created_at, o.check_deposito_ve_at)}</Text>
                         )}
                         <Text style={styles.detalleDato}>
-                          PEN {o.monto_pen.toFixed(2)} · VES {o.monto_ves.toFixed(2)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
+                          PEN {o.monto_pen.toFixed(2)} · VES {formatearBs(o.monto_ves)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
                         </Text>
                         <View style={styles.operadorFila}>
                           <Text style={styles.detalleDato}>Operador de Perú: {o.operador_peru_atiende ?? '—'}</Text>
@@ -483,11 +574,11 @@ export function EstadisticasView({
                               Comisión Perú ({o.operador_peru_atiende ?? '—'}): PEN {o.ganancia.comisionPeruPen.toFixed(2)}
                             </Text>
                             <Text style={styles.detalleDato}>
-                              Comisión Venezuela ({o.operador_ve_atiende ?? '—'}): VES {o.ganancia.comisionVenezuelaVes.toFixed(2)} · PEN{' '}
+                              Comisión Venezuela ({o.operador_ve_atiende ?? '—'}): VES {formatearBs(o.ganancia.comisionVenezuelaVes)} · PEN{' '}
                               {o.ganancia.comisionVenezuelaPen.toFixed(2)}
                             </Text>
                             {esDuenio && (
-                              <Text style={styles.detalleDato}>Transferencia a Venezuela: VES {o.ganancia.transferenciaTotalVes.toFixed(2)}</Text>
+                              <Text style={styles.detalleDato}>Transferencia a Venezuela: VES {formatearBs(o.ganancia.transferenciaTotalVes)}</Text>
                             )}
                             <Text style={styles.detalleDato}>Ganancia bruta: PEN {o.ganancia.gananciaBrutaPen.toFixed(2)}</Text>
                             {esDuenio && <Text style={styles.detalleDato}>Ganancia neta: PEN {o.ganancia.gananciaNetaPen.toFixed(2)}</Text>}
@@ -573,11 +664,16 @@ export function EstadisticasView({
   );
 }
 
-function ResumenItem({ label, valor, destacado }: { label: string; valor: string; destacado?: boolean }) {
+function ResumenItem({ label, valor, detalle, destacado }: { label: string; valor: string; detalle?: string; destacado?: boolean }) {
   return (
     <View style={styles.resumenItemBox}>
       <Text style={styles.resumenLabel} numberOfLines={1}>{label}</Text>
       <Text style={[styles.resumenValor, destacado && { color: colors.accent }]}>{valor}</Text>
+      {detalle && (
+        <Text style={styles.resumenDetalle} numberOfLines={2}>
+          {detalle}
+        </Text>
+      )}
     </View>
   );
 }
@@ -591,6 +687,7 @@ const styles = StyleSheet.create({
   resumenItemBox: { alignItems: 'center', minWidth: 90, flexGrow: 1 },
   resumenLabel: { color: colors.textMuted, fontSize: 13 },
   resumenValor: { color: colors.text, fontSize: 21, fontWeight: '800', marginTop: 2 },
+  resumenDetalle: { color: colors.textMuted, fontSize: 11, marginTop: 2, textAlign: 'center' },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
   chartTitulo: { color: colors.text, fontSize: 15, fontWeight: '700', marginBottom: 4 },
   detalleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
