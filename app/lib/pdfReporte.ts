@@ -35,6 +35,12 @@ const ESTILOS_BASE = `
   </style>
 `;
 
+// Quita caracteres inválidos para nombres de archivo en Windows/macOS
+// (\ / : * ? " < > |), para usar el título como nombre de archivo.
+function tituloParaArchivo(titulo: string): string {
+  return titulo.replace(/[\\/:*?"<>|]+/g, '-').trim();
+}
+
 /**
  * Abre la pestaña donde se va a imprimir el reporte -- hay que llamarla
  * ANTES de cualquier `await` en el manejador del botón (p.ej. antes de
@@ -77,9 +83,20 @@ export async function generarYCompartirPdf(
   const marcaHtml = marca?.nombreNegocio
     ? `<div class="marca">${marca.logoUrl ? `<img class="marca-logo" src="${marca.logoUrl}" />` : ''}<div class="marca-nombre">${marca.nombreNegocio}</div></div>`
     : '';
+  // El <title> del documento es lo que el navegador usa como nombre
+  // sugerido al "Guardar como PDF" -- con la fecha acá, el archivo
+  // descargado ya sale fechado sin que el operador tenga que renombrarlo.
+  // También reemplaza el "about:blank" que se veía en la pestaña/encabezado
+  // de impresión (esa pestaña se abre en blanco antes de escribir este
+  // HTML -- ver prepararVentanaWeb).
+  const fechaArchivo = new Date().toISOString().slice(0, 10);
+  const tituloDocumento = `${tituloParaArchivo(titulo)} - ${fechaArchivo}`;
   const html = `
     <html>
-      <head>${ESTILOS_BASE}</head>
+      <head>
+        <title>${tituloDocumento}</title>
+        ${ESTILOS_BASE}
+      </head>
       <body>
         ${marcaHtml}
         <h1>${titulo}</h1>
