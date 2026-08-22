@@ -149,6 +149,10 @@ export default function PanelAdmin() {
         <Text style={styles.panelControlBtnTexto}>Panel de control →</Text>
       </Pressable>
 
+      <Pressable style={styles.panelControlBtn} onPress={() => router.push('/(admin)/crm-prospectos')}>
+        <Text style={styles.panelControlBtnTexto}>CRM de prospectos →</Text>
+      </Pressable>
+
       <Section titulo="Invitar Operador Perú">
         <Text style={styles.texto}>Genera un enlace y compártelo por WhatsApp. Al abrirlo, esa persona entra directo como Operador Perú.</Text>
         <Pressable style={styles.boton} onPress={invitarOperador} disabled={generandoInvitacion}>

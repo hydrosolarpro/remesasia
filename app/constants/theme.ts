@@ -67,6 +67,22 @@ export const APP_MAX_WIDTH_NARROW = 480; // login / registro
 export const APP_MAX_WIDTH_MEDIUM = 640; // cliente: calculadora, formularios
 export const APP_MAX_WIDTH_WIDE = 1080; // operador Perú/Venezuela: dashboard, listas, gráficas
 
+export const estadoLeadColor: Record<string, string> = {
+  nuevo: colors.primary,
+  contactado: colors.warning,
+  demo_enviado: colors.accent,
+  convertido: colors.success,
+  descartado: colors.textMuted,
+};
+
+export const estadoLeadLabel: Record<string, string> = {
+  nuevo: 'Nuevo',
+  contactado: 'Contactado',
+  demo_enviado: 'Demo enviado',
+  convertido: 'Convertido',
+  descartado: 'Descartado',
+};
+
 export const roleColors: Record<string, string> = {
   cliente: colors.accent,
   operador_peru: colors.primary,

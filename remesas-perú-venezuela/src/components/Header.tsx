@@ -90,15 +90,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoModal }) => {
             <MessageCircle className="w-4 h-4" />
           </a>
 
-          <a
-            href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={onOpenDemoModal}
             className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer border border-blue-400/30"
           >
             <Smartphone className="w-4 h-4" />
             <span>SOLICITA DEMO GRATIS (7 DÍAS)</span>
-          </a>
+          </button>
         </div>
 
         {/* Mobile Hamburger Toggle */}
@@ -169,15 +168,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoModal }) => {
           </nav>
 
           <div className="pt-2 flex flex-col gap-3">
-            <a
-              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-xs uppercase tracking-wider text-center shadow-lg shadow-blue-500/25 block"
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenDemoModal();
+              }}
+              className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-xs uppercase tracking-wider text-center shadow-lg shadow-blue-500/25 block cursor-pointer"
             >
               📱 SOLICITA DEMO GRATIS (7 DÍAS)
-            </a>
+            </button>
           </div>
         </div>
       )}

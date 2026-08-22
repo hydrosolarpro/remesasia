@@ -270,6 +270,33 @@ export interface CambioPlanPendiente {
   created_at: string;
 }
 
+export type PaisProspecto = 'peru' | 'venezuela' | 'ambos';
+export type OperaActualmente = 'ya_opero' | 'quiero_empezar' | 'solo_investigando';
+export type VolumenMensualProspecto = 'menos_20' | '20_100' | '100_300' | 'mas_300';
+export type TieneEquipoProspecto = 'con_equipo' | 'solo' | 'sin_equipo';
+export type UrgenciaProspecto = 'esta_semana' | 'este_mes' | 'explorando';
+export type EstadoLead = 'nuevo' | 'contactado' | 'demo_enviado' | 'convertido' | 'descartado';
+
+/** Lead captado por el cuestionario filtro de la landing de ventas del SaaS (remesas-perú-venezuela/). Ver CRM en (admin)/crm-prospectos.tsx. */
+export interface Prospecto {
+  id: string;
+  nombre: string;
+  telefono: string;
+  email: string;
+  pais: PaisProspecto;
+  opera_actualmente: OperaActualmente;
+  volumen_mensual: VolumenMensualProspecto;
+  tiene_equipo: TieneEquipoProspecto;
+  urgencia: UrgenciaProspecto;
+  puntaje: number;
+  calificado: boolean;
+  estado: EstadoLead;
+  notas: string | null;
+  contactado_por: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ConfiguracionPagosAdmin {
   id: string;
   banco: string | null;

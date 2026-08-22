@@ -6,8 +6,7 @@ interface PricingSectionProps {
   onOpenDemoModal: () => void;
 }
 
-export const PricingSection: React.FC<PricingSectionProps> = () => {
-  const whatsappUrl = `https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`;
+export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal }) => {
 
   return (
     <section id="plans" className="py-24 px-4 bg-slate-950 relative overflow-hidden">
@@ -71,14 +70,13 @@ export const PricingSection: React.FC<PricingSectionProps> = () => {
                 </li>
               </ul>
             </div>
-            <a
-              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola, estoy interesado en el PLAN STARTER, solicito la prueba gratuita 7 días.")}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={onOpenDemoModal}
               className="w-full py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-blue-600 hover:text-white hover:border-blue-500 font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer font-mono text-center block shadow-md group-hover:scale-[1.02]"
             >
               SOLICITA TU PLAN
-            </a>
+            </button>
           </motion.div>
 
           {/* Plan PRO (Featured) */}
@@ -120,14 +118,13 @@ export const PricingSection: React.FC<PricingSectionProps> = () => {
               </ul>
             </div>
 
-            <a
-              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola, estoy interesado en el PLAN PRO, solicito la prueba gratuita 7 días.")}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={onOpenDemoModal}
               className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all duration-300 cursor-pointer font-mono text-center block group-hover:scale-[1.02]"
             >
               SOLICITA TU PLAN
-            </a>
+            </button>
           </motion.div>
 
           {/* Plan AVANCE */}
@@ -164,14 +161,13 @@ export const PricingSection: React.FC<PricingSectionProps> = () => {
                 </li>
               </ul>
             </div>
-            <a
-              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola, estoy interesado en el PLAN AVANCE, solicito la prueba gratuita 7 días.")}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={onOpenDemoModal}
               className="w-full py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer font-mono text-center block shadow-md group-hover:scale-[1.02]"
             >
               SOLICITA TU PLAN
-            </a>
+            </button>
           </motion.div>
 
           {/* Plan ULTRA */}
@@ -208,14 +204,13 @@ export const PricingSection: React.FC<PricingSectionProps> = () => {
                 </li>
               </ul>
             </div>
-            <a
-              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola, estoy interesado en el PLAN ULTRA, solicito la prueba gratuita 7 días.")}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={onOpenDemoModal}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer font-mono shadow-lg shadow-purple-600/25 text-center block group-hover:scale-[1.02]"
             >
               SOLICITA TU PLAN
-            </a>
+            </button>
           </motion.div>
         </div>
 
@@ -240,16 +235,15 @@ export const PricingSection: React.FC<PricingSectionProps> = () => {
           </p>
 
           <div>
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={onOpenDemoModal}
               className="px-9 py-4 rounded-xl bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 hover:from-blue-500 hover:to-cyan-500 text-white font-extrabold text-xs sm:text-sm uppercase tracking-widest shadow-2xl shadow-blue-500/30 transition-all duration-300 inline-flex items-center gap-3 cursor-pointer font-mono hover:scale-105 active:scale-95 border border-blue-400/30"
             >
               <Smartphone className="w-5 h-5 animate-bounce" />
               <span>SOLICITA AQUÍ</span>
               <ArrowRight className="w-4 h-4" />
-            </a>
+            </button>
           </div>
         </motion.div>
       </div>

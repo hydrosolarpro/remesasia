@@ -595,15 +595,14 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
 
           {/* Primary Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto pt-2">
-            <a
-              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={onOpenDemoModal}
               className="px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer border border-blue-400/30"
             >
               <Smartphone className="w-5 h-5" />
               <span>Solicita Demo Gratis (7 Días)</span>
-            </a>
+            </button>
 
             <a
               href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`}

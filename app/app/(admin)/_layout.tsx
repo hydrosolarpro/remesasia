@@ -18,6 +18,7 @@ export default function AdminLayout() {
       >
         <Stack.Screen name="index" options={{ headerBackVisible: false }} />
         <Stack.Screen name="panel-control" options={{ title: 'Panel de control' }} />
+        <Stack.Screen name="crm-prospectos" options={{ title: 'CRM de prospectos' }} />
       </Stack>
     </NarrowShell>
   );
