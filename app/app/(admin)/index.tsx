@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert, Linking } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
 import { planDesdeMonto } from '../../lib/plan';
 import { RoleTag } from '../../components/RoleTag';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
@@ -86,7 +87,10 @@ export default function PanelAdmin() {
     setCopiado(false);
     try {
       const inv = await crearInvitacion('operador_peru');
-      setEnlaceInvitacion(construirEnlaceInvitacion(inv.token));
+      const enlace = construirEnlaceInvitacion(inv.token);
+      setEnlaceInvitacion(enlace);
+      const mensaje = `Te invito al aplicativo inteligente y automático remesas Perú Venezuela. Accede a la versión DEMO gratis por 7 días. Debes usar un correo electrónico verificable Gmail, junto con tu contraseña. Accede y descubre todos los beneficios que este aplicativo puede darte para el crecimiento y la eficiencia de tu negocio de remesas. Accede aquí: ${enlace}`;
+      Linking.openURL(construirEnlaceWhatsAppSinDestino(mensaje));
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo crear la invitación.');
     } finally {
