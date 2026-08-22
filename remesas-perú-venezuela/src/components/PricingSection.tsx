@@ -1,10 +1,69 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Check, Sparkles, ArrowRight, Smartphone, Zap } from 'lucide-react';
+import { PLANES } from '../data/planes';
 
 interface PricingSectionProps {
   onOpenDemoModal: () => void;
 }
+
+// Estilo visual por plan -- los números (precio/cupos) vienen de
+// src/data/planes.ts (misma fuente que la calculadora) para que nunca se
+// desalineen entre secciones de la landing.
+const ESTILO_POR_PLAN: Record<
+  string,
+  {
+    etiqueta: string;
+    featured?: boolean;
+    card: string;
+    badge: string;
+    titulo: string;
+    check: string;
+    boton: string;
+  }
+> = {
+  starter: {
+    etiqueta: 'Básico',
+    card: 'bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700',
+    badge: 'text-slate-400 bg-slate-800/60',
+    titulo: 'text-white',
+    check: 'text-emerald-400',
+    boton: 'border border-slate-700 text-slate-200 hover:bg-blue-600 hover:text-white hover:border-blue-500',
+  },
+  pro: {
+    etiqueta: 'Recomendado',
+    featured: true,
+    card: 'bg-gradient-to-b from-blue-950/60 via-slate-900 to-slate-950 border-2 border-blue-500 shadow-2xl shadow-blue-500/25',
+    badge: 'text-blue-400 bg-blue-500/20 border border-blue-500/30',
+    titulo: 'text-white',
+    check: 'text-blue-400',
+    boton: 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-xl shadow-blue-500/30',
+  },
+  expert: {
+    etiqueta: 'Avanzado',
+    card: 'bg-gradient-to-b from-amber-950/30 via-slate-900 to-slate-950 border border-amber-500/40 hover:border-amber-500/70 shadow-lg shadow-amber-950/20',
+    badge: 'text-amber-400 bg-amber-500/20 border border-amber-500/30',
+    titulo: 'text-amber-300',
+    check: 'text-amber-400',
+    boton: 'border border-amber-500/50 text-amber-200 hover:bg-amber-600 hover:text-white',
+  },
+  avance: {
+    etiqueta: 'Escalable',
+    card: 'bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700',
+    badge: 'text-emerald-400 bg-emerald-500/20 border border-emerald-500/30',
+    titulo: 'text-white',
+    check: 'text-emerald-400',
+    boton: 'border border-slate-700 text-slate-200 hover:bg-slate-800',
+  },
+  ultra: {
+    etiqueta: 'Corporativo',
+    card: 'bg-gradient-to-b from-purple-950/40 via-slate-900 to-slate-950 border border-purple-500/40 hover:border-purple-500/70 shadow-lg shadow-purple-950/20',
+    badge: 'text-purple-400 bg-purple-500/20 border border-purple-500/30',
+    titulo: 'text-purple-400',
+    check: 'text-purple-400',
+    boton: 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/25',
+  },
+};
 
 export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal }) => {
 
@@ -35,183 +94,60 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal 
         </motion.div>
 
         {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
-          {/* Plan STARTER */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            whileHover={{ y: -8 }}
-            className="p-6 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700 transition-all duration-300 flex flex-col justify-between space-y-6 shadow-xl hover:shadow-2xl relative group overflow-hidden shimmer-effect card-beam-highlight info-card-interactive"
-          >
-            <div className="space-y-4">
-              <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest bg-slate-800/60 px-2.5 py-1 rounded-md">Básico</span>
-              <h3 className="text-xl font-black font-mono text-white uppercase tracking-wider">STARTER</h3>
-              <div className="text-3xl font-extrabold font-mono text-white my-4">
-                S/ 100 <span className="text-xs font-normal text-slate-400">/mes</span>
-              </div>
-              <ul className="space-y-3 text-xs text-slate-300">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Registro hasta 100 clientes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>2 Operadores en Perú</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>2 Operadores en Venezuela</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Y otras funcionalidades automáticas</span>
-                </li>
-              </ul>
-            </div>
-            <button
-              type="button"
-              onClick={onOpenDemoModal}
-              className="w-full py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-blue-600 hover:text-white hover:border-blue-500 font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer font-mono text-center block shadow-md group-hover:scale-[1.02]"
-            >
-              SOLICITA TU PLAN
-            </button>
-          </motion.div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 items-stretch">
+          {PLANES.map((plan, idx) => {
+            const estilo = ESTILO_POR_PLAN[plan.id];
+            return (
+              <motion.div
+                key={plan.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: idx * 0.1 }}
+                whileHover={{ y: -8, scale: estilo.featured ? 1.02 : 1 }}
+                className={`p-6 rounded-2xl transition-all duration-300 flex flex-col justify-between space-y-6 shadow-xl hover:shadow-2xl relative group overflow-hidden shimmer-effect card-beam-highlight info-card-interactive ${estilo.card}`}
+              >
+                {estilo.featured && (
+                  <div className="absolute -top-3.5 right-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-3 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-widest shadow-lg shadow-blue-500/40 animate-pulse">
+                    POPULAR
+                  </div>
+                )}
 
-          {/* Plan PRO (Featured) */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: 0.2 }}
-            whileHover={{ y: -10, scale: 1.02 }}
-            className="p-6 rounded-2xl bg-gradient-to-b from-blue-950/60 via-slate-900 to-slate-950 border-2 border-blue-500 shadow-2xl shadow-blue-500/25 relative flex flex-col justify-between space-y-6 group overflow-hidden shimmer-effect card-beam-highlight info-card-interactive"
-          >
-            <div className="absolute -top-3.5 right-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-3 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-widest shadow-lg shadow-blue-500/40 animate-pulse">
-              POPULAR
-            </div>
-
-            <div className="space-y-4">
-              <span className="text-xs font-mono font-bold text-blue-400 uppercase tracking-widest bg-blue-500/20 border border-blue-500/30 px-2.5 py-1 rounded-md">Recomendado</span>
-              <h3 className="text-xl font-black font-mono text-white uppercase tracking-wider">PRO</h3>
-              <div className="text-3xl font-extrabold font-mono text-white my-4">
-                S/ 200 <span className="text-xs font-normal text-slate-400">/mes</span>
-              </div>
-              <ul className="space-y-3 text-xs text-slate-300">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                  <span>Registro hasta 200 clientes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                  <span>3 Operadores en Perú</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                  <span>3 Operadores en Venezuela</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                  <span>Y otras funcionalidades automáticas</span>
-                </li>
-              </ul>
-            </div>
-
-            <button
-              type="button"
-              onClick={onOpenDemoModal}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all duration-300 cursor-pointer font-mono text-center block group-hover:scale-[1.02]"
-            >
-              SOLICITA TU PLAN
-            </button>
-          </motion.div>
-
-          {/* Plan AVANCE */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: 0.3 }}
-            whileHover={{ y: -8 }}
-            className="p-6 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700 transition-all duration-300 flex flex-col justify-between space-y-6 shadow-xl hover:shadow-2xl relative group overflow-hidden shimmer-effect card-beam-highlight info-card-interactive"
-          >
-            <div className="space-y-4">
-              <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-md">Escalable</span>
-              <h3 className="text-xl font-black font-mono text-white uppercase tracking-wider">AVANCE</h3>
-              <div className="text-3xl font-extrabold font-mono text-white my-4">
-                S/ 300 <span className="text-xs font-normal text-slate-400">/mes</span>
-              </div>
-              <ul className="space-y-3 text-xs text-slate-300">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Registro hasta 500 clientes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>4 Operadores en Perú</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>4 Operadores en Venezuela</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Y otras funcionalidades automáticas</span>
-                </li>
-              </ul>
-            </div>
-            <button
-              type="button"
-              onClick={onOpenDemoModal}
-              className="w-full py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer font-mono text-center block shadow-md group-hover:scale-[1.02]"
-            >
-              SOLICITA TU PLAN
-            </button>
-          </motion.div>
-
-          {/* Plan ULTRA */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: 0.4 }}
-            whileHover={{ y: -8 }}
-            className="p-6 rounded-2xl bg-gradient-to-b from-purple-950/40 via-slate-900 to-slate-950 border border-purple-500/40 hover:border-purple-500/70 transition-all duration-300 flex flex-col justify-between space-y-6 shadow-xl shadow-purple-950/20 relative group overflow-hidden shimmer-effect card-beam-highlight info-card-interactive"
-          >
-            <div className="space-y-4">
-              <span className="text-xs font-mono font-bold text-purple-400 uppercase tracking-widest bg-purple-500/20 border border-purple-500/30 px-2.5 py-1 rounded-md">Corporativo</span>
-              <h3 className="text-xl font-black font-mono text-purple-400 uppercase tracking-wider">ULTRA</h3>
-              <div className="text-3xl font-extrabold font-mono text-white my-4">
-                S/ 500 <span className="text-xs font-normal text-slate-400">/mes</span>
-              </div>
-              <ul className="space-y-3 text-xs text-slate-300">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-                  <span>Registro hasta 1000 clientes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-                  <span>8 Operadores en Perú</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-                  <span>8 Operadores en Venezuela</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-                  <span>Y otras funcionalidades automáticas</span>
-                </li>
-              </ul>
-            </div>
-            <button
-              type="button"
-              onClick={onOpenDemoModal}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer font-mono shadow-lg shadow-purple-600/25 text-center block group-hover:scale-[1.02]"
-            >
-              SOLICITA TU PLAN
-            </button>
-          </motion.div>
+                <div className="space-y-4">
+                  <span className={`text-xs font-mono font-bold uppercase tracking-widest px-2.5 py-1 rounded-md ${estilo.badge}`}>{estilo.etiqueta}</span>
+                  <h3 className={`text-xl font-black font-mono uppercase tracking-wider ${estilo.titulo}`}>{plan.nombre}</h3>
+                  <div className="text-3xl font-extrabold font-mono text-white my-4">
+                    S/ {plan.precio} <span className="text-xs font-normal text-slate-400">/mes</span>
+                  </div>
+                  <ul className="space-y-3 text-xs text-slate-300">
+                    <li className="flex items-start gap-2">
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${estilo.check}`} />
+                      <span>Registro hasta {plan.clientes} clientes</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${estilo.check}`} />
+                      <span>{plan.operadoresPeru} Operadores en Perú</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${estilo.check}`} />
+                      <span>{plan.operadoresVenezuela} Operadores en Venezuela</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${estilo.check}`} />
+                      <span>Y otras funcionalidades automáticas</span>
+                    </li>
+                  </ul>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenDemoModal}
+                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer font-mono text-center block shadow-md group-hover:scale-[1.02] ${estilo.boton}`}
+                >
+                  SOLICITA TU PLAN
+                </button>
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Free Trial Banner */}

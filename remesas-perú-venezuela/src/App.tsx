@@ -6,6 +6,7 @@ import { RateSimulator } from './components/RateSimulator';
 import { PlatformCarousel } from './components/PlatformCarousel';
 import { BentoFeatures } from './components/BentoFeatures';
 import { ComparisonTable } from './components/ComparisonTable';
+import { CalculadoraPlan } from './components/CalculadoraPlan';
 import { PricingSection } from './components/PricingSection';
 import { FounderSection } from './components/FounderSection';
 import { Footer } from './components/Footer';
@@ -38,6 +39,9 @@ export default function App() {
 
         {/* Caos vs Eficiencia Comparison Table */}
         <ComparisonTable />
+
+        {/* Calculadora: cuántos clientes manejas -> plan recomendado */}
+        <CalculadoraPlan onOpenDemoModal={() => setDemoModalOpen(true)} />
 
         {/* Subscription Plans */}
         <PricingSection onOpenDemoModal={() => setDemoModalOpen(true)} />
