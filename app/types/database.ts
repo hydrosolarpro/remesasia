@@ -62,7 +62,8 @@ export interface BeneficiarioVES {
 
 export interface Solicitud {
   id: string;
-  cliente_id: string;
+  /** Null en una operación cuyo cliente fue eliminado junto a todo su negocio (ver eliminar_operador_peru) -- el historial se conserva con los campos *_historico de abajo. */
+  cliente_id: string | null;
   operador_peru_id: string | null;
   operador_venezuela_id: string | null;
   estado: EstadoSolicitud;
@@ -91,9 +92,14 @@ export interface Solicitud {
   check_deposito_ve_at: string | null;
   validado_peru_por: string | null;
   validado_ve_por: string | null;
-  negocio_operador_peru_id: string;
+  /** Null en una operación de un negocio ya eliminado (ver eliminar_operador_peru). */
+  negocio_operador_peru_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Nombre/teléfono/correo del cliente "congelados" al eliminar su cuenta -- solo se llenan en ese momento (ver eliminar_operador_peru). */
+  cliente_nombre_historico: string | null;
+  cliente_telefono_historico: string | null;
+  cliente_email_historico: string | null;
   /** El cliente confirma que el dinero llegó a la cuenta del beneficiario. */
   check_beneficiario_confirmado: boolean;
   check_beneficiario_confirmado_at: string | null;
@@ -247,7 +253,8 @@ export type EstadoPago = 'pendiente' | 'verificado' | 'rechazado';
 
 export interface PagoSuscripcion {
   id: string;
-  operador_peru_id: string;
+  /** Null si el operador fue eliminado (ver eliminar_operador_peru) -- el pago se conserva como registro contable. */
+  operador_peru_id: string | null;
   periodo: string; // 'YYYY-MM'
   monto: number;
   comprobante_url: string | null;

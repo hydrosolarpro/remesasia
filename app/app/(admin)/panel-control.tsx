@@ -94,6 +94,15 @@ export default function PanelControl() {
   const [cambiosPendientes, setCambiosPendientes] = useState<Record<string, CambioPendienteFila>>({});
   const [procesandoCambio, setProcesandoCambio] = useState<string | null>(null);
 
+  // Eliminar operador (borrado físico irreversible, ver
+  // supabase/functions/eliminar-operador-peru): el panel de confirmación
+  // solo se abre para UN operador a la vez, y el botón final queda
+  // deshabilitado hasta que el admin teclee exactamente su correo --
+  // salvaguarda extra para no borrar el negocio equivocado de un clic.
+  const [eliminandoOperadorId, setEliminandoOperadorId] = useState<string | null>(null);
+  const [confirmacionEmail, setConfirmacionEmail] = useState<Record<string, string>>({});
+  const [eliminando, setEliminando] = useState(false);
+
   // `silencioso` evita el parpadeo de pantalla completa a "cargando" en
   // los refrescos automáticos de fondo (ver polling de 8s más abajo) --
   // solo se muestra el spinner de pantalla completa en la carga inicial.
@@ -297,6 +306,41 @@ export default function PanelControl() {
       Alert.alert('No se pudo rechazar el cambio de plan', error.message);
       return;
     }
+    cargar();
+  };
+
+  // Borrado físico e irreversible de un Operador principal de Perú y todo
+  // su negocio (equipo de Perú, operadores de Venezuela y clientes). El
+  // historial de operaciones y de pagos de suscripción se conserva (ver
+  // supabase/migrations/0078_eliminar_operador_peru.sql).
+  const eliminarOperador = async (op: OperadorFila) => {
+    setEliminando(true);
+    const { data, error } = await supabase.functions.invoke('eliminar-operador-peru', { body: { operador_id: op.id } });
+    setEliminando(false);
+    // Igual que en (operador-peru)/clientes.tsx: cuando la función responde
+    // con status distinto de 2xx, el mensaje real viaja en `error.context`,
+    // no en `error.message`.
+    let mensajeError: string | null = null;
+    if (error) {
+      mensajeError = error.message;
+      const contexto = (error as { context?: unknown }).context;
+      if (contexto instanceof Response) {
+        try {
+          const cuerpo = await contexto.json();
+          if (cuerpo?.error) mensajeError = cuerpo.error;
+        } catch {
+          // Respuesta sin JSON válido: se mantiene error.message.
+        }
+      } else if ((data as { error?: string } | null)?.error) {
+        mensajeError = (data as { error: string }).error;
+      }
+    }
+    if (mensajeError) {
+      Alert.alert('No se pudo eliminar el operador', mensajeError);
+      return;
+    }
+    setEliminandoOperadorId(null);
+    setConfirmacionEmail((prev) => ({ ...prev, [op.id]: '' }));
     cargar();
   };
 
@@ -570,6 +614,56 @@ export default function PanelControl() {
                 </Pressable>
               </View>
             )}
+
+            <View style={styles.peligroBloque}>
+              {eliminandoOperadorId === op.id ? (
+                <View style={styles.peligroPanel}>
+                  <Text style={styles.peligroTitulo}>Eliminar a {op.nombre} y todo su negocio</Text>
+                  <Text style={styles.peligroTexto}>
+                    Esto borra para siempre la cuenta de {op.nombre}, su equipo de Perú, sus operadores de Venezuela y sus{' '}
+                    {op.totalClientes} cliente(s). Las operaciones y pagos ya realizados se conservan como historial, sin
+                    vincularse a ninguna cuenta. Esta acción NO se puede deshacer.
+                  </Text>
+                  <Text style={styles.peligroLabel}>Escribe el correo del operador para confirmar: {op.email ?? '(sin correo)'}</Text>
+                  <TextInput
+                    style={styles.peligroInput}
+                    value={confirmacionEmail[op.id] ?? ''}
+                    onChangeText={(t) => setConfirmacionEmail((prev) => ({ ...prev, [op.id]: t }))}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    placeholder={op.email ?? ''}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <View style={styles.peligroBotones}>
+                    <Pressable
+                      style={styles.peligroCancelar}
+                      onPress={() => {
+                        setEliminandoOperadorId(null);
+                        setConfirmacionEmail((prev) => ({ ...prev, [op.id]: '' }));
+                      }}
+                      disabled={eliminando}
+                    >
+                      <Text style={styles.peligroCancelarTexto}>Cancelar</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.peligroConfirmar,
+                        (eliminando || !op.email || (confirmacionEmail[op.id] ?? '').trim().toLowerCase() !== op.email.toLowerCase()) &&
+                          styles.peligroConfirmarDeshabilitado,
+                      ]}
+                      disabled={eliminando || !op.email || (confirmacionEmail[op.id] ?? '').trim().toLowerCase() !== op.email.toLowerCase()}
+                      onPress={() => eliminarOperador(op)}
+                    >
+                      {eliminando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.peligroConfirmarTexto}>Eliminar definitivamente</Text>}
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable style={styles.peligroAbrirBtn} onPress={() => setEliminandoOperadorId(op.id)}>
+                  <Text style={styles.peligroAbrirBtnTexto}>🗑️ Eliminar operador y su negocio</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         );
       })}
@@ -661,4 +755,33 @@ const styles = StyleSheet.create({
   unlimitedBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
   unlimitedBtnTexto: { color: colors.text, fontSize: 14, fontWeight: '700' },
   vacio: { color: colors.textMuted, textAlign: 'center', marginTop: 20, fontStyle: 'italic' },
+  peligroBloque: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  peligroAbrirBtn: { alignSelf: 'flex-start' },
+  peligroAbrirBtnTexto: { color: colors.danger, fontWeight: '700', fontSize: 14 },
+  peligroPanel: {
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 8,
+    backgroundColor: `${colors.danger}11`,
+  },
+  peligroTitulo: { color: colors.danger, fontSize: 15, fontWeight: '800' },
+  peligroTexto: { color: colors.text, fontSize: 13, lineHeight: 17 },
+  peligroLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginTop: 4 },
+  peligroInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 10,
+    color: colors.text,
+    fontSize: 15,
+    backgroundColor: colors.cardAlt,
+  },
+  peligroBotones: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  peligroCancelar: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  peligroCancelarTexto: { color: colors.textMuted, fontWeight: '700' },
+  peligroConfirmar: { flex: 1, backgroundColor: colors.danger, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  peligroConfirmarDeshabilitado: { opacity: 0.4 },
+  peligroConfirmarTexto: { color: '#fff', fontWeight: '700' },
 });
