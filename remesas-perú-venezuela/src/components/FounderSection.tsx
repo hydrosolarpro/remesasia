@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Quote, ShieldCheck, Lock, Sparkles, Award } from 'lucide-react';
-import joseSilvaImg from '../assets/images/jose_silva_official_1785374643817.jpg';
+import joseSilvaImg from '../assets/images/jose_silva_fundador.jpeg';
 
 export const FounderSection: React.FC = () => {
   return (

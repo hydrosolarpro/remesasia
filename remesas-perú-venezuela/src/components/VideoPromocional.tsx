@@ -6,12 +6,13 @@ interface VideoPromocionalProps {
   onOpenDemoModal: () => void;
 }
 
-// Deja esta constante vacía mientras no exista el video grabado (ver
-// GUION_VIDEO_PROMOCIONAL.md) -- la sección muestra un placeholder "Video
-// próximamente" en vez de romperse. En cuanto haya un video, pega acá la
-// URL de embed (YouTube: "https://www.youtube.com/embed/VIDEO_ID", Vimeo:
-// "https://player.vimeo.com/video/VIDEO_ID").
-const URL_VIDEO_PROMOCIONAL = '';
+// Archivo servido como estático desde public/videos/ (Vite lo copia tal
+// cual al build, sin procesar) -- si en el futuro se prefiere alojarlo en
+// YouTube/Vimeo, basta con pegar acá esa URL de embed en vez de la ruta
+// local; el render de abajo detecta la extensión para decidir si usa
+// <video> nativo o <iframe>. Vacío = placeholder "video próximamente".
+const URL_VIDEO_PROMOCIONAL = '/videos/video-promocional.mp4';
+const ES_ARCHIVO_DE_VIDEO = /\.(mp4|webm|mov)$/i.test(URL_VIDEO_PROMOCIONAL);
 
 const BENEFICIOS = [
   { icon: Zap, texto: 'Automatiza cobros, validaciones y avisos por WhatsApp y Telegram' },
@@ -54,7 +55,9 @@ export const VideoPromocional: React.FC<VideoPromocionalProps> = ({ onOpenDemoMo
           className="rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl overflow-hidden"
         >
           <div className="aspect-video w-full relative">
-            {URL_VIDEO_PROMOCIONAL ? (
+            {URL_VIDEO_PROMOCIONAL && ES_ARCHIVO_DE_VIDEO ? (
+              <video src={URL_VIDEO_PROMOCIONAL} className="w-full h-full bg-black" controls playsInline preload="metadata" />
+            ) : URL_VIDEO_PROMOCIONAL ? (
               <iframe
                 src={URL_VIDEO_PROMOCIONAL}
                 title="Video promocional Remesas Perú-Venezuela"
