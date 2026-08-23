@@ -6,6 +6,7 @@ import { EstadisticaGraficos, EstadisticaGraficosHandle } from './EstadisticaGra
 import { generarYCompartirPdf, prepararVentanaWeb } from '../lib/pdfReporte';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { RangoFecha, calcularRango } from '../lib/dateRange';
+import { hoyLocal } from '../lib/fechaLocal';
 import { Solicitud } from '../types/database';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { construirEnlaceWhatsAppGenerico } from '../lib/whatsapp';
@@ -22,7 +23,14 @@ function formatearListaNombres(nombres: (string | null | undefined)[], maxMostra
   return `${unicos.slice(0, maxMostrados).join(', ')} y ${unicos.length - maxMostrados} más`;
 }
 
-const HOY = () => new Date().toISOString().slice(0, 10);
+// Convierte un límite de rango (YYYY-MM-DD, calendario LOCAL del
+// dispositivo) al instante UTC exacto de esa medianoche local -- comparar
+// un `timestamptz` contra un string de fecha plano lo interpretaría en UTC
+// (Postgres), corriendo el límite del "día" varias horas respecto a Perú
+// (UTC-5) o Venezuela (UTC-4). Mismo truco que ya usa `sumarDias` en
+// lib/dateRange.ts: `new Date("YYYY-MM-DDT00:00:00")` sin sufijo "Z" se
+// interpreta como hora LOCAL.
+const limiteLocalISO = (fechaYmd: string) => new Date(`${fechaYmd}T00:00:00`).toISOString();
 
 // Ver DateRangeFilter.tsx: evita que un swipe vertical (p.ej. "pull to
 // refresh") se confunda con un gesto del navegador y saque al usuario de
@@ -126,7 +134,7 @@ export function EstadisticasView({
       .then(({ data }) => setPerfilNegocio(data));
   }, [operadorPeruId]);
 
-  const esHoy = rango !== null && rango.desde === HOY();
+  const esHoy = rango !== null && rango.desde === hoyLocal();
 
   interface MiembroInfo {
     nombre: string;
@@ -184,11 +192,22 @@ export function EstadisticasView({
           // "Realizadas" (check_deposito_ve) y "por revisar" (en_revision)
           // quedan disponibles acá aunque ya se hayan borrado de la vista
           // del Panel al cerrar el horario de atención -- nada se pierde.
+          //
+          // El rango se filtra por `check_deposito_ve_at` (cuándo se
+          // COMPLETÓ la operación), no por `created_at` (cuándo se creó) --
+          // así "hoy" en Estadísticas significa exactamente lo mismo que
+          // "Realizadas (hoy)" en el Panel (PeruDashboardView), que usa ese
+          // mismo campo. en_revision siempre implica check_deposito_ve=true
+          // (ver validar_deposito_venezuela), así que este campo nunca es
+          // null en las filas que trae este filtro. Los límites se
+          // convierten a su instante UTC exacto en hora local (ver
+          // limiteLocalISO) para no correr el "día" varias horas como
+          // pasaba comparando contra un string de fecha plano.
           .or('check_deposito_ve.eq.true,en_revision.eq.true')
           .eq('negocio_operador_peru_id', operadorPeruId)
-          .gte('created_at', rangoConsulta.desde)
-          .lt('created_at', rangoConsulta.hasta)
-          .order('created_at', { ascending: true });
+          .gte('check_deposito_ve_at', limiteLocalISO(rangoConsulta.desde))
+          .lt('check_deposito_ve_at', limiteLocalISO(rangoConsulta.hasta))
+          .order('check_deposito_ve_at', { ascending: true });
 
         // El miembro solo ve operaciones de SUS clientes; el Operador
         // Venezuela solo las de los miembros que le fueron asignados.
@@ -263,7 +282,7 @@ export function EstadisticasView({
   // más recientes, el usuario vuelve a tocar "Buscar".
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    buscar(calcularRango('dia', HOY(), HOY()));
+    buscar(calcularRango('dia', hoyLocal(), hoyLocal()));
   }, [operadorPeruId]);
 
   // Desglose de operaciones y montos por cada persona que validó — tanto
@@ -294,8 +313,13 @@ export function EstadisticasView({
 
     const grupos = new Map<string, Punto>();
     for (const op of operacionesVisibles) {
+      // Agrupa por fecha de finalización (misma base que el filtro de
+      // rango de arriba), no por creación -- si no, una operación creada
+      // fuera del período pero completada dentro de él quedaría en un
+      // punto/fecha ajeno al rango que el usuario eligió.
+      const fechaBase = op.check_deposito_ve_at ?? op.created_at;
       const clave =
-        granularidad === 'dia' ? op.created_at.slice(0, 10) : granularidad === 'mes' ? op.created_at.slice(0, 7) : op.created_at.slice(0, 4);
+        granularidad === 'dia' ? fechaBase.slice(0, 10) : granularidad === 'mes' ? fechaBase.slice(0, 7) : fechaBase.slice(0, 4);
       const etiqueta = granularidad === 'dia' ? clave.slice(5) : clave;
       const actual = grupos.get(clave) ?? { etiqueta, nOps: 0, monto: 0 };
       actual.nOps += 1;
@@ -384,7 +408,7 @@ export function EstadisticasView({
     const filas = operacionesVisibles
       .map(
         (o) => `<tr>
-          <td>${new Date(o.created_at).toLocaleDateString('es-PE')}</td>
+          <td>${new Date(o.check_deposito_ve_at ?? o.created_at).toLocaleDateString('es-PE')}</td>
           <td>${o.beneficiario_nombre}</td>
           <td>${o.operador_peru_atiende ?? '—'}</td>
           <td>${o.operador_ve_atiende ?? '—'}</td>
@@ -401,7 +425,7 @@ export function EstadisticasView({
     return `
       <h2 style="margin-top:24px;">Detalle de operaciones (${operacionesVisibles.length})</h2>
       <table>
-        <thead><tr><th>Fecha</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th>${
+        <thead><tr><th>Fecha (atendida)</th><th>Beneficiario</th><th>Operador de Perú</th><th>Operador Venezuela</th><th>Monto</th><th>Recibido (VES)</th>${
           verComisionPeru ? '<th>Comisión Perú</th>' : ''
         }${verComisionVenezuela ? '<th>Comisión Venezuela</th>' : ''}${esDuenio ? '<th>Ganancia bruta</th><th>Ganancia neta</th>' : ''}</tr></thead>
         <tbody>${filas || `<tr><td colspan="${nColumnas}">Sin operaciones en este período.</td></tr>`}</tbody>
