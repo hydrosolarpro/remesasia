@@ -91,6 +91,25 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal 
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
             Elige el nivel de capacidad ideal para el volumen de tus operadores. Puedes iniciar con 7 días gratis sin compromisos.
           </p>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="inline-flex flex-wrap items-center justify-center gap-2.5 px-5 sm:px-7 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 shadow-2xl shadow-emerald-500/40 border border-emerald-300/50 animate-pulse-glow"
+          >
+            <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white shrink-0" />
+            <span className="text-white font-mono font-black uppercase tracking-wide text-sm sm:text-lg">
+              Costo por cliente:
+            </span>
+            <span className="text-white font-mono font-black text-2xl sm:text-3xl leading-none">
+              S/ 1<span className="text-sm sm:text-lg font-bold">/mes</span>
+            </span>
+            <span className="text-emerald-950 bg-white/90 font-mono font-extrabold text-[11px] sm:text-xs uppercase tracking-wider px-2.5 py-1 rounded-full">
+              En cualquiera de los planes
+            </span>
+          </motion.div>
         </motion.div>
 
         {/* Pricing Cards Grid */}
