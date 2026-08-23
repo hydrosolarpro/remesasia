@@ -10,8 +10,13 @@ const HOY = () => new Date().toISOString().slice(0, 10);
 
 /** F1 — Tasa del día (Tv, Soles -> Bolívares Soberanos) y Tasa de
  *  adquisición (Ta, usada para calcular Ganancia Bruta/Neta). Solo el
- *  Operador principal de Perú puede publicarlas; un miembro o el Operador
- *  de Venezuela las ven solo lectura (en su Panel). */
+ *  Operador principal de Perú puede publicarlas.
+ *
+ *  Un Operador de Perú miembro puede, además, publicar SU PROPIA Tv (sin
+ *  Ta, que sigue siendo del principal) si el principal se lo habilitó en
+ *  su Perfil ("Dejar libre su propia Tasa del día") -- esa tasa propia
+ *  solo se aplica a los clientes que ese miembro invitó. El Operador de
+ *  Venezuela solo ve, sin opción a editar nada. */
 export default function TasaDelDia() {
   const { usuario } = useAuth();
   const [tasaActual, setTasaActual] = useState<Tasa | null>(null);
@@ -21,6 +26,15 @@ export default function TasaDelDia() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [esPrincipal, setEsPrincipal] = useState(false);
   const [cargandoCtx, setCargandoCtx] = useState(true);
+
+  // Miembro: su propia tasa (si el principal se la habilitó).
+  const [esMiembro, setEsMiembro] = useState(false);
+  const [puedeEditarTasaPropia, setPuedeEditarTasaPropia] = useState(false);
+  const [tasaPrincipalRef, setTasaPrincipalRef] = useState<Tasa | null>(null);
+  const [tasaPropiaActual, setTasaPropiaActual] = useState<Tasa | null>(null);
+  const [tasaPropiaInput, setTasaPropiaInput] = useState('');
+  const [loadingPropia, setLoadingPropia] = useState(false);
+  const [mensajePropia, setMensajePropia] = useState<string | null>(null);
 
   const cargar = async (negocioId: string) => {
     const { data } = await supabase
@@ -38,12 +52,45 @@ export default function TasaDelDia() {
     }
   };
 
+  const cargarComoMiembro = async (negocioId: string, miembroId: string) => {
+    const [{ data: miembroData }, { data: tasaPrincipal }, { data: tasaPropia }] = await Promise.all([
+      supabase.from('operador_peru_miembro').select('puede_editar_tasa').eq('id', miembroId).maybeSingle(),
+      supabase
+        .from('tasas')
+        .select('*')
+        .eq('publicada_por', negocioId)
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('tasas')
+        .select('*')
+        .eq('fecha', HOY())
+        .eq('operador_peru_miembro_id', miembroId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    setPuedeEditarTasaPropia(!!miembroData?.puede_editar_tasa);
+    setTasaPrincipalRef((tasaPrincipal as Tasa | null) ?? null);
+    setTasaPropiaActual((tasaPropia as Tasa | null) ?? null);
+    if (tasaPropia) setTasaPropiaInput(String((tasaPropia as Tasa).tasa_pen_ves));
+  };
+
   useEffect(() => {
     if (!usuario) return;
     resolverContextoOperador(usuario).then((ctx) => {
       setEsPrincipal(ctx.tipo === 'principal');
-      if (ctx.negocioId) cargar(ctx.negocioId);
-      setCargandoCtx(false);
+      setEsMiembro(ctx.tipo === 'miembro');
+      if (ctx.tipo === 'principal' && ctx.negocioId) {
+        cargar(ctx.negocioId);
+        setCargandoCtx(false);
+      } else if (ctx.tipo === 'miembro' && ctx.negocioId && ctx.miembroId) {
+        cargarComoMiembro(ctx.negocioId, ctx.miembroId).then(() => setCargandoCtx(false));
+      } else {
+        setCargandoCtx(false);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario?.id]);
@@ -71,10 +118,71 @@ export default function TasaDelDia() {
     if (ctx.negocioId) cargar(ctx.negocioId);
   };
 
+  const publicarPropia = async () => {
+    if (!usuario || !esMiembro || !puedeEditarTasaPropia) return;
+    setMensajePropia(null);
+    if (!tasaPropiaInput) {
+      setMensajePropia('Ingresa tu tasa de venta antes de publicar.');
+      return;
+    }
+    setLoadingPropia(true);
+    const { error } = await supabase.rpc('publicar_tasa_miembro', {
+      p_fecha: HOY(),
+      p_tasa_pen_ves: Number(tasaPropiaInput),
+    });
+    setLoadingPropia(false);
+    if (error) {
+      setMensajePropia(error.message);
+      return;
+    }
+    setMensajePropia('Tu tasa propia fue publicada. Ya se aplica a los clientes que tú invitaste.');
+    const ctx = await resolverContextoOperador(usuario);
+    if (ctx.negocioId && ctx.miembroId) cargarComoMiembro(ctx.negocioId, ctx.miembroId);
+  };
+
   if (cargandoCtx) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (esMiembro) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Tasa del día — {HOY()}</Text>
+
+        <Text style={styles.hint}>
+          Tasa del Operador principal: {tasaPrincipalRef ? `venta S/1 = Bs ${tasaPrincipalRef.tasa_pen_ves}` : 'sin publicar'}. Se
+          aplica a todos los clientes del negocio, salvo a los tuyos si publicas tu propia tasa abajo.
+        </Text>
+
+        {puedeEditarTasaPropia ? (
+          <>
+            <Text style={styles.label}>Tu propia tasa de venta (Soles → Bolívares) — aplica solo a tus clientes</Text>
+            <TextInput
+              style={styles.input}
+              value={tasaPropiaInput}
+              onChangeText={setTasaPropiaInput}
+              keyboardType="decimal-pad"
+              placeholder="34.20"
+              placeholderTextColor={colors.textMuted}
+            />
+            {tasaPropiaActual && (
+              <Text style={styles.hint}>Tu tasa propia publicada hoy: Bs {tasaPropiaActual.tasa_pen_ves}</Text>
+            )}
+            {mensajePropia && <Text style={styles.mensaje}>{mensajePropia}</Text>}
+            <Pressable style={styles.button} onPress={publicarPropia} disabled={loadingPropia}>
+              {loadingPropia ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar mi tasa</Text>}
+            </Pressable>
+          </>
+        ) : (
+          <Text style={styles.soloLectura}>
+            Tu Operador principal de Perú no te habilitó para publicar tu propia Tasa del día. Pídele que active la opción "Dejar
+            libre su propia Tasa del día" en tu perfil dentro de su Equipo.
+          </Text>
+        )}
       </View>
     );
   }

@@ -57,6 +57,11 @@ export function PeruDashboardView({
   const [cargando, setCargando] = useState(true);
   const [perfil, setPerfil] = useState<PerfilNegocio | null>(null);
   const [tasa, setTasa] = useState<Tasa | null>(null);
+  // Tasa propia del miembro (solo tipoSesion 'miembro', y solo si el
+  // principal lo habilitó -- ver operador_peru_miembro.puede_editar_tasa).
+  // Se aplica únicamente a los clientes que este miembro invitó.
+  const [puedeEditarTasaPropia, setPuedeEditarTasaPropia] = useState(false);
+  const [tasaPropia, setTasaPropia] = useState<Tasa | null>(null);
   const [operaciones, setOperaciones] = useState<OperationRowData[]>([]);
   const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
   const [vePerfiles, setVePerfiles] = useState<OperadorVenezuelaPerfil[]>([]);
@@ -105,32 +110,48 @@ export function PeruDashboardView({
       query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
     }
 
-    const [{ data: perfilData }, { data: tasaData }, { data: opsData }, { data: miembrosData }, { data: vePerfilesData }, { data: principalData }] =
-      await Promise.all([
-        supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
-        supabase
-          .from('tasas')
-          .select('*')
-          .eq('publicada_por', operadorPeruId)
-          .order('fecha', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length === 0 ? Promise.resolve({ data: null }) : query,
-        supabase
-          .from('operador_peru_miembro')
-          .select('*')
-          .eq('operador_peru_id', operadorPeruId)
-          .order('created_at', { ascending: true }),
-        supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId),
-        supabase.from('usuarios').select('nombre, telefono').eq('id', operadorPeruId).maybeSingle(),
-      ]);
+    const [
+      { data: perfilData },
+      { data: tasaData },
+      { data: opsData },
+      { data: miembrosData },
+      { data: vePerfilesData },
+      { data: principalData },
+      { data: tasaPropiaData },
+    ] = await Promise.all([
+      supabase.from('perfil_negocio').select('*').eq('operador_peru_id', operadorPeruId).maybeSingle(),
+      supabase
+        .from('tasas')
+        .select('*')
+        .eq('publicada_por', operadorPeruId)
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length === 0 ? Promise.resolve({ data: null }) : query,
+      supabase
+        .from('operador_peru_miembro')
+        .select('*')
+        .eq('operador_peru_id', operadorPeruId)
+        .order('created_at', { ascending: true }),
+      supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', operadorPeruId),
+      supabase.from('usuarios').select('nombre, telefono').eq('id', operadorPeruId).maybeSingle(),
+      // Tasa propia del miembro (ver PeruDashboardView arriba): solo tiene
+      // sentido consultarla para la sesión de un miembro de Perú.
+      esMiembroPe && miembroId
+        ? supabase.from('tasas').select('*').eq('operador_peru_miembro_id', miembroId).order('fecha', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
 
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
+    setTasaPropia((tasaPropiaData as Tasa | null) ?? null);
     const listaMiembros = (miembrosData as OperadorPeruMiembro[] | null) ?? [];
     const listaVePerfiles = (vePerfilesData as OperadorVenezuelaPerfil[] | null) ?? [];
     setMiembros(listaMiembros);
+    if (esMiembroPe && miembroId) {
+      setPuedeEditarTasaPropia(!!listaMiembros.find((m) => m.id === miembroId)?.puede_editar_tasa);
+    }
     setVePerfiles(listaVePerfiles);
     setPrincipalTelefono(principalData?.telefono ?? null);
     setPrincipalNombre(principalData?.nombre ?? null);
@@ -727,7 +748,9 @@ export function PeruDashboardView({
       )}
 
       <View style={[styles.card, cardShadow, styles.tasaCard]}>
-        <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
+        <Text style={styles.tasaLabel}>
+          {esMiembroPe ? 'Tasa del día del Operador principal (Soles → Bolívares)' : 'Tasa del día (Soles → Bolívares)'}
+        </Text>
         <Text style={styles.tasaValor}>{tasa ? `VES ${tasa.tasa_pen_ves}` : 'Sin publicar'}</Text>
         {puedeGestionar && (
           <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
@@ -735,6 +758,26 @@ export function PeruDashboardView({
           </Pressable>
         )}
       </View>
+
+      {/* Tasa propia del miembro: solo aparece en la sesión de un Operador
+          de Perú miembro, y solo se aplica a los clientes que él invitó
+          (ver resolución de tasa en (cliente)/index.tsx). Si el principal
+          no lo habilitó, se muestra el aviso en vez del botón de editar. */}
+      {esMiembroPe && (
+        <View style={[styles.card, cardShadow, styles.tasaCard]}>
+          <Text style={styles.tasaLabel}>Mi propia Tasa del día (aplica solo a mis clientes)</Text>
+          <Text style={styles.tasaValor}>{tasaPropia ? `VES ${tasaPropia.tasa_pen_ves}` : 'Sin publicar'}</Text>
+          {puedeEditarTasaPropia ? (
+            <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
+              <Text style={styles.tasaEditar}>Actualizar mi tasa →</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.tasaAvisoTexto}>
+              Tu Operador principal no te habilitó para publicar tu propia tasa. Tus clientes usan la tasa de arriba.
+            </Text>
+          )}
+        </View>
+      )}
 
       <View style={[styles.card, cardShadow, styles.tiempoRealCard]}>
         <Text style={styles.seccionTitulo}>Operaciones en tiempo real</Text>
@@ -1036,6 +1079,7 @@ const styles = StyleSheet.create({
   tasaLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   tasaValor: { color: colors.text, fontSize: 39, fontWeight: '900', letterSpacing: -0.5 },
   tasaEditar: { color: colors.accent, fontSize: 14, fontWeight: '700', marginTop: 4 },
+  tasaAvisoTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 16, marginTop: 4 },
   miniLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   miniValor: { color: colors.text, fontSize: 23, fontWeight: '800' },
   horarioCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

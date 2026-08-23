@@ -49,6 +49,8 @@ export interface Tasa {
   /** Tasa de adquisición (Ta) del día -- usada junto a tasa_pen_ves (Tv) para calcular Ganancia Bruta/Neta. */
   tasa_adquisicion: number | null;
   publicada_por: string;
+  /** Si no es null, esta fila es la tasa PROPIA de ese Operador de Perú miembro (no la del principal). */
+  operador_peru_miembro_id: string | null;
   created_at: string;
 }
 
@@ -165,6 +167,8 @@ export interface OperadorPeruMiembro {
   operador_venezuela_id: string | null;
   /** % de comisión individual asignado por el principal (C1 en las fórmulas de ganancia). */
   comision_pct: number;
+  /** El principal le dio permiso a este miembro de publicar su propia Tasa del día (Tv), aplicada solo a sus clientes. */
+  puede_editar_tasa: boolean;
   created_at: string;
   updated_at: string;
 }

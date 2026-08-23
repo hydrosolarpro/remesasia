@@ -211,6 +211,15 @@ export default function Perfil() {
     await supabase.from('operador_peru_miembro').update({ comision_pct: pct }).eq('id', id);
   };
 
+  // Permiso para que ESTE miembro publique su propia Tasa del día (Tv) --
+  // solo aplica a los clientes que él mismo invitó (ver PeruDashboardView y
+  // (cliente)/index.tsx, que resuelven la tasa según a quién pertenece el
+  // cliente).
+  const editarPuedeEditarTasa = async (id: string, valor: boolean) => {
+    setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, puede_editar_tasa: valor } : p)));
+    await supabase.from('operador_peru_miembro').update({ puede_editar_tasa: valor }).eq('id', id);
+  };
+
   const agregarVe = async () => {
     if (!negocioId || !usuario) return;
     setErrorVe(null);
@@ -628,6 +637,23 @@ export default function Perfil() {
                   placeholderTextColor={colors.textMuted}
                 />
                 <Text style={styles.asignadoVe}>{veAsignado ? `Asignado a: ${veAsignado.nombre}` : 'Sin Operador de Venezuela asignado'}</Text>
+
+                <Pressable
+                  style={styles.permisoTasaRow}
+                  onPress={() => editarPuedeEditarTasa(p.id, !p.puede_editar_tasa)}
+                >
+                  <View style={styles.permisoTasaTextos}>
+                    <Text style={styles.permisoTasaLabel}>Dejar libre su propia Tasa del día</Text>
+                    <Text style={styles.permisoTasaTexto}>
+                      Si lo activas, {p.nombre.split(' ')[0]} podrá publicar su propia Tasa del día (Soles → Bolívares), aplicada
+                      solo a sus clientes.
+                    </Text>
+                  </View>
+                  <Text style={[styles.permisoTasaCheck, p.puede_editar_tasa && styles.permisoTasaCheckActivo]}>
+                    {p.puede_editar_tasa ? '✓ Habilitado' : 'Deshabilitado'}
+                  </Text>
+                </Pressable>
+
                 <Pressable
                   style={styles.whatsappBtn}
                   onPress={() => enviarBienvenidaWhatsApp(p.nombre, p.telefono, p.email, 'Operador de Perú')}
@@ -890,6 +916,21 @@ const styles = StyleSheet.create({
   whatsappBtn: { alignSelf: 'flex-start', marginTop: 8 },
   whatsappBtnTexto: { color: colors.success, fontWeight: '700', fontSize: 15 },
   asignadoVe: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic', marginTop: 2 },
+  permisoTasaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 10,
+  },
+  permisoTasaTextos: { flex: 1, gap: 2 },
+  permisoTasaLabel: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  permisoTasaTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 16 },
+  permisoTasaCheck: { color: colors.textMuted, fontWeight: '800', fontSize: 13 },
+  permisoTasaCheckActivo: { color: colors.success },
   agregarBtn: { marginTop: 10, alignSelf: 'flex-start' },
   agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   limiteTexto: { color: colors.warning, fontSize: 14, fontWeight: '600', marginTop: 10 },

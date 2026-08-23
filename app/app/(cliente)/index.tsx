@@ -91,11 +91,15 @@ export default function InicioCliente() {
 
     const { data: operadorRow } = await supabase.from('usuarios').select('id, nombre').eq('id', negocioId).maybeSingle();
 
-    const [{ data: tasaData }, { data: perfilData }, { data: cuentasData }, { data: guardadasData }] = await Promise.all([
+    const [{ data: tasaPrincipalData }, { data: perfilData }, { data: cuentasData }, { data: guardadasData }] = await Promise.all([
+      // La tasa del Operador principal: solo es válida para sus propios
+      // clientes (los que no fueron invitados por un miembro) -- ver abajo
+      // la resolución completa cuando el cliente sí fue invitado por uno.
       supabase
         .from('tasas')
         .select('*')
         .eq('publicada_por', negocioId)
+        .is('operador_peru_miembro_id', null)
         .order('fecha', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(1)
@@ -109,8 +113,36 @@ export default function InicioCliente() {
         .order('created_at', { ascending: false }),
     ]);
 
+    // Si este cliente fue invitado por un Operador de Perú miembro, y el
+    // principal habilitó a ese miembro a publicar su propia Tasa del día
+    // (Tv), esa tasa propia reemplaza a la del principal SOLO para este
+    // cliente. La Tasa de adquisición (Ta) sigue siendo siempre la del
+    // principal -- es el costo real del negocio, no cambia por miembro.
+    let tasaEfectiva = tasaPrincipalData as Tasa | null;
+    const miembroIdCliente = usuario.invitado_por_operador_miembro_id;
+    if (miembroIdCliente) {
+      const { data: miembroData } = await supabase
+        .from('operador_peru_miembro')
+        .select('puede_editar_tasa')
+        .eq('id', miembroIdCliente)
+        .maybeSingle();
+      if (miembroData?.puede_editar_tasa) {
+        const { data: tasaMiembroData } = await supabase
+          .from('tasas')
+          .select('*')
+          .eq('operador_peru_miembro_id', miembroIdCliente)
+          .order('fecha', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (tasaMiembroData) {
+          tasaEfectiva = { ...(tasaMiembroData as Tasa), tasa_adquisicion: tasaPrincipalData?.tasa_adquisicion ?? null };
+        }
+      }
+    }
+
     setNombreOperador(operadorRow?.nombre ?? '');
-    setTasa(tasaData as Tasa | null);
+    setTasa(tasaEfectiva);
     setPerfil(perfilData as PerfilNegocio | null);
     setCuentasOperador((cuentasData as CuentaBancariaOperador[] | null) ?? []);
     setBeneficiariosGuardados((guardadasData as BeneficiarioConCuentas[] | null) ?? []);
