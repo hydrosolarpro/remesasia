@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Alert, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { RoleTag } from '../../components/RoleTag';
@@ -336,7 +336,10 @@ export default function PanelControl() {
       }
     }
     if (mensajeError) {
-      Alert.alert('No se pudo eliminar el operador', mensajeError);
+      // Alert.alert no muestra nada en web (RN Web no lo implementa) --
+      // ver el mismo workaround en (operador-peru)/clientes.tsx.
+      if (Platform.OS === 'web') window.alert(mensajeError);
+      else Alert.alert('No se pudo eliminar el operador', mensajeError);
       return;
     }
     setEliminandoOperadorId(null);
