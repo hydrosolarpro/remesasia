@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Currency, MessageCircle, Smartphone, Menu, X, Globe } from 'lucide-react';
+import { Currency, MessageCircle, Smartphone, Menu, X } from 'lucide-react';
 import flagsImg from '../assets/images/peru_venezuela_flags_1785374379770.jpg';
+import logoImg from '../assets/images/logo-remesas.png';
 
 interface HeaderProps {
   onOpenDemoModal: () => void;
@@ -30,8 +31,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoModal }) => {
         {/* Brand Logo & Flags Image */}
         <div className="flex items-center gap-2.5 sm:gap-5 min-w-0">
           <a href="#" className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform shrink-0">
-              <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_0_10px_rgba(59,130,246,0.45)]">
+              <img src={logoImg} alt="Remesas Perú-Venezuela" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-extrabold text-xs sm:text-base text-white tracking-tight uppercase leading-tight truncate">
