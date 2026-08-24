@@ -661,6 +661,12 @@ export default function InicioCliente() {
       uri={zoomComprobanteIndex !== null ? (comprobantes[zoomComprobanteIndex]?.uri ?? null) : null}
       onClose={() => setZoomComprobanteIndex(null)}
     />
+    {/* Botón flotante para volver a repasar la guía cuando quiera -- la
+        guía automática solo aparece una vez, la primera vez que entra. */}
+    <Pressable style={styles.fabGuia} onPress={() => setMostrarGuia(true)}>
+      <Text style={styles.fabGuiaTexto}>❓</Text>
+    </Pressable>
+
     <GuiaPasoAPaso visible={mostrarGuia} pasos={GUIA_CLIENTE} onCerrar={cerrarGuia} />
     </>
   );
@@ -695,6 +701,23 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 },
   avisoSinNegocio: { color: colors.textMuted, fontSize: 16, textAlign: 'center', lineHeight: 20 },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
+  fabGuia: {
+    position: 'absolute',
+    right: 18,
+    bottom: 18,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  fabGuiaTexto: { fontSize: 22 },
   negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   negocioLogo: { width: 84, height: 84, borderRadius: 24, backgroundColor: colors.cardAlt },
   negocioNombre: { color: colors.accent, fontSize: 16, fontWeight: '800', flexShrink: 1 },

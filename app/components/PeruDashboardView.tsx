@@ -16,6 +16,8 @@ import { RoleTag } from './RoleTag';
 import { TipoSesionOperador, etiquetaSesion } from '../lib/sesionOperador';
 import { useAuth } from '../lib/auth';
 import { GuiaPasoAPaso } from './GuiaPasoAPaso';
+import { FlujoProcesoDiagrama } from './FlujoProcesoDiagrama';
+import { Collapsible } from './Collapsible';
 import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -707,6 +709,7 @@ export function PeruDashboardView({
   }
 
   return (
+    <View style={styles.raiz}>
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol={esVenezuela ? 'operador_venezuela' : 'operador_peru'} etiqueta={etiquetaSesion(tipoSesion)} />
       {!!perfil?.nombre_negocio && (
@@ -719,6 +722,20 @@ export function PeruDashboardView({
       )}
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
       <LiveClock />
+
+      {/* Solo el Operador principal necesita ver el flujo completo del
+          negocio (las 3 sesiones involucradas) -- queda siempre visible en
+          el Panel como información importante, no solo en la guía de
+          bienvenida (ver GuiaPasoAPaso / GUIA_FLUJO_COMPLETO). */}
+      {esPrincipal && (
+        <Collapsible
+          abiertoPorDefecto
+          titulo="🔄 Flujo del proceso de remesas Perú-Venezuela"
+          subtitulo="Los 4 pasos, de principio a fin"
+        >
+          <FlujoProcesoDiagrama />
+        </Collapsible>
+      )}
 
       <View style={[styles.card, cardShadow, styles.esloganCard]}>
         <View style={styles.esloganHeaderRow}>
@@ -1058,9 +1075,17 @@ export function PeruDashboardView({
           </View>
         </View>
       </Modal>
-
-      <GuiaPasoAPaso visible={mostrarGuia} pasos={pasosGuia} onCerrar={cerrarGuia} />
     </ScrollView>
+
+    {/* Botón flotante para volver a repasar la guía de esta sesión cuando
+        quiera -- la guía automática solo aparece una vez, pero puede
+        querer volver a verla. */}
+    <Pressable style={styles.fabGuia} onPress={() => setMostrarGuia(true)}>
+      <Text style={styles.fabGuiaTexto}>❓</Text>
+    </Pressable>
+
+    <GuiaPasoAPaso visible={mostrarGuia} pasos={pasosGuia} onCerrar={cerrarGuia} />
+    </View>
   );
 }
 
@@ -1098,7 +1123,25 @@ function EstadoResumenItem({
 
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
+  raiz: { flex: 1, backgroundColor: colors.bg },
   container: { flexGrow: 1, backgroundColor: colors.bg, padding: 20, gap: 12, paddingBottom: 48 },
+  fabGuia: {
+    position: 'absolute',
+    right: 18,
+    bottom: 18,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  fabGuiaTexto: { fontSize: 22 },
   negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   negocioLogo: { width: 84, height: 84, borderRadius: 24, backgroundColor: colors.cardAlt },
   negocioNombre: { color: colors.accent, fontSize: 16, fontWeight: '800', flexShrink: 1 },

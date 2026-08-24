@@ -2,6 +2,8 @@ export interface PasoGuia {
   icono: string;
   titulo: string;
   texto: string;
+  /** Quién ejecuta este paso -- solo se usa en GUIA_FLUJO_COMPLETO, para el esquema visual del flujo en el Panel del principal. */
+  actor?: 'cliente' | 'operadores';
 }
 
 // Contenido tomado de "funcionaldiades - flujo remesas peru-venezuela.pdf"
@@ -200,23 +202,27 @@ export const GUIA_FLUJO_COMPLETO: PasoGuia[] = [
     icono: '1️⃣',
     titulo: 'El cliente solicita',
     texto: 'El cliente en Perú, ya registrado, ingresa el monto y los datos de su beneficiario, y envía su solicitud con el comprobante de su depósito.',
+    actor: 'cliente',
   },
   {
     icono: '2️⃣',
     titulo: 'Perú valida',
     texto:
       'La solicitud llega como "En curso" al Operador de Perú (principal o miembro), que valida el depósito en Soles. La app avisa al cliente por Telegram al instante. Desde aquí también se puede derivar la operación al equipo, o validar directo la transferencia a Venezuela.',
+    actor: 'operadores',
   },
   {
     icono: '3️⃣',
     titulo: 'Venezuela transfiere',
     texto:
       'El Operador de Venezuela recibe la operación ya validada, hace la transferencia al beneficiario y sube su comprobante. La operación pasa a "Realizada" y la app avisa por Telegram al beneficiario y al cliente, con la imagen de la transferencia.',
+    actor: 'operadores',
   },
   {
     icono: '4️⃣',
     titulo: 'El cliente confirma',
     texto:
       'El cliente confirma que su beneficiario recibió el dinero, o marca "No ha llegado". Si no llegó, la operación pasa a "Por revisar" hasta que un operador la resuelva y recargue el comprobante — ahí vuelve a quedar como "Realizada".',
+    actor: 'cliente',
   },
 ];
