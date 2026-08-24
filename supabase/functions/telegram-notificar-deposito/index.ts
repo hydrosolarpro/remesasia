@@ -97,7 +97,15 @@ async function notificarCliente(supabase: any, solicitud: any) {
     `En breve se realizará la transferencia a la cuenta en Venezuela que ha solicitado. ` +
     `Revisa tus "Solicitudes" en el aplicativo Remesas PERU-VENEZUELA.`;
 
-  const enviado = await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
+  // Adjunta la(s) foto(s) del comprobante de depósito en Perú (el que el
+  // propio cliente subió al crear la solicitud) como imagen, con el mismo
+  // mensaje de caption -- así queda constancia visual de qué comprobante
+  // fue el que se validó.
+  const urls: string[] = Array.isArray(solicitud.comprobante_pago_urls) ? solicitud.comprobante_pago_urls : [];
+  const enviado =
+    urls.length > 0
+      ? await sendTelegramPhotos(cliente.telegram_chat_id, urls, mensaje)
+      : await sendTelegramMessage(cliente.telegram_chat_id, mensaje);
   if (!enviado) console.error(`telegram-notificar-deposito: falló el envío al cliente ${solicitud.cliente_id}`);
 }
 
