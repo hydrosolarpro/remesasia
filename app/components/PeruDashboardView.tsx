@@ -14,6 +14,9 @@ import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { TipoSesionOperador, etiquetaSesion } from '../lib/sesionOperador';
+import { useAuth } from '../lib/auth';
+import { GuiaPasoAPaso } from './GuiaPasoAPaso';
+import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 // Panel de operaciones de Remesas Perú-Venezuela. Lo usan las tres
@@ -53,6 +56,30 @@ export function PeruDashboardView({
   // Solo el Operador principal gestiona horario/eslogan/rentabilidad/equipo
   // y publica la tasa del día.
   const puedeGestionar = esPrincipal;
+
+  // Guía paso a paso: se muestra sola la primera vez que este rol entra a
+  // su sesión (usuarios.guia_vista_at null), con el contenido de
+  // lib/guiaContenido.ts. El principal ve además, al final, el flujo
+  // completo de las 3 sesiones -- es quien supervisa todo el negocio.
+  const { usuario, refreshUsuario } = useAuth();
+  const [mostrarGuia, setMostrarGuia] = useState(false);
+  const pasosGuia = esPrincipal
+    ? [...GUIA_OPERADOR_PRINCIPAL, ...GUIA_FLUJO_COMPLETO]
+    : esMiembroPe
+      ? GUIA_OPERADOR_MIEMBRO
+      : GUIA_OPERADOR_VENEZUELA;
+
+  useEffect(() => {
+    if (usuario && !usuario.guia_vista_at) setMostrarGuia(true);
+  }, [usuario]);
+
+  const cerrarGuia = async () => {
+    setMostrarGuia(false);
+    if (usuario) {
+      await supabase.from('usuarios').update({ guia_vista_at: new Date().toISOString() }).eq('id', usuario.id);
+      refreshUsuario();
+    }
+  };
 
   const [cargando, setCargando] = useState(true);
   const [perfil, setPerfil] = useState<PerfilNegocio | null>(null);
@@ -1031,6 +1058,8 @@ export function PeruDashboardView({
           </View>
         </View>
       </Modal>
+
+      <GuiaPasoAPaso visible={mostrarGuia} pasos={pasosGuia} onCerrar={cerrarGuia} />
     </ScrollView>
   );
 }

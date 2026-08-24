@@ -1,0 +1,14 @@
+-- ─────────────────────────────────────────────────────────────
+-- 0083 — Guía paso a paso dentro de la app: cada rol ve, la primera vez
+-- que entra a su sesión, un modal explicando sus propias funcionalidades
+-- (tomado de "funcionaldiades - flujo remesas peru-venezuela.pdf"). El
+-- Operador principal de Perú ve además, al final, el flujo completo del
+-- proceso de remesas (los 4 pasos, con las 3 sesiones involucradas), ya
+-- que es quien supervisa todo el negocio.
+--
+-- Un solo timestamp basta: el rol de una cuenta no cambia en la práctica,
+-- así que "ya vio la guía de su sesión" es lo mismo que "ya vio la guía".
+-- La RLS de auto-actualización de la propia fila ya existe
+-- (0002_rls.sql: "usuarios: cada quien actualiza su propia fila").
+-- ─────────────────────────────────────────────────────────────
+alter table usuarios add column if not exists guia_vista_at timestamptz;

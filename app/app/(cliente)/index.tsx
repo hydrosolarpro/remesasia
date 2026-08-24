@@ -23,6 +23,8 @@ import { LiveClock } from '../../components/LiveClock';
 import { RoleTag } from '../../components/RoleTag';
 import { MensajeModal } from '../../components/MensajeModal';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
+import { GuiaPasoAPaso } from '../../components/GuiaPasoAPaso';
+import { GUIA_CLIENTE } from '../../lib/guiaContenido';
 import {
   Tasa,
   TasaBcv,
@@ -37,7 +39,21 @@ type BeneficiarioConCuentas = BeneficiarioCliente & { cuentas: BeneficiarioCuent
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function InicioCliente() {
-  const { usuario } = useAuth();
+  const { usuario, refreshUsuario } = useAuth();
+  // Guía paso a paso: se muestra sola la primera vez que este cliente
+  // entra (usuarios.guia_vista_at null) -- ver lib/guiaContenido.ts.
+  const [mostrarGuia, setMostrarGuia] = useState(false);
+  useEffect(() => {
+    if (usuario && !usuario.guia_vista_at) setMostrarGuia(true);
+  }, [usuario]);
+  const cerrarGuia = async () => {
+    setMostrarGuia(false);
+    if (usuario) {
+      await supabase.from('usuarios').update({ guia_vista_at: new Date().toISOString() }).eq('id', usuario.id);
+      refreshUsuario();
+    }
+  };
+
   const [cargando, setCargando] = useState(true);
   const [tasa, setTasa] = useState<Tasa | null>(null);
   const [bcv, setBcv] = useState<TasaBcv | null>(null);
@@ -645,6 +661,7 @@ export default function InicioCliente() {
       uri={zoomComprobanteIndex !== null ? (comprobantes[zoomComprobanteIndex]?.uri ?? null) : null}
       onClose={() => setZoomComprobanteIndex(null)}
     />
+    <GuiaPasoAPaso visible={mostrarGuia} pasos={GUIA_CLIENTE} onCerrar={cerrarGuia} />
     </>
   );
 }

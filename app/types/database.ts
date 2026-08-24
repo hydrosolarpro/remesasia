@@ -38,6 +38,8 @@ export interface Usuario {
   invitado_por_operador_miembro_id: string | null;
   /** Preferencia del cliente para recibir avisos de depósito validado (elegida en su Perfil). */
   canal_notificacion: CanalNotificacion;
+  /** Cuándo vio la guía paso a paso de su sesión (null = todavía no, se le muestra sola). */
+  guia_vista_at: string | null;
 }
 
 export type CanalNotificacion = 'telegram' | 'whatsapp' | 'ambos';
