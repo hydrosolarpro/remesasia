@@ -208,6 +208,8 @@ export default function ClientesRegistrados() {
         País: c.pais ?? '',
         'Tipo de documento': c.documento_tipo ? DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo] : '',
         'N° de documento': c.documento_numero ?? '',
+        'Recomendado por (nombre)': [c.referido_nombre, c.referido_apellido].filter(Boolean).join(' '),
+        'Recomendado por (teléfono)': c.referido_telefono ?? '',
         'Fecha de registro': new Date(c.created_at).toLocaleString('es-PE'),
       }));
       await generarYCompartirExcel('clientes-registrados', 'Clientes', filas);
@@ -221,14 +223,18 @@ export default function ClientesRegistrados() {
     try {
       const filas = clientes
         .map(
-          (c) => `<tr>
+          (c) => {
+            const referido = [c.referido_nombre, c.referido_apellido].filter(Boolean).join(' ');
+            return `<tr>
             <td>${c.nombre}</td>
             <td>${c.email ?? '—'}</td>
             <td>${c.telefono ?? '—'}</td>
             <td>${c.pais ?? '—'}</td>
             <td>${c.documento_tipo ? `${DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo]} ${c.documento_numero}` : '—'}</td>
+            <td>${referido || '—'}${c.referido_telefono ? ` · ${c.referido_telefono}` : ''}</td>
             <td>${new Date(c.created_at).toLocaleDateString('es-PE')}</td>
-          </tr>`
+          </tr>`;
+          }
         )
         .join('');
 
@@ -236,8 +242,8 @@ export default function ClientesRegistrados() {
         'Clientes registrados',
         `${clientes.length} clientes`,
         `<table>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>País</th><th>Documento</th><th>Registrado</th></tr></thead>
-          <tbody>${filas || '<tr><td colspan="6">Sin clientes registrados.</td></tr>'}</tbody>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>País</th><th>Documento</th><th>Recomendado por</th><th>Registrado</th></tr></thead>
+          <tbody>${filas || '<tr><td colspan="7">Sin clientes registrados.</td></tr>'}</tbody>
         </table>`
       );
     } finally {
