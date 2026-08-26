@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Linking, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Linking, Platform, Alert, Image } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { registrarPushToken } from '../../lib/notifications';
 import { reservarPestanaExterna } from '../../lib/pestanaExterna';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
-import { CanalNotificacion } from '../../types/database';
+import {
+  DOCUMENTO_TIPO_ETIQUETA,
+  documentoClienteCompleto,
+  MAX_DOCUMENTO_IDENTIDAD_KB,
+  MIME_DOCUMENTO_IDENTIDAD,
+  extensionDocumentoIdentidad,
+  mimeDocumentoIdentidad,
+} from '../../lib/perfilCliente';
+import { CanalNotificacion, DocumentoTipo } from '../../types/database';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
+import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { colors, radius } from '../../constants/theme';
 
 const OPCIONES_CANAL: { valor: CanalNotificacion; etiqueta: string }[] = [
@@ -15,6 +25,8 @@ const OPCIONES_CANAL: { valor: CanalNotificacion; etiqueta: string }[] = [
   { valor: 'whatsapp', etiqueta: 'WhatsApp' },
   { valor: 'ambos', etiqueta: 'Ambos' },
 ];
+
+const OPCIONES_DOCUMENTO: DocumentoTipo[] = ['DNI', 'CE', 'PASAPORTE', 'CPP', 'PPT', 'CI'];
 
 const BOT_TELEGRAM = 'Remesaspv_bot';
 
@@ -29,6 +41,13 @@ export default function Perfil() {
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
   const [pais, setPais] = useState('');
+  const [documentoTipo, setDocumentoTipo] = useState<DocumentoTipo | null>(null);
+  const [documentoNumero, setDocumentoNumero] = useState('');
+  const [documentoImagenNueva, setDocumentoImagenNueva] = useState<{ uri: string; ext: string; nombre: string } | null>(null);
+  const [referidoNombre, setReferidoNombre] = useState('');
+  const [referidoApellido, setReferidoApellido] = useState('');
+  const [referidoTelefono, setReferidoTelefono] = useState('');
+  const [zoomDocumento, setZoomDocumento] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
@@ -68,6 +87,13 @@ export default function Perfil() {
   const enlaceWhatsAppOperador = operador
     ? construirEnlaceWhatsAppGenerico(operador.telefono, 'Hola, necesito ayuda con una solicitud en Remesas PERU-VENEZUELA.')
     : null;
+
+  // El Image de RN no puede previsualizar un PDF -- se detecta por la
+  // extensión elegida (archivo nuevo) o por la URL ya guardada, para
+  // mostrar en su lugar una tarjeta con el nombre del archivo.
+  const documentoActualEsPdf = documentoImagenNueva
+    ? documentoImagenNueva.ext === 'pdf'
+    : !!usuario?.documento_imagen_url?.toLowerCase().endsWith('.pdf');
 
   const contactarOperador = () => {
     if (!enlaceWhatsAppOperador) return;
@@ -162,6 +188,12 @@ export default function Perfil() {
     setNombre(usuario?.nombre ?? '');
     setTelefono(usuario?.telefono ?? '');
     setPais(usuario?.pais ?? '');
+    setDocumentoTipo(usuario?.documento_tipo ?? null);
+    setDocumentoNumero(usuario?.documento_numero ?? '');
+    setDocumentoImagenNueva(null);
+    setReferidoNombre(usuario?.referido_nombre ?? '');
+    setReferidoApellido(usuario?.referido_apellido ?? '');
+    setReferidoTelefono(usuario?.referido_telefono ?? '');
     setError(null);
     setGuardado(false);
     setEditando(true);
@@ -172,6 +204,31 @@ export default function Perfil() {
     setError(null);
   };
 
+  // A diferencia del comprobante de pago (foto tomada al momento), el
+  // Documento de identidad suele ser un escaneo o PDF ya guardado -- por
+  // eso acá se usa el selector de archivos (expo-document-picker), que sí
+  // deja elegir PDF, en vez del selector de fotos (expo-image-picker).
+  const elegirImagenDocumento = async () => {
+    const resultado = await DocumentPicker.getDocumentAsync({
+      type: MIME_DOCUMENTO_IDENTIDAD,
+      copyToCacheDirectory: true,
+    });
+    if (resultado.canceled || !resultado.assets?.[0]) return;
+    const asset = resultado.assets[0];
+    if (asset.size != null && asset.size > MAX_DOCUMENTO_IDENTIDAD_KB * 1024) {
+      Alert.alert(
+        'Archivo muy pesado',
+        `"${asset.name}" pesa ${(asset.size / 1024 / 1024).toFixed(1)} MB y el límite es ${MAX_DOCUMENTO_IDENTIDAD_KB / 1000} MB. Comprime el archivo (o toma la foto con menor calidad) e inténtalo de nuevo.`
+      );
+      return;
+    }
+    setDocumentoImagenNueva({
+      uri: asset.uri,
+      ext: extensionDocumentoIdentidad(asset.mimeType, asset.name),
+      nombre: asset.name,
+    });
+  };
+
   const guardar = async () => {
     if (!usuario) return;
     setError(null);
@@ -179,10 +236,45 @@ export default function Perfil() {
       setError('Completa todos los campos.');
       return;
     }
+    if (!documentoTipo || !documentoNumero.trim()) {
+      setError('Indica el tipo y número de tu Documento de Identidad.');
+      return;
+    }
+    if (!documentoImagenNueva && !usuario.documento_imagen_url) {
+      setError('Adjunta una imagen de tu Documento de Identidad.');
+      return;
+    }
     setGuardando(true);
+
+    let documentoImagenUrl = usuario.documento_imagen_url;
+    if (documentoImagenNueva) {
+      const path = `${usuario.id}/documento-identidad.${documentoImagenNueva.ext}`;
+      const arrayBuffer = await (await fetch(documentoImagenNueva.uri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage
+        .from('documentos-identidad')
+        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDocumentoIdentidad(documentoImagenNueva.ext) });
+      if (uploadError) {
+        setGuardando(false);
+        setError(uploadError.message);
+        return;
+      }
+      const { data: publicUrl } = supabase.storage.from('documentos-identidad').getPublicUrl(path);
+      documentoImagenUrl = publicUrl.publicUrl;
+    }
+
     const { error: updateError } = await supabase
       .from('usuarios')
-      .update({ nombre: nombre.trim(), telefono: telefono.trim(), pais: pais.trim() })
+      .update({
+        nombre: nombre.trim(),
+        telefono: telefono.trim(),
+        pais: pais.trim(),
+        documento_tipo: documentoTipo,
+        documento_numero: documentoNumero.trim(),
+        documento_imagen_url: documentoImagenUrl,
+        referido_nombre: referidoNombre.trim() || null,
+        referido_apellido: referidoApellido.trim() || null,
+        referido_telefono: referidoTelefono.trim() || null,
+      })
       .eq('id', usuario.id);
     setGuardando(false);
     if (updateError) {
@@ -217,6 +309,82 @@ export default function Perfil() {
         <Text style={styles.label}>País</Text>
         <TextInput style={styles.input} value={pais} onChangeText={setPais} placeholderTextColor={colors.textMuted} />
 
+        <Text style={styles.seccionTitulo}>Documento de Identidad (obligatorio)</Text>
+        <Text style={styles.seccionTexto}>Lo necesitamos para poder verificar tu primera solicitud de remesa.</Text>
+
+        <Text style={styles.label}>Tipo de documento</Text>
+        <View style={styles.docChipsRow}>
+          {OPCIONES_DOCUMENTO.map((op) => (
+            <Pressable
+              key={op}
+              style={[styles.docChip, documentoTipo === op && styles.docChipActivo]}
+              onPress={() => setDocumentoTipo(op)}
+            >
+              <Text style={[styles.docChipTexto, documentoTipo === op && styles.docChipTextoActivo]}>
+                {DOCUMENTO_TIPO_ETIQUETA[op]}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={styles.label}>Número de documento</Text>
+        <TextInput
+          style={styles.input}
+          value={documentoNumero}
+          onChangeText={setDocumentoNumero}
+          autoCapitalize="characters"
+          placeholderTextColor={colors.textMuted}
+        />
+
+        <Text style={styles.label}>Foto o PDF del documento</Text>
+        <Text style={styles.docAyuda}>
+          Formatos aceptados: JPG, PNG o PDF · Tamaño máximo {MAX_DOCUMENTO_IDENTIDAD_KB / 1000} MB. Si tu archivo pesa
+          más, comprímelo (o reduce la calidad de la foto) antes de subirlo.
+        </Text>
+
+        {documentoActualEsPdf ? (
+          <View style={styles.docPdfCard}>
+            <Text style={styles.docPdfIcono}>📄</Text>
+            <Text style={styles.docPdfNombre} numberOfLines={2}>
+              {documentoImagenNueva ? documentoImagenNueva.nombre : 'Documento en PDF adjunto'}
+            </Text>
+          </View>
+        ) : (
+          (documentoImagenNueva || usuario?.documento_imagen_url) && (
+            <Pressable onPress={() => setZoomDocumento(true)}>
+              <Image
+                source={{ uri: documentoImagenNueva ? documentoImagenNueva.uri : usuario!.documento_imagen_url! }}
+                style={styles.docPreview}
+                resizeMode="contain"
+              />
+            </Pressable>
+          )
+        )}
+
+        <Pressable style={styles.docUploadZone} onPress={elegirImagenDocumento}>
+          <Text style={styles.docUploadIcono}>📎</Text>
+          <Text style={styles.docUploadTexto}>
+            {documentoImagenNueva || usuario?.documento_imagen_url ? 'Cambiar archivo' : 'Toca para elegir la foto o el PDF de tu documento'}
+          </Text>
+        </Pressable>
+
+        <Text style={styles.seccionTitulo}>¿Quién te recomendó? (opcional)</Text>
+
+        <Text style={styles.label}>Nombre</Text>
+        <TextInput style={styles.input} value={referidoNombre} onChangeText={setReferidoNombre} placeholderTextColor={colors.textMuted} />
+
+        <Text style={styles.label}>Apellido</Text>
+        <TextInput style={styles.input} value={referidoApellido} onChangeText={setReferidoApellido} placeholderTextColor={colors.textMuted} />
+
+        <Text style={styles.label}>Teléfono</Text>
+        <TextInput
+          style={styles.input}
+          value={referidoTelefono}
+          onChangeText={setReferidoTelefono}
+          keyboardType="phone-pad"
+          placeholderTextColor={colors.textMuted}
+        />
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable style={styles.button} onPress={guardar} disabled={guardando}>
@@ -225,6 +393,12 @@ export default function Perfil() {
         <Pressable style={styles.buttonOutline} onPress={cancelar} disabled={guardando}>
           <Text style={styles.buttonOutlineText}>Cancelar</Text>
         </Pressable>
+
+        <ZoomableImageModal
+          visible={zoomDocumento}
+          uri={documentoImagenNueva ? documentoImagenNueva.uri : (usuario?.documento_imagen_url ?? null)}
+          onClose={() => setZoomDocumento(false)}
+        />
       </ScrollView>
     );
   }
@@ -238,6 +412,25 @@ export default function Perfil() {
       <Text style={styles.datoUltimo}>{usuario?.pais}</Text>
 
       {guardado && <Text style={styles.exito}>✓ Datos guardados satisfactoriamente</Text>}
+
+      {documentoClienteCompleto(usuario) ? (
+        <View style={styles.docResumen}>
+          <Text style={styles.docResumenTexto}>
+            {DOCUMENTO_TIPO_ETIQUETA[usuario!.documento_tipo!]} · {usuario!.documento_numero}
+          </Text>
+        </View>
+      ) : (
+        <Text style={styles.avisoDocumento}>
+          ⚠ Te falta completar tu Documento de Identidad -- es obligatorio para poder enviar tu primera solicitud.
+        </Text>
+      )}
+
+      {(usuario?.referido_nombre || usuario?.referido_telefono) && (
+        <Text style={styles.dato}>
+          Recomendado por: {[usuario?.referido_nombre, usuario?.referido_apellido].filter(Boolean).join(' ')}
+          {usuario?.referido_telefono ? ` · ${usuario.referido_telefono}` : ''}
+        </Text>
+      )}
 
       <Pressable style={styles.buttonOutline} onPress={empezarEdicion}>
         <Text style={styles.buttonOutlineText}>Editar mis datos</Text>
@@ -325,6 +518,44 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   error: { color: colors.danger, fontSize: 15 },
+  seccionTitulo: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 18 },
+  seccionTexto: { color: colors.textMuted, fontSize: 14, marginTop: -2, marginBottom: 2 },
+  docChipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 6 },
+  docChip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 9 },
+  docChipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  docChipTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 14 },
+  docChipTextoActivo: { color: colors.text },
+  docAyuda: { color: colors.textMuted, fontSize: 13, lineHeight: 17, marginTop: 2 },
+  docPreview: { width: '100%', height: 260, borderRadius: radius.md, backgroundColor: colors.cardAlt, marginTop: 10 },
+  docPdfCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.cardAlt,
+    padding: 16,
+    marginTop: 10,
+  },
+  docPdfIcono: { fontSize: 32 },
+  docPdfNombre: { color: colors.text, fontWeight: '700', fontSize: 15, flex: 1, flexShrink: 1 },
+  docUploadZone: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    borderRadius: radius.md,
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  docUploadIcono: { fontSize: 28 },
+  docUploadTexto: { color: colors.accent, fontWeight: '700', fontSize: 15, textAlign: 'center' },
+  docResumen: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, marginTop: -4 },
+  docResumenTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  avisoDocumento: { color: colors.danger, fontSize: 14, fontWeight: '600', lineHeight: 18, marginTop: -4 },
   button: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center', marginTop: 8 },
   buttonText: { color: colors.text, fontWeight: '700', fontSize: 18 },
   buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },

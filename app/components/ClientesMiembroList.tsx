@@ -3,6 +3,8 @@ import { View, Text, Pressable, StyleSheet, Modal, Alert, ActivityIndicator } fr
 import { supabase } from '../lib/supabase';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { generarYCompartirPdf } from '../lib/pdfReporte';
+import { DOCUMENTO_TIPO_ETIQUETA, documentoClienteCompleto } from '../lib/perfilCliente';
+import { ZoomableImageModal } from './ZoomableImageModal';
 import { Usuario, OperadorPeruMiembro } from '../types/database';
 import { colors, radius } from '../constants/theme';
 
@@ -28,6 +30,7 @@ export function ClientesMiembroList({
   const [derivando, setDerivando] = useState<Usuario | null>(null);
   const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [zoomDocumentoUrl, setZoomDocumentoUrl] = useState<string | null>(null);
 
   const exportarExcel = async () => {
     setExportandoExcel(true);
@@ -37,6 +40,8 @@ export function ClientesMiembroList({
         Correo: c.email ?? '',
         Teléfono: c.telefono ?? '',
         País: c.pais ?? '',
+        'Tipo de documento': c.documento_tipo ? DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo] : '',
+        'N° de documento': c.documento_numero ?? '',
         'Fecha de registro': new Date(c.created_at).toLocaleString('es-PE'),
       }));
       await generarYCompartirExcel(`clientes-${miembro.nombre}`, 'Clientes', filas);
@@ -55,6 +60,7 @@ export function ClientesMiembroList({
             <td>${c.email ?? '—'}</td>
             <td>${c.telefono ?? '—'}</td>
             <td>${c.pais ?? '—'}</td>
+            <td>${c.documento_tipo ? `${DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo]} ${c.documento_numero}` : '—'}</td>
             <td>${new Date(c.created_at).toLocaleDateString('es-PE')}</td>
           </tr>`
         )
@@ -64,7 +70,7 @@ export function ClientesMiembroList({
         `Clientes de ${miembro.nombre}`,
         `${clientes.length} clientes`,
         `<table>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>País</th><th>Registrado</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>País</th><th>Documento</th><th>Registrado</th></tr></thead>
           <tbody>${filas}</tbody>
         </table>`
       );
@@ -117,6 +123,15 @@ export function ClientesMiembroList({
                 <Text style={styles.clienteDato}>
                   {c.telefono ?? 'Sin teléfono'} · {c.pais ?? 'Sin país'}
                 </Text>
+                {documentoClienteCompleto(c) ? (
+                  <Pressable onPress={() => setZoomDocumentoUrl(c.documento_imagen_url)}>
+                    <Text style={styles.documentoDato}>
+                      {DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo!]} {c.documento_numero} · 🔍 Ver foto
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.documentoFalta}>⚠ Documento pendiente</Text>
+                )}
               </View>
               <Pressable style={styles.derivarBtn} onPress={() => abrirDerivacion(c)}>
                 <Text style={styles.derivarBtnTexto}>Derivar →</Text>
@@ -167,6 +182,8 @@ export function ClientesMiembroList({
           </View>
         </View>
       </Modal>
+
+      <ZoomableImageModal visible={!!zoomDocumentoUrl} uri={zoomDocumentoUrl} onClose={() => setZoomDocumentoUrl(null)} />
     </View>
   );
 }
@@ -191,6 +208,8 @@ const styles = StyleSheet.create({
   clienteDatos: { flex: 1, gap: 1 },
   clienteNombre: { color: colors.text, fontSize: 15, fontWeight: '700' },
   clienteDato: { color: colors.textMuted, fontSize: 13 },
+  documentoDato: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  documentoFalta: { color: colors.danger, fontSize: 12, fontWeight: '600' },
   derivarBtn: { paddingHorizontal: 4 },
   derivarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },

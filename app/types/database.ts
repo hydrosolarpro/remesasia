@@ -40,9 +40,19 @@ export interface Usuario {
   canal_notificacion: CanalNotificacion;
   /** Cuándo vio la guía paso a paso de su sesión (null = todavía no, se le muestra sola). */
   guia_vista_at: string | null;
+  /** Documento de identidad (rol 'cliente'): obligatorio antes de su primera solicitud -- ver Perfil. */
+  documento_tipo: DocumentoTipo | null;
+  documento_numero: string | null;
+  documento_imagen_url: string | null;
+  /** Datos opcionales de quién recomendó al cliente (de palabra, no el sistema de invitaciones). */
+  referido_nombre: string | null;
+  referido_apellido: string | null;
+  referido_telefono: string | null;
 }
 
 export type CanalNotificacion = 'telegram' | 'whatsapp' | 'ambos';
+
+export type DocumentoTipo = 'DNI' | 'CE' | 'PASAPORTE' | 'CPP' | 'PPT' | 'CI';
 
 export interface Tasa {
   id: string;

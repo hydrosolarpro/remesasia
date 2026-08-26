@@ -11,8 +11,10 @@ import {
   Alert,
   Switch,
 } from 'react-native';
+import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
+import { documentoClienteCompleto } from '../../lib/perfilCliente';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { calcularConversion, calcularConversionInversa, divisaAVes } from '../../lib/tasaCalculo';
@@ -95,6 +97,9 @@ export default function InicioCliente() {
   const enviandoRef = useRef(false);
 
   const negocioId = usuario?.negocio_operador_peru_id ?? null;
+  // Gate: el Documento de Identidad (completado en Perfil) es obligatorio
+  // antes de la primera solicitud -- ver lib/perfilCliente.ts.
+  const documentoCompleto = documentoClienteCompleto(usuario);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -276,6 +281,11 @@ export default function InicioCliente() {
       enviandoRef.current = false;
       return;
     }
+    if (!documentoClienteCompleto(usuario)) {
+      setError('Completa tu Documento de Identidad en tu Perfil antes de enviar tu primera solicitud.');
+      enviandoRef.current = false;
+      return;
+    }
     if (!beneficiarioNombre.trim() || !beneficiarioCi.trim() || !beneficiarioBanco.trim() || !beneficiarioCuenta.trim()) {
       setError('Completa los datos del beneficiario en Venezuela.');
       enviandoRef.current = false;
@@ -445,6 +455,18 @@ export default function InicioCliente() {
         </View>
       </View>
 
+      {!documentoCompleto ? (
+        <View style={[styles.card, cardShadow, styles.gateCard]}>
+          <Text style={styles.nuevaSolicitudTitulo}>Nueva solicitud</Text>
+          <Text style={styles.gateTexto}>
+            ⚠ Antes de enviar tu primera solicitud debes completar tu Documento de Identidad (tipo, número y foto) en tu Perfil.
+          </Text>
+          <Pressable style={styles.gateBtn} onPress={() => router.push('/(cliente)/perfil')}>
+            <Text style={styles.gateBtnTexto}>Completar en mi Perfil</Text>
+          </Pressable>
+        </View>
+      ) : (
+      <>
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.nuevaSolicitudTitulo}>Nueva solicitud</Text>
         <Text style={styles.nuevaSolicitudTexto}>Ingrese el monto solicitado en la calculadora.</Text>
@@ -649,6 +671,8 @@ export default function InicioCliente() {
           </Pressable>
         </>
       )}
+      </>
+      )}
     </ScrollView>
     <MensajeModal
       visible={mostrarExito}
@@ -726,6 +750,10 @@ const styles = StyleSheet.create({
   horario: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   filaTasas: { flexDirection: 'row', gap: 12 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
+  gateCard: { borderColor: colors.danger, gap: 10 },
+  gateTexto: { color: colors.text, fontSize: 15, lineHeight: 20 },
+  gateBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 14, alignItems: 'center' },
+  gateBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
   tasaCard: { flex: 1, gap: 4 },
   tasaLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
   tasaValor: { color: colors.text, fontSize: 25, fontWeight: '900' },

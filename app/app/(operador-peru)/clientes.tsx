@@ -9,6 +9,8 @@ import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '.
 import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { obtenerLimiteClientes } from '../../lib/plan';
+import { DOCUMENTO_TIPO_ETIQUETA, documentoClienteCompleto } from '../../lib/perfilCliente';
+import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { Usuario, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -35,6 +37,7 @@ export default function ClientesRegistrados() {
   const [derivandoCliente, setDerivandoCliente] = useState<Usuario | null>(null);
   const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
   const [derivandoEnviando, setDerivandoEnviando] = useState(false);
+  const [zoomDocumentoUrl, setZoomDocumentoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!usuario) return;
@@ -203,6 +206,8 @@ export default function ClientesRegistrados() {
         Correo: c.email ?? '',
         Teléfono: c.telefono ?? '',
         País: c.pais ?? '',
+        'Tipo de documento': c.documento_tipo ? DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo] : '',
+        'N° de documento': c.documento_numero ?? '',
         'Fecha de registro': new Date(c.created_at).toLocaleString('es-PE'),
       }));
       await generarYCompartirExcel('clientes-registrados', 'Clientes', filas);
@@ -221,6 +226,7 @@ export default function ClientesRegistrados() {
             <td>${c.email ?? '—'}</td>
             <td>${c.telefono ?? '—'}</td>
             <td>${c.pais ?? '—'}</td>
+            <td>${c.documento_tipo ? `${DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo]} ${c.documento_numero}` : '—'}</td>
             <td>${new Date(c.created_at).toLocaleDateString('es-PE')}</td>
           </tr>`
         )
@@ -230,8 +236,8 @@ export default function ClientesRegistrados() {
         'Clientes registrados',
         `${clientes.length} clientes`,
         `<table>
-          <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>País</th><th>Registrado</th></tr></thead>
-          <tbody>${filas || '<tr><td colspan="5">Sin clientes registrados.</td></tr>'}</tbody>
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>País</th><th>Documento</th><th>Registrado</th></tr></thead>
+          <tbody>${filas || '<tr><td colspan="6">Sin clientes registrados.</td></tr>'}</tbody>
         </table>`
       );
     } finally {
@@ -303,6 +309,21 @@ export default function ClientesRegistrados() {
                     <Text style={styles.dato}>
                       {item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}
                     </Text>
+                    {documentoClienteCompleto(item) ? (
+                      <Pressable onPress={() => setZoomDocumentoUrl(item.documento_imagen_url)}>
+                        <Text style={styles.documentoDato}>
+                          {DOCUMENTO_TIPO_ETIQUETA[item.documento_tipo!]} {item.documento_numero} · 🔍 Ver foto
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.documentoFalta}>⚠ Documento de identidad pendiente</Text>
+                    )}
+                    {(item.referido_nombre || item.referido_telefono) && (
+                      <Text style={styles.dato}>
+                        Recomendado por: {[item.referido_nombre, item.referido_apellido].filter(Boolean).join(' ')}
+                        {item.referido_telefono ? ` · ${item.referido_telefono}` : ''}
+                      </Text>
+                    )}
                     {esPrincipal && <Text style={styles.dato}>Atendido por: {atiende ? atiende.nombre : 'Tú (principal)'}</Text>}
                   </View>
                   <Pressable
@@ -361,6 +382,8 @@ export default function ClientesRegistrados() {
           </View>
         </View>
       </Modal>
+
+      <ZoomableImageModal visible={!!zoomDocumentoUrl} uri={zoomDocumentoUrl} onClose={() => setZoomDocumentoUrl(null)} />
     </ScrollView>
   );
 }
@@ -392,6 +415,8 @@ const styles = StyleSheet.create({
   },
   nombre: { color: colors.text, fontSize: 17, fontWeight: '700' },
   dato: { color: colors.textMuted, fontSize: 14 },
+  documentoDato: { color: colors.accent, fontSize: 14, fontWeight: '700' },
+  documentoFalta: { color: colors.danger, fontSize: 13, fontWeight: '600' },
   vacio: { color: colors.textMuted, fontSize: 15, fontStyle: 'italic' },
   lista: { gap: 10 },
   clienteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
