@@ -13,7 +13,7 @@ import {
   MAX_DOCUMENTO_IDENTIDAD_KB,
   MIME_DOCUMENTO_IDENTIDAD,
   extensionDocumentoIdentidad,
-  mimeDocumentoIdentidad,
+  arrayBufferABase64,
 } from '../../lib/perfilCliente';
 import { CanalNotificacion, DocumentoTipo } from '../../types/database';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
@@ -248,18 +248,22 @@ export default function Perfil() {
 
     let documentoImagenUrl = usuario.documento_imagen_url;
     if (documentoImagenNueva) {
-      const path = `${usuario.id}/documento-identidad.${documentoImagenNueva.ext}`;
+      // La subida se hace vía Edge Function (service_role) en vez de un
+      // insert directo del cliente a storage.objects: ese insert directo
+      // fallaba en producción con "new row violates row-level security
+      // policy" pese a que las policies de Storage son correctas -- ver
+      // supabase/functions/subir-documento-identidad/index.ts.
       const arrayBuffer = await (await fetch(documentoImagenNueva.uri)).arrayBuffer();
-      const { error: uploadError } = await supabase.storage
-        .from('documentos-identidad')
-        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDocumentoIdentidad(documentoImagenNueva.ext) });
-      if (uploadError) {
+      const archivo_base64 = arrayBufferABase64(arrayBuffer);
+      const { data: subida, error: uploadError } = await supabase.functions.invoke('subir-documento-identidad', {
+        body: { archivo_base64, ext: documentoImagenNueva.ext },
+      });
+      if (uploadError || !subida?.url) {
         setGuardando(false);
-        setError(uploadError.message);
+        setError(uploadError?.message ?? subida?.error ?? 'No se pudo subir el documento.');
         return;
       }
-      const { data: publicUrl } = supabase.storage.from('documentos-identidad').getPublicUrl(path);
-      documentoImagenUrl = publicUrl.publicUrl;
+      documentoImagenUrl = subida.url as string;
     }
 
     const { error: updateError } = await supabase
