@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
-import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { KPICard } from '../../components/KPICard';
 import { Prospecto, EstadoLead } from '../../types/database';
 import { colors, radius, cardShadow, estadoLeadColor, estadoLeadLabel } from '../../constants/theme';
@@ -98,31 +96,13 @@ export default function CrmProspectos() {
     cargar();
   };
 
-  const generarYEnviarInvitacion = async (p: Prospecto) => {
-    setProcesando(p.id);
-    try {
-      const inv = await crearInvitacion('operador_peru');
-      const enlace = construirEnlaceInvitacion(inv.token);
-      const mensaje = `Hola ${p.nombre}! Te invito al aplicativo inteligente y automático remesas Perú Venezuela. Accede a la versión DEMO gratis por 7 días. Debes usar un correo electrónico verificable Gmail, junto con tu contraseña. Accede y descubre todos los beneficios que este aplicativo puede darte para el crecimiento y la eficiencia de tu negocio de remesas. Accede aquí: ${enlace}`;
-      const enlaceWa = construirEnlaceWhatsAppGenerico(p.telefono, mensaje);
-      if (!enlaceWa) {
-        Alert.alert('Teléfono inválido', 'No se pudo armar el enlace de WhatsApp con el teléfono de este prospecto.');
-        return;
-      }
-      await supabase.from('prospectos').update({ estado: 'demo_enviado', updated_at: new Date().toISOString() }).eq('id', p.id);
-      Linking.openURL(enlaceWa);
-      cargar();
-    } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo generar la invitación.');
-    } finally {
-      setProcesando(null);
-    }
-  };
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.titulo}>CRM de Prospectos</Text>
-      <Text style={styles.subtitulo}>Leads captados por el cuestionario filtro de la landing de ventas.</Text>
+      <Text style={styles.subtitulo}>
+        Leads captados por el cuestionario filtro de la landing de ventas. El acceso DEMO ya se otorga solo al
+        completar el formulario -- esta pantalla es solo para seguimiento comercial.
+      </Text>
 
       <View style={styles.kpiRow}>
         <KPICard label="Total prospectos" value={String(total)} />
@@ -165,7 +145,6 @@ export default function CrmProspectos() {
       {filtrados.map((p) => {
         const abierto = expandido === p.id;
         const colorEstado = estadoLeadColor[p.estado] ?? colors.textMuted;
-        const yaEnviado = p.estado === 'demo_enviado' || p.estado === 'convertido';
         return (
           <Pressable key={p.id} style={[styles.card, cardShadow]} onPress={() => setExpandido(abierto ? null : p.id)}>
             <View style={styles.cardHeader}>
@@ -221,20 +200,6 @@ export default function CrmProspectos() {
                 />
                 <Pressable style={styles.guardarNotasBtn} onPress={() => guardarNotas(p)} disabled={procesando === p.id}>
                   <Text style={styles.guardarNotasBtnTexto}>Guardar notas</Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.invitarBtn, yaEnviado && styles.invitarBtnHecho]}
-                  onPress={() => generarYEnviarInvitacion(p)}
-                  disabled={procesando === p.id}
-                >
-                  {procesando === p.id ? (
-                    <ActivityIndicator color={colors.text} />
-                  ) : (
-                    <Text style={styles.invitarBtnTexto}>
-                      {yaEnviado ? '↻ Reenviar invitación DEMO' : '📲 Generar y enviar invitación DEMO'}
-                    </Text>
-                  )}
                 </Pressable>
               </View>
             )}
@@ -307,7 +272,4 @@ const styles = StyleSheet.create({
   notasInput: { minHeight: 70, textAlignVertical: 'top' },
   guardarNotasBtn: { alignSelf: 'flex-start', backgroundColor: colors.cardAlt, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
   guardarNotasBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
-  invitarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 4 },
-  invitarBtnHecho: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border },
-  invitarBtnTexto: { color: colors.text, fontWeight: '700' },
 });

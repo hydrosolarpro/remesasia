@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ArrowRight, ArrowLeft, CheckCircle, MessageCircle, Send, Smartphone, Clock } from 'lucide-react';
+import { X, ArrowRight, ArrowLeft, CheckCircle, MessageCircle, Send, Smartphone, LogIn } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   PREGUNTA_OPERA_ACTUALMENTE,
@@ -20,6 +20,15 @@ interface ModalCalificacionProps {
 type Paso = 'contacto' | 'preguntas' | 'resultado';
 
 const NUMERO_VENTAS = '51960442025';
+
+// App (panel operador), desplegada aparte en Vercel -- mismo proyecto que
+// remesasia (ver app/lib/invitaciones.ts, EXPO_PUBLIC_WEB_BASE_URL). Acá se
+// usa el prefijo VITE_ porque este es un proyecto Vite aparte.
+const APP_BASE_URL = (import.meta.env.VITE_APP_BASE_URL ?? 'https://remesasia.vercel.app').trim();
+
+function construirEnlaceAcceso(token: string) {
+  return `${APP_BASE_URL}/invitacion/${token}`;
+}
 
 function OpcionesRadio<T extends string>({
   pregunta,
@@ -70,6 +79,7 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [calificado, setCalificado] = useState(false);
+  const [enlaceAcceso, setEnlaceAcceso] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -88,6 +98,7 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
     setUrgencia(null);
     setError(null);
     setCalificado(false);
+    setEnlaceAcceso(null);
   };
 
   // El submit del <form> del paso 2 solo existe para que Enter no dispare
@@ -120,13 +131,12 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
       return;
     }
     setCalificado(!!data.calificado);
+    setEnlaceAcceso(data.invitacion_token ? construirEnlaceAcceso(data.invitacion_token) : null);
     setPaso('resultado');
   };
 
   const mensajeWhatsApp = encodeURIComponent(
-    calificado
-      ? `Hola! Completé el cuestionario y quiero mi acceso DEMO gratis de 7 días. Nombre: ${nombre}. Teléfono: ${telefono}. Email: ${email}.`
-      : `Hola! Completé el cuestionario de Remesas PERÚ-VENEZUELA y quisiera que un asesor me cuente más. Nombre: ${nombre}. Teléfono: ${telefono}. Email: ${email}.`
+    `Hola! Completé el cuestionario de Remesas PERÚ-VENEZUELA. Nombre: ${nombre}. Teléfono: ${telefono}. Email: ${email}.`
   );
 
   return (
@@ -279,26 +289,35 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
 
         {paso === 'resultado' && (
           <div className="text-center py-6 space-y-4">
-            {calificado ? (
-              <>
-                <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto" />
-                <h4 className="text-xl font-bold text-white">¡Calificas para tu DEMO gratis de 7 días!</h4>
+            <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto" />
+            <h4 className="text-xl font-bold text-white">
+              {calificado ? '¡Calificas para tu DEMO gratis de 7 días!' : `¡Gracias por tu interés, ${nombre}!`}
+            </h4>
+
+            {enlaceAcceso ? (
+              <div className="space-y-3">
                 <p className="text-xs text-slate-300 max-w-sm mx-auto">
-                  Gracias, <span className="text-blue-400 font-bold">{nombre}</span>. Un asesor te escribirá en breve para activarte el acceso.
-                  Si quieres adelantarlo, escríbenos directo:
+                  Tu acceso ya está listo. Tu correo registrado es{' '}
+                  <span className="text-blue-400 font-bold break-all">{email}</span>. Continúa con Google usando ese
+                  mismo correo -- usa la misma contraseña con la que entras normalmente a ese correo, no necesitas
+                  crear una nueva.
                 </p>
-              </>
+                <a
+                  href={enlaceAcceso}
+                  className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer font-mono"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Acceder Ahora con Google</span>
+                </a>
+              </div>
             ) : (
-              <>
-                <Clock className="w-16 h-16 text-blue-400 mx-auto" />
-                <h4 className="text-xl font-bold text-white">¡Gracias por tu interés, {nombre}!</h4>
-                <p className="text-xs text-slate-300 max-w-sm mx-auto">
-                  Registramos tus datos. Un asesor te contactará para conocer mejor tu negocio y ver cómo la plataforma puede ayudarte.
-                  Si prefieres, escríbenos ahora mismo:
-                </p>
-              </>
+              <p className="text-xs text-slate-300 max-w-sm mx-auto">
+                Registramos tus datos, pero no pudimos armar tu enlace de acceso automático. Escríbenos por WhatsApp y
+                te lo activamos al toque.
+              </p>
             )}
-            <div className="pt-2">
+
+            <div className="pt-1">
               <a
                 href={`https://wa.me/${NUMERO_VENTAS}?text=${mensajeWhatsApp}`}
                 target="_blank"
@@ -306,7 +325,7 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
                 className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider inline-flex items-center gap-2 font-mono"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>Abrir WhatsApp Ahora</span>
+                <span>{enlaceAcceso ? '¿Dudas? Escríbenos por WhatsApp' : 'Abrir WhatsApp Ahora'}</span>
               </a>
             </div>
           </div>
