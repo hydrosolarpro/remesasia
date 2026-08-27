@@ -315,6 +315,12 @@ export default function PanelControl() {
   // supabase/migrations/0078_eliminar_operador_peru.sql).
   const eliminarOperador = async (op: OperadorFila) => {
     setEliminando(true);
+    // En sesiones largas (panel dejado abierto horas) el token de acceso
+    // puede haber vencido para cuando el admin hace clic -- autoRefreshToken
+    // solo refresca en segundo plano mientras la app sigue activa. Se
+    // refresca a mano justo antes de invocar la función para no toparse con
+    // un falso "No autenticado" evitable con solo renovar la sesión.
+    await supabase.auth.refreshSession().catch(() => {});
     const { data, error } = await supabase.functions.invoke('eliminar-operador-peru', { body: { operador_id: op.id } });
     setEliminando(false);
     // Igual que en (operador-peru)/clientes.tsx: cuando la función responde
@@ -627,14 +633,18 @@ export default function PanelControl() {
                     {op.totalClientes} cliente(s). Las operaciones y pagos ya realizados se conservan como historial, sin
                     vincularse a ninguna cuenta. Esta acción NO se puede deshacer.
                   </Text>
-                  <Text style={styles.peligroLabel}>Escribe el correo del operador para confirmar: {op.email ?? '(sin correo)'}</Text>
+                  <Text style={styles.peligroLabel}>
+                    {op.email
+                      ? `Escribe el correo del operador para confirmar: ${op.email}`
+                      : `Este operador no tiene correo registrado. Escribe su nombre para confirmar: ${op.nombre}`}
+                  </Text>
                   <TextInput
                     style={styles.peligroInput}
                     value={confirmacionEmail[op.id] ?? ''}
                     onChangeText={(t) => setConfirmacionEmail((prev) => ({ ...prev, [op.id]: t }))}
                     autoCapitalize="none"
-                    keyboardType="email-address"
-                    placeholder={op.email ?? ''}
+                    keyboardType={op.email ? 'email-address' : 'default'}
+                    placeholder={op.email ?? op.nombre}
                     placeholderTextColor={colors.textMuted}
                   />
                   <View style={styles.peligroBotones}>
@@ -651,10 +661,10 @@ export default function PanelControl() {
                     <Pressable
                       style={[
                         styles.peligroConfirmar,
-                        (eliminando || !op.email || (confirmacionEmail[op.id] ?? '').trim().toLowerCase() !== op.email.toLowerCase()) &&
+                        (eliminando || (confirmacionEmail[op.id] ?? '').trim().toLowerCase() !== (op.email ?? op.nombre).toLowerCase()) &&
                           styles.peligroConfirmarDeshabilitado,
                       ]}
-                      disabled={eliminando || !op.email || (confirmacionEmail[op.id] ?? '').trim().toLowerCase() !== op.email.toLowerCase()}
+                      disabled={eliminando || (confirmacionEmail[op.id] ?? '').trim().toLowerCase() !== (op.email ?? op.nombre).toLowerCase()}
                       onPress={() => eliminarOperador(op)}
                     >
                       {eliminando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.peligroConfirmarTexto}>Eliminar definitivamente</Text>}

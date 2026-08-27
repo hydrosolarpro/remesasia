@@ -125,6 +125,10 @@ export default function ClientesRegistrados() {
   const eliminarCliente = (item: Usuario) => {
     const confirmarYBorrar = async () => {
       setEliminandoId(item.id);
+      // Ver el mismo refresco defensivo en (admin)/panel-control.tsx: evita
+      // un falso "No autenticado" cuando el panel quedó abierto mucho rato
+      // y el token de acceso venció antes del clic.
+      await supabase.auth.refreshSession().catch(() => {});
       const { data, error } = await supabase.functions.invoke('eliminar-cliente', { body: { cliente_id: item.id } });
       setEliminandoId(null);
       // supabase.functions.invoke() NO pone el cuerpo JSON del error en
