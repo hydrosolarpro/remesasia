@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Image, Linking, Alert, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { construirEnlaceInvitacion } from '../../lib/invitaciones';
@@ -7,6 +7,7 @@ import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { RoleTag } from '../../components/RoleTag';
 import { RoundCheck } from '../../components/RoundCheck';
 import { CalendarioDias } from '../../components/CalendarioFecha';
+import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import {
   DIAS_DEMO,
   ORDEN_PLANES,
@@ -126,6 +127,11 @@ export default function PanelControl() {
   const [eliminandoOperadorId, setEliminandoOperadorId] = useState<string | null>(null);
   const [confirmacionEmail, setConfirmacionEmail] = useState<Record<string, string>>({});
   const [eliminando, setEliminando] = useState(false);
+
+  // Comprobante de depósito a pantalla completa (cualquier plan
+  // solicitado, no solo UNLIMITED) -- para poder verlo bien antes de
+  // Validar, igual que en (admin)/index.tsx.
+  const [zoomUri, setZoomUri] = useState<string | null>(null);
 
   // `silencioso` evita el parpadeo de pantalla completa a "cargando" en
   // los refrescos automáticos de fondo (ver polling de 8s más abajo) --
@@ -439,6 +445,7 @@ export default function PanelControl() {
   }
 
   return (
+    <>
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol="administrador" />
       <Text style={styles.titulo}>Panel de control</Text>
@@ -563,11 +570,19 @@ export default function PanelControl() {
                     <Text style={styles.planPillTexto}>{planLabel(planActual, planMonto)}</Text>
                   </View>
                   {pagoPeriodo?.estado === 'pendiente' && (
-                    <Text style={styles.planSolicitado}>
-                      {pagoPeriodo.monto_por_definir
-                        ? 'Quiere el plan UNLIMITED — contáctalo por WhatsApp para acordar la tarifa'
-                        : `Eligió ${planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ ${pagoPeriodo.monto.toFixed(2)}) — pendiente de verificar`}
-                    </Text>
+                    <>
+                      <Text style={styles.planSolicitado}>
+                        {pagoPeriodo.monto_por_definir
+                          ? 'Quiere el plan UNLIMITED — contáctalo por WhatsApp para acordar la tarifa'
+                          : `Eligió ${planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ ${pagoPeriodo.monto.toFixed(2)}) — pendiente de verificar`}
+                      </Text>
+                      {pagoPeriodo.comprobante_url && (
+                        <Pressable onPress={() => setZoomUri(pagoPeriodo.comprobante_url)}>
+                          <Image source={{ uri: pagoPeriodo.comprobante_url }} style={styles.comprobanteThumb} resizeMode="cover" />
+                          <Text style={styles.comprobanteVerTexto}>🔍 Toca para verlo completo</Text>
+                        </Pressable>
+                      )}
+                    </>
                   )}
                   {planActual !== 'demo' && op.plan_inicio && (
                     <Text style={styles.planFechas}>
@@ -588,6 +603,12 @@ export default function PanelControl() {
                               ? `Tarifa UNLIMITED fijada (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — esperando que pague`
                               : `Eligió ${planLabel(cambiosPendientes[op.id].plan_solicitado)} (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — pendiente de verificar`}
                       </Text>
+                      {cambiosPendientes[op.id].comprobante_url && (
+                        <Pressable onPress={() => setZoomUri(cambiosPendientes[op.id].comprobante_url)}>
+                          <Image source={{ uri: cambiosPendientes[op.id].comprobante_url! }} style={styles.comprobanteThumb} resizeMode="cover" />
+                          <Text style={styles.comprobanteVerTexto}>🔍 Toca para verlo completo</Text>
+                        </Pressable>
+                      )}
                       {cambiosPendientes[op.id].estado === 'pendiente' && (
                         <View style={styles.cambioEnColaBotones}>
                           {!cambiosPendientes[op.id].monto_por_definir && cambiosPendientes[op.id].comprobante_url && (
@@ -792,6 +813,8 @@ export default function PanelControl() {
 
       {operadores.length === 0 && <Text style={styles.vacio}>Todavía no hay ningún Operador Perú registrado.</Text>}
     </ScrollView>
+    <ZoomableImageModal visible={!!zoomUri} uri={zoomUri} onClose={() => setZoomUri(null)} />
+    </>
   );
 }
 
@@ -843,6 +866,8 @@ const styles = StyleSheet.create({
   planPillPremium: { backgroundColor: `${colors.primary}33` },
   planPillTexto: { color: colors.text, fontSize: 13, fontWeight: '800' },
   planSolicitado: { color: colors.warning, fontSize: 12, fontWeight: '700' },
+  comprobanteThumb: { width: '100%', height: 140, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 6 },
+  comprobanteVerTexto: { color: colors.accent, fontWeight: '700', fontSize: 12, textAlign: 'center', marginTop: 4 },
   planFechas: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   cambioEnColaBox: {
     marginTop: 4,
