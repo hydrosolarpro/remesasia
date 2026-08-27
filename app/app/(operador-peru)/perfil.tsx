@@ -73,7 +73,13 @@ export default function Perfil() {
   // que el administrador lo verifique) -- se muestra aparte de "TU PLAN"
   // (el plan vigente) para que quede claro cuál es el plan que eligió
   // mientras el administrador todavía no lo confirma.
-  const [pagoPeriodoActual, setPagoPeriodoActual] = useState<{ periodo: string; monto: number; monto_por_definir: boolean; estado: string } | null>(null);
+  const [pagoPeriodoActual, setPagoPeriodoActual] = useState<{
+    periodo: string;
+    monto: number;
+    monto_por_definir: boolean;
+    comprobante_url: string | null;
+    estado: string;
+  } | null>(null);
   // Monto mensual que el administrador fijó para el plan UNLIMITED (no
   // tiene tarifa fija -- ver FormularioSolicitudPlan/panel-control.tsx).
   // Se toma del último pago verificado, igual que precioPlanOperador() del
@@ -101,11 +107,13 @@ export default function Perfil() {
       const periodo = new Date().toISOString().slice(0, 7);
       const { data: pago } = await supabase
         .from('pagos_suscripcion')
-        .select('periodo, monto, monto_por_definir, estado')
+        .select('periodo, monto, monto_por_definir, comprobante_url, estado')
         .eq('operador_peru_id', usuario.id)
         .eq('periodo', periodo)
         .maybeSingle();
-      setPagoPeriodoActual(pago as { periodo: string; monto: number; monto_por_definir: boolean; estado: string } | null);
+      setPagoPeriodoActual(
+        pago as { periodo: string; monto: number; monto_por_definir: boolean; comprobante_url: string | null; estado: string } | null
+      );
 
       if (usuario.plan === 'unlimited') {
         const { data: ultimoPago } = await supabase
@@ -332,6 +340,29 @@ export default function Perfil() {
     );
   }
 
+  // El admin ya fijó la tarifa de UNLIMITED (consultada por WhatsApp,
+  // ver SolicitudUnlimited) pero todavía no hay comprobante subido -- toca
+  // completar el pago con el mismo formulario que cualquier otro plan.
+  // Puede venir de `pagos_suscripcion` (sin plan pagado vigente todavía) o
+  // de `cambios_plan_pendientes` (ya tenía un plan pagado y pidió cambiar).
+  const pagoUnlimitedPorPagar =
+    pagoPeriodoActual &&
+    pagoPeriodoActual.estado === 'pendiente' &&
+    !pagoPeriodoActual.monto_por_definir &&
+    !pagoPeriodoActual.comprobante_url &&
+    planDesdeMonto(pagoPeriodoActual.monto) === 'unlimited'
+      ? { monto: pagoPeriodoActual.monto, cambioId: undefined as string | undefined }
+      : null;
+  const cambioUnlimitedPorPagar =
+    cambioPendiente &&
+    cambioPendiente.planSolicitado === 'unlimited' &&
+    cambioPendiente.estado === 'pendiente' &&
+    !cambioPendiente.montoPorDefinir &&
+    !cambioPendiente.comprobanteUrl
+      ? { monto: cambioPendiente.monto, cambioId: cambioPendiente.id as string | undefined }
+      : null;
+  const unlimitedPorPagar = pagoUnlimitedPorPagar ?? cambioUnlimitedPorPagar;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {esPrincipal ? (
@@ -397,7 +428,19 @@ export default function Perfil() {
                 : 'Esperando la verificación de tu primer pago.'}
           </Text>
 
-          {pagoPeriodoActual?.estado === 'pendiente' && (
+          {unlimitedPorPagar && (
+            <View style={styles.avisoRenovacionBox}>
+              <Text style={styles.avisoRenovacionTitulo}>Tu plan UNLIMITED: S/ {unlimitedPorPagar.monto.toFixed(2)}/mes</Text>
+              <Text style={styles.avisoRenovacionTexto}>
+                El administrador ya fijó tu tarifa acordada. Completa el pago para activarlo.
+              </Text>
+              <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan('unlimited')}>
+                <Text style={styles.metaSolicitarBtnTexto}>Pagar ahora →</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!unlimitedPorPagar && pagoPeriodoActual?.estado === 'pendiente' && (
             <View style={styles.solicitudPendienteBox}>
               <Text style={styles.solicitudPendienteTexto}>
                 {pagoPeriodoActual.monto_por_definir
@@ -408,8 +451,10 @@ export default function Perfil() {
           )}
 
           {/* Renovación o cambio de plan ya pagado, esperando activarse solo
-              cuando termine el ciclo actual (ver cambios_plan_pendientes). */}
-          {cambioPendiente && (
+              cuando termine el ciclo actual (ver cambios_plan_pendientes).
+              Si es UNLIMITED con tarifa ya fijada, el aviso de arriba
+              ("Pagar ahora") ya lo cubre -- evita el mensaje duplicado. */}
+          {cambioPendiente && !cambioUnlimitedPorPagar && (
             <View style={styles.solicitudPendienteBox}>
               <Text style={styles.solicitudPendienteTexto}>
                 Ya tienes un cambio a {planLabel(cambioPendiente.planSolicitado)} en camino —{' '}
@@ -476,6 +521,8 @@ export default function Perfil() {
                 key={solicitandoPlan}
                 plan={solicitandoPlan}
                 modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
+                montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? unlimitedPorPagar?.monto : undefined}
+                actualizarCambioId={solicitandoPlan === 'unlimited' ? unlimitedPorPagar?.cambioId : undefined}
                 onEnviado={() => {
                   setSolicitandoPlan(null);
                   cargarContexto();

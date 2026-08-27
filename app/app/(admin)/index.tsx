@@ -63,6 +63,13 @@ export default function PanelAdmin() {
         .from('pagos_suscripcion')
         .select('*, operador:usuarios!pagos_suscripcion_operador_peru_id_fkey(nombre, email)')
         .eq('estado', 'pendiente')
+        // Excluye las solicitudes de UNLIMITED que todavía no tienen un pago
+        // real que verificar: recién consultadas (monto_por_definir, ver
+        // FormularioSolicitudPlan) o con el monto ya fijado por el admin
+        // pero sin comprobante subido todavía (ver panel-control.tsx). Acá
+        // solo deben aparecer pagos con comprobante listos para Aprobar/Rechazar.
+        .eq('monto_por_definir', false)
+        .not('comprobante_url', 'is', null)
         .order('created_at', { ascending: false }),
       supabase.from('configuracion_pagos_admin').select('*').maybeSingle(),
     ]);

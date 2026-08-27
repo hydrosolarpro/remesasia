@@ -114,27 +114,55 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
 //     usa Perfil (aviso de renovación / "Próxima Meta").
 //
 // UNLIMITED no tiene precio fijo -- se acuerda por WhatsApp con el
-// administrador (ver SolicitudUnlimited arriba), así que este componente
-// nunca llama hooks condicionalmente: simplemente elige a cuál de los dos
-// delegar según el plan, sin lógica propia.
-export function FormularioSolicitudPlan(props: { plan: string; modo: 'nueva' | 'cambio'; onEnviado?: () => void }) {
-  if (props.plan === 'unlimited') {
+// administrador (ver SolicitudUnlimited arriba). Una vez que el admin le
+// fija el monto (panel-control.tsx), `montoUnlimitedAcordado` ya viene
+// definido y este componente muestra el mismo formulario de pago (formas
+// de pago/comprobante/términos) que cualquier otro plan, en vez de volver
+// a pedirle que consulte. `actualizarCambioId` es el id de la fila de
+// `cambios_plan_pendientes` que YA existe (creada al consultar) cuando
+// modo='cambio' -- hay que actualizarla con el comprobante en vez de
+// insertar una fila nueva, o chocaría con la restricción de una sola
+// solicitud en curso por operador.
+//
+// Este componente nunca llama hooks condicionalmente: simplemente elige a
+// cuál de los dos delegar según el plan, sin lógica propia.
+export function FormularioSolicitudPlan(props: {
+  plan: string;
+  modo: 'nueva' | 'cambio';
+  onEnviado?: () => void;
+  montoUnlimitedAcordado?: number;
+  actualizarCambioId?: string;
+}) {
+  if (props.plan === 'unlimited' && !props.montoUnlimitedAcordado) {
     return <SolicitudUnlimited modo={props.modo} onEnviado={props.onEnviado} />;
   }
-  return <FormularioSolicitudPlanFijo {...props} />;
+  return (
+    <FormularioSolicitudPlanFijo
+      plan={props.plan}
+      modo={props.modo}
+      onEnviado={props.onEnviado}
+      montoOverride={props.montoUnlimitedAcordado}
+      actualizarCambioId={props.actualizarCambioId}
+    />
+  );
 }
 
 // El monto define qué plan asigna el admin al aprobar (ver
-// planDesdeMonto) -- acá `plan` nunca vale 'unlimited', así que
-// PRECIO_PLAN[plan] siempre existe.
+// planDesdeMonto) -- para todo plan salvo UNLIMITED viene de PRECIO_PLAN;
+// para UNLIMITED con precio ya acordado, `montoOverride` lo trae desde
+// afuera (PRECIO_PLAN no tiene entrada para 'unlimited').
 function FormularioSolicitudPlanFijo({
   plan,
   modo,
   onEnviado,
+  montoOverride,
+  actualizarCambioId,
 }: {
   plan: string;
   modo: 'nueva' | 'cambio';
   onEnviado?: () => void;
+  montoOverride?: number;
+  actualizarCambioId?: string;
 }) {
   const { usuario, refreshUsuario } = useAuth();
   const [config, setConfig] = useState<ConfiguracionPagosAdmin | null>(null);
@@ -147,7 +175,7 @@ function FormularioSolicitudPlanFijo({
   const [error, setError] = useState<string | null>(null);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
-  const monto = PRECIO_PLAN[plan];
+  const monto = montoOverride ?? PRECIO_PLAN[plan];
 
   useEffect(() => {
     supabase
@@ -217,6 +245,16 @@ function FormularioSolicitudPlanFijo({
           { onConflict: 'operador_peru_id,periodo' }
         );
         if (upsertError) throw upsertError;
+      } else if (actualizarCambioId) {
+        // Ya existe la fila (se creó al consultar el plan UNLIMITED, ver
+        // SolicitudUnlimited) -- se actualiza con el comprobante en vez de
+        // insertar una nueva, que chocaría con la restricción de una sola
+        // solicitud en curso por operador.
+        const { error: updateError } = await supabase
+          .from('cambios_plan_pendientes')
+          .update({ comprobante_url: publicUrl.publicUrl, estado: 'pendiente' })
+          .eq('id', actualizarCambioId);
+        if (updateError) throw updateError;
       } else {
         const { error: insertError } = await supabase.from('cambios_plan_pendientes').insert({
           operador_peru_id: usuario.id,

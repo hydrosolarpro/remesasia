@@ -7,6 +7,10 @@ export interface CambioPendienteInfo {
   id: string;
   planSolicitado: string;
   estado: 'pendiente' | 'verificado';
+  monto: number;
+  /** UNLIMITED consultado pero el admin todavía no fija la tarifa -- ver FormularioSolicitudPlan/panel-control.tsx. */
+  montoPorDefinir: boolean;
+  comprobanteUrl: string | null;
 }
 
 export interface EstadoPlanNegocio {
@@ -39,7 +43,7 @@ export function useEstadoPlanNegocio(operadorPeruId: string | null | undefined):
       supabase.from('usuarios').select('plan, demo_inicio, plan_inicio').eq('id', operadorPeruId).maybeSingle(),
       supabase
         .from('cambios_plan_pendientes')
-        .select('id, plan_solicitado, estado')
+        .select('id, plan_solicitado, estado, monto, monto_por_definir, comprobante_url')
         .eq('operador_peru_id', operadorPeruId)
         .neq('estado', 'rechazado')
         .is('activado_at', null)
@@ -52,7 +56,14 @@ export function useEstadoPlanNegocio(operadorPeruId: string | null | undefined):
         demoInicio: data?.demo_inicio ?? null,
         planInicio: data?.plan_inicio ?? null,
         cambioPendiente: cambio
-          ? { id: cambio.id, planSolicitado: cambio.plan_solicitado, estado: cambio.estado as 'pendiente' | 'verificado' }
+          ? {
+              id: cambio.id,
+              planSolicitado: cambio.plan_solicitado,
+              estado: cambio.estado as 'pendiente' | 'verificado',
+              monto: cambio.monto,
+              montoPorDefinir: cambio.monto_por_definir,
+              comprobanteUrl: cambio.comprobante_url,
+            }
           : null,
       });
     });
