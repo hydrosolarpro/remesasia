@@ -302,54 +302,20 @@ export default function PanelControl() {
   // "Validar" de más abajo son los que después confirman ese pago y
   // recién ahí conceden el acceso.
   //
-  // Si el operador está en DEMO (sin plan pagado vigente), va a
-  // pagos_suscripcion del período actual -- mismo canal que su primer
-  // pago (modo 'nueva' de FormularioSolicitudPlan). Si ya tiene un plan
-  // pagado, va a cambios_plan_pendientes -- reusando la fila existente si
-  // ya había una consulta de UNLIMITED, para no chocar con la
-  // restricción de una sola solicitud en curso por operador.
+  // Va por el RPC admin_fijar_precio_unlimited (no un UPDATE directo):
+  // las políticas RLS de pagos_suscripcion/cambios_plan_pendientes solo
+  // cubren INSERT y el UPDATE puntual de rechazar/reenviar, no "admin
+  // fija el monto sobre una fila pendiente" -- un UPDATE de cliente ahí
+  // quedaba bloqueado en silencio (0 filas, sin error).
   const fijarPrecioUnlimited = async (op: OperadorFila) => {
     const monto = parseFloat(montosUnlimited[op.id]);
     if (!monto || monto <= 0) return;
     setProcesando(`${op.id}_unlimited`);
-
-    if (op.plan === 'demo') {
-      const { error } = await supabase.from('pagos_suscripcion').upsert(
-        { operador_peru_id: op.id, periodo: periodoActual(), monto, monto_por_definir: false, estado: 'pendiente', comprobante_url: null },
-        { onConflict: 'operador_peru_id,periodo' }
-      );
-      setProcesando(null);
-      if (error) {
-        Alert.alert('No se pudo fijar el monto UNLIMITED', error.message);
-        return;
-      }
-    } else {
-      const cambioExistente = cambiosPendientes[op.id];
-      if (cambioExistente && cambioExistente.plan_solicitado !== 'unlimited') {
-        setProcesando(null);
-        Alert.alert(
-          'Ya hay un cambio de plan en curso',
-          `Este operador ya tiene una solicitud pendiente de ${planLabel(cambioExistente.plan_solicitado)}. Resuélvela antes de asignarle UNLIMITED.`
-        );
-        return;
-      }
-      const { error } = cambioExistente
-        ? await supabase
-            .from('cambios_plan_pendientes')
-            .update({ monto, monto_por_definir: false, estado: 'pendiente', comprobante_url: null })
-            .eq('id', cambioExistente.id)
-        : await supabase.from('cambios_plan_pendientes').insert({
-            operador_peru_id: op.id,
-            plan_solicitado: 'unlimited',
-            monto,
-            monto_por_definir: false,
-            estado: 'pendiente',
-          });
-      setProcesando(null);
-      if (error) {
-        Alert.alert('No se pudo fijar el monto UNLIMITED', error.message);
-        return;
-      }
+    const { error } = await supabase.rpc('admin_fijar_precio_unlimited', { p_operador_id: op.id, p_monto: monto });
+    setProcesando(null);
+    if (error) {
+      Alert.alert('No se pudo fijar el monto UNLIMITED', error.message);
+      return;
     }
     setMontosUnlimited((prev) => ({ ...prev, [op.id]: '' }));
     cargar();

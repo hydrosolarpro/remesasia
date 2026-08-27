@@ -345,23 +345,24 @@ export default function Perfil() {
   // completar el pago con el mismo formulario que cualquier otro plan.
   // Puede venir de `pagos_suscripcion` (sin plan pagado vigente todavía) o
   // de `cambios_plan_pendientes` (ya tenía un plan pagado y pidió cambiar).
-  const pagoUnlimitedPorPagar =
+  const montoUnlimitedPorPagar =
     pagoPeriodoActual &&
     pagoPeriodoActual.estado === 'pendiente' &&
     !pagoPeriodoActual.monto_por_definir &&
     !pagoPeriodoActual.comprobante_url &&
     planDesdeMonto(pagoPeriodoActual.monto) === 'unlimited'
-      ? { monto: pagoPeriodoActual.monto, cambioId: undefined as string | undefined }
-      : null;
-  const cambioUnlimitedPorPagar =
-    cambioPendiente &&
-    cambioPendiente.planSolicitado === 'unlimited' &&
-    cambioPendiente.estado === 'pendiente' &&
-    !cambioPendiente.montoPorDefinir &&
-    !cambioPendiente.comprobanteUrl
-      ? { monto: cambioPendiente.monto, cambioId: cambioPendiente.id as string | undefined }
-      : null;
-  const unlimitedPorPagar = pagoUnlimitedPorPagar ?? cambioUnlimitedPorPagar;
+      ? pagoPeriodoActual.monto
+      : cambioPendiente &&
+          cambioPendiente.planSolicitado === 'unlimited' &&
+          cambioPendiente.estado === 'pendiente' &&
+          !cambioPendiente.montoPorDefinir &&
+          !cambioPendiente.comprobanteUrl
+        ? cambioPendiente.monto
+        : null;
+  // Solo para suprimir el aviso genérico de "cambio en camino" cuando ya
+  // se muestra el CTA dedicado de UNLIMITED de abajo (evita el mensaje
+  // duplicado).
+  const cambioUnlimitedPorPagar = cambioPendiente?.planSolicitado === 'unlimited' && montoUnlimitedPorPagar !== null;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -428,9 +429,9 @@ export default function Perfil() {
                 : 'Esperando la verificación de tu primer pago.'}
           </Text>
 
-          {unlimitedPorPagar && (
+          {montoUnlimitedPorPagar !== null && (
             <View style={styles.avisoRenovacionBox}>
-              <Text style={styles.avisoRenovacionTitulo}>Tu plan UNLIMITED: S/ {unlimitedPorPagar.monto.toFixed(2)}/mes</Text>
+              <Text style={styles.avisoRenovacionTitulo}>Tu plan UNLIMITED: S/ {montoUnlimitedPorPagar.toFixed(2)}/mes</Text>
               <Text style={styles.avisoRenovacionTexto}>
                 El administrador ya fijó tu tarifa acordada. Completa el pago para activarlo.
               </Text>
@@ -440,7 +441,7 @@ export default function Perfil() {
             </View>
           )}
 
-          {!unlimitedPorPagar && pagoPeriodoActual?.estado === 'pendiente' && (
+          {montoUnlimitedPorPagar === null && pagoPeriodoActual?.estado === 'pendiente' && (
             <View style={styles.solicitudPendienteBox}>
               <Text style={styles.solicitudPendienteTexto}>
                 {pagoPeriodoActual.monto_por_definir
@@ -521,8 +522,7 @@ export default function Perfil() {
                 key={solicitandoPlan}
                 plan={solicitandoPlan}
                 modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
-                montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? unlimitedPorPagar?.monto : undefined}
-                actualizarCambioId={solicitandoPlan === 'unlimited' ? unlimitedPorPagar?.cambioId : undefined}
+                montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? (montoUnlimitedPorPagar ?? undefined) : undefined}
                 onEnviado={() => {
                   setSolicitandoPlan(null);
                   cargarContexto();

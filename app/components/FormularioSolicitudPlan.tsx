@@ -115,14 +115,12 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
 //
 // UNLIMITED no tiene precio fijo -- se acuerda por WhatsApp con el
 // administrador (ver SolicitudUnlimited arriba). Una vez que el admin le
-// fija el monto (panel-control.tsx), `montoUnlimitedAcordado` ya viene
-// definido y este componente muestra el mismo formulario de pago (formas
-// de pago/comprobante/términos) que cualquier otro plan, en vez de volver
-// a pedirle que consulte. `actualizarCambioId` es el id de la fila de
-// `cambios_plan_pendientes` que YA existe (creada al consultar) cuando
-// modo='cambio' -- hay que actualizarla con el comprobante en vez de
-// insertar una fila nueva, o chocaría con la restricción de una sola
-// solicitud en curso por operador.
+// fija el monto (panel-control.tsx -> RPC admin_fijar_precio_unlimited),
+// `montoUnlimitedAcordado` ya viene definido y este componente muestra el
+// mismo formulario de pago (formas de pago/comprobante/términos) que
+// cualquier otro plan, en vez de volver a pedirle que consulte. El envío
+// va por el RPC operador_pagar_unlimited (ver más abajo) -- encuentra
+// sola la fila correcta, sea pagos_suscripcion o cambios_plan_pendientes.
 //
 // Este componente nunca llama hooks condicionalmente: simplemente elige a
 // cuál de los dos delegar según el plan, sin lógica propia.
@@ -131,7 +129,6 @@ export function FormularioSolicitudPlan(props: {
   modo: 'nueva' | 'cambio';
   onEnviado?: () => void;
   montoUnlimitedAcordado?: number;
-  actualizarCambioId?: string;
 }) {
   if (props.plan === 'unlimited' && !props.montoUnlimitedAcordado) {
     return <SolicitudUnlimited modo={props.modo} onEnviado={props.onEnviado} />;
@@ -142,7 +139,6 @@ export function FormularioSolicitudPlan(props: {
       modo={props.modo}
       onEnviado={props.onEnviado}
       montoOverride={props.montoUnlimitedAcordado}
-      actualizarCambioId={props.actualizarCambioId}
     />
   );
 }
@@ -156,13 +152,11 @@ function FormularioSolicitudPlanFijo({
   modo,
   onEnviado,
   montoOverride,
-  actualizarCambioId,
 }: {
   plan: string;
   modo: 'nueva' | 'cambio';
   onEnviado?: () => void;
   montoOverride?: number;
-  actualizarCambioId?: string;
 }) {
   const { usuario, refreshUsuario } = useAuth();
   const [config, setConfig] = useState<ConfiguracionPagosAdmin | null>(null);
@@ -233,7 +227,16 @@ function FormularioSolicitudPlanFijo({
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from('comprobantes').getPublicUrl(path);
 
-      if (modo === 'nueva') {
+      if (plan === 'unlimited') {
+        // La fila ya existe (se creó al consultar y el admin ya le fijó el
+        // monto -- ver SolicitudUnlimited/panel-control.tsx). Va por RPC en
+        // vez de un UPDATE directo: las políticas RLS de
+        // pagos_suscripcion/cambios_plan_pendientes no cubren que el
+        // operador actualice una fila ya creada, solo insertarla o
+        // reenviarla tras un rechazo.
+        const { error: rpcError } = await supabase.rpc('operador_pagar_unlimited', { p_comprobante_url: publicUrl.publicUrl });
+        if (rpcError) throw rpcError;
+      } else if (modo === 'nueva') {
         const { error: upsertError } = await supabase.from('pagos_suscripcion').upsert(
           {
             operador_peru_id: usuario.id,
@@ -245,16 +248,6 @@ function FormularioSolicitudPlanFijo({
           { onConflict: 'operador_peru_id,periodo' }
         );
         if (upsertError) throw upsertError;
-      } else if (actualizarCambioId) {
-        // Ya existe la fila (se creó al consultar el plan UNLIMITED, ver
-        // SolicitudUnlimited) -- se actualiza con el comprobante en vez de
-        // insertar una nueva, que chocaría con la restricción de una sola
-        // solicitud en curso por operador.
-        const { error: updateError } = await supabase
-          .from('cambios_plan_pendientes')
-          .update({ comprobante_url: publicUrl.publicUrl, estado: 'pendiente' })
-          .eq('id', actualizarCambioId);
-        if (updateError) throw updateError;
       } else {
         const { error: insertError } = await supabase.from('cambios_plan_pendientes').insert({
           operador_peru_id: usuario.id,
