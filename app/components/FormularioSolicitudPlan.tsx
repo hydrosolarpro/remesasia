@@ -7,11 +7,96 @@ import { CopyField } from './CopyField';
 import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin } from '../types/database';
 import { PRECIO_PLAN, planLabel } from '../lib/plan';
+import { construirEnlaceWhatsAppAdmin } from '../lib/whatsapp';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
 type FormaPago = 'yape' | 'transferencia';
+
+// UNLIMITED no tiene tarifa fija, formas de pago ni comprobante que
+// mostrar todavía -- se acuerda por WhatsApp con el administrador antes
+// de que exista ningún monto que pagar. Por eso FormularioSolicitudPlan
+// delega en este componente aparte para ese plan puntual, en vez de
+// mostrar el formulario completo (formas de pago/comprobante/términos)
+// con un monto que el cliente todavía no conoce.
+function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onEnviado?: () => void }) {
+  const { usuario, refreshUsuario } = useAuth();
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enviado, setEnviado] = useState(false);
+
+  if (!usuario) return null;
+
+  const consultarPorWhatsApp = async () => {
+    setError(null);
+    setEnviando(true);
+    try {
+      if (modo === 'nueva') {
+        const { error: upsertError } = await supabase.from('pagos_suscripcion').upsert(
+          {
+            operador_peru_id: usuario.id,
+            periodo: periodoActual(),
+            monto: 0,
+            monto_por_definir: true,
+            comprobante_url: null,
+            estado: 'pendiente',
+          },
+          { onConflict: 'operador_peru_id,periodo' }
+        );
+        if (upsertError) throw upsertError;
+      } else {
+        const { error: insertError } = await supabase.from('cambios_plan_pendientes').insert({
+          operador_peru_id: usuario.id,
+          plan_solicitado: 'unlimited',
+          monto: 0,
+          monto_por_definir: true,
+          comprobante_url: null,
+          estado: 'pendiente',
+        });
+        if (insertError) {
+          if (insertError.code === '23505') {
+            throw new Error('Ya tienes una solicitud de renovación/cambio de plan en curso.');
+          }
+          throw insertError;
+        }
+      }
+
+      const mensaje = `Hola! Soy ${usuario.nombre} (${usuario.email}). Quiero consultar la tarifa del plan UNLIMITED para mi negocio en Remesas PERÚ-VENEZUELA.`;
+      Linking.openURL(construirEnlaceWhatsAppAdmin(mensaje));
+      await refreshUsuario();
+      setEnviado(true);
+      onEnviado?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo enviar la consulta.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={[styles.card, cardShadow]}>
+        <Text style={styles.seccionTitulo}>Plan UNLIMITED</Text>
+        <Text style={styles.avisoTexto}>
+          El plan UNLIMITED no tiene una tarifa fija: se acuerda directamente con el administrador según el volumen de tu
+          negocio. Toca el botón para consultarlo por WhatsApp -- quedará registrado en tu perfil como "a consultar" hasta
+          que el administrador te confirme el monto.
+        </Text>
+      </View>
+
+      {error && <Text style={styles.error}>{error}</Text>}
+
+      {enviado ? (
+        <Text style={styles.avisoTexto}>✅ Ya avisamos al administrador. En breve te confirmará el monto acordado.</Text>
+      ) : (
+        <Pressable style={styles.enviarBtn} onPress={consultarPorWhatsApp} disabled={enviando}>
+          {enviando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.enviarBtnTexto}>💬 Consultar por WhatsApp</Text>}
+        </Pressable>
+      )}
+    </View>
+  );
+}
 
 // Formulario de solicitud de pago de la suscripción. Tiene dos modos:
 //
@@ -28,11 +113,21 @@ type FormaPago = 'yape' | 'transferencia';
 //     inmediato o queda en espera hasta que termine el ciclo actual. Lo
 //     usa Perfil (aviso de renovación / "Próxima Meta").
 //
+// UNLIMITED no tiene precio fijo -- se acuerda por WhatsApp con el
+// administrador (ver SolicitudUnlimited arriba), así que este componente
+// nunca llama hooks condicionalmente: simplemente elige a cuál de los dos
+// delegar según el plan, sin lógica propia.
+export function FormularioSolicitudPlan(props: { plan: string; modo: 'nueva' | 'cambio'; onEnviado?: () => void }) {
+  if (props.plan === 'unlimited') {
+    return <SolicitudUnlimited modo={props.modo} onEnviado={props.onEnviado} />;
+  }
+  return <FormularioSolicitudPlanFijo {...props} />;
+}
+
 // El monto define qué plan asigna el admin al aprobar (ver
-// planDesdeMonto) -- solo UNLIMITED no tiene precio fijo (se acuerda
-// directamente con el administrador), así que pide un monto manual en
-// vez de uno fijo.
-export function FormularioSolicitudPlan({
+// planDesdeMonto) -- acá `plan` nunca vale 'unlimited', así que
+// PRECIO_PLAN[plan] siempre existe.
+function FormularioSolicitudPlanFijo({
   plan,
   modo,
   onEnviado,
@@ -51,11 +146,8 @@ export function FormularioSolicitudPlan({
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
-  const [montoManual, setMontoManual] = useState('');
 
-  const montoFijo = PRECIO_PLAN[plan];
-  const requiereMontoManual = montoFijo === undefined; // unlimited
-  const monto = requiereMontoManual ? Number(montoManual.replace(',', '.')) || 0 : montoFijo;
+  const monto = PRECIO_PLAN[plan];
 
   useEffect(() => {
     supabase
@@ -90,10 +182,6 @@ export function FormularioSolicitudPlan({
     }
     if (!nombre.trim() || !telefono.trim()) {
       setError('Completa tu nombre completo y teléfono.');
-      return;
-    }
-    if (requiereMontoManual && monto <= 0) {
-      setError('Ingresa el monto acordado con el administrador.');
       return;
     }
     if (!comprobanteUri) {
@@ -159,23 +247,8 @@ export function FormularioSolicitudPlan({
   return (
     <View style={{ gap: 12 }}>
       <Text style={styles.subtitulo}>
-        Solicitud de plan {planLabel(plan)} {requiereMontoManual ? '' : `— S/ ${monto.toFixed(2)} / mes`} — período {periodoActual()}
+        Solicitud de plan {planLabel(plan)} — S/ {monto.toFixed(2)} / mes — período {periodoActual()}
       </Text>
-
-      {requiereMontoManual && (
-        <View style={[styles.card, cardShadow]}>
-          <Text style={styles.seccionTitulo}>Monto acordado con el administrador</Text>
-          <Text style={styles.label}>Monto mensual (S/)</Text>
-          <TextInput
-            style={styles.input}
-            value={montoManual}
-            onChangeText={setMontoManual}
-            keyboardType="decimal-pad"
-            placeholder="Ej. 800.00"
-            placeholderTextColor={colors.textMuted}
-          />
-        </View>
-      )}
 
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.seccionTitulo}>Formas de pago</Text>

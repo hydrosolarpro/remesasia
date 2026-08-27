@@ -32,12 +32,14 @@ interface Pago {
   periodo: string;
   estado: 'pendiente' | 'verificado' | 'rechazado';
   monto: number;
+  monto_por_definir: boolean;
 }
 
 interface CambioPendienteFila {
   id: string;
   plan_solicitado: string;
   monto: number;
+  monto_por_definir: boolean;
   estado: 'pendiente' | 'verificado';
 }
 
@@ -131,7 +133,7 @@ export default function PanelControl() {
     const { data, error } = await supabase
       .from('usuarios')
       .select(
-        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, plan_inicio, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto)'
+        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, plan_inicio, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto, monto_por_definir)'
       )
       .eq('rol', 'operador_peru')
       .order('created_at', { ascending: false });
@@ -139,12 +141,18 @@ export default function PanelControl() {
 
     const { data: cambios } = await supabase
       .from('cambios_plan_pendientes')
-      .select('id, operador_peru_id, plan_solicitado, monto, estado')
+      .select('id, operador_peru_id, plan_solicitado, monto, monto_por_definir, estado')
       .neq('estado', 'rechazado')
       .is('activado_at', null);
     const mapaCambios: Record<string, CambioPendienteFila> = {};
     (cambios ?? []).forEach((c) => {
-      mapaCambios[c.operador_peru_id] = { id: c.id, plan_solicitado: c.plan_solicitado, monto: c.monto, estado: c.estado as 'pendiente' | 'verificado' };
+      mapaCambios[c.operador_peru_id] = {
+        id: c.id,
+        plan_solicitado: c.plan_solicitado,
+        monto: c.monto,
+        monto_por_definir: c.monto_por_definir,
+        estado: c.estado as 'pendiente' | 'verificado',
+      };
     });
     setCambiosPendientes(mapaCambios);
 
@@ -299,7 +307,7 @@ export default function PanelControl() {
     const { error: errorPago } = existente
       ? await supabase
           .from('pagos_suscripcion')
-          .update({ monto, estado: 'verificado', verificado_por: usuarioAuth.user?.id, verificado_at: new Date().toISOString() })
+          .update({ monto, monto_por_definir: false, estado: 'verificado', verificado_por: usuarioAuth.user?.id, verificado_at: new Date().toISOString() })
           .eq('id', existente.id)
       : await supabase.from('pagos_suscripcion').insert({
           operador_peru_id: operadorId,
@@ -321,6 +329,27 @@ export default function PanelControl() {
     setProcesando(null);
     if (errorPlan) {
       Alert.alert('Monto guardado, pero no se pudo activar el plan UNLIMITED', errorPlan.message);
+    }
+    setMontosUnlimited((prev) => ({ ...prev, [operadorId]: '' }));
+    cargar();
+  };
+
+  // Un operador que YA tiene un plan pagado vigente y consultó UNLIMITED
+  // (cambios_plan_pendientes con monto_por_definir) no puede activarse con
+  // guardarMontoUnlimited: eso saltaría directo a UNLIMITED cortando su
+  // ciclo pagado en curso. Acá solo se fija el monto ya acordado por
+  // WhatsApp -- una vez guardado, el cambio queda como cualquier otro
+  // pendiente normal y se activa con el botón "Validar" de siempre
+  // (admin_validar_cambio_plan decide si es de inmediato o en cola).
+  const fijarMontoCambioPendiente = async (cambioId: string, operadorId: string) => {
+    const monto = parseFloat(montosUnlimited[operadorId]);
+    if (!monto || monto <= 0) return;
+    setProcesandoCambio(cambioId);
+    const { error } = await supabase.from('cambios_plan_pendientes').update({ monto, monto_por_definir: false }).eq('id', cambioId);
+    setProcesandoCambio(null);
+    if (error) {
+      Alert.alert('No se pudo fijar el monto UNLIMITED', error.message);
+      return;
     }
     setMontosUnlimited((prev) => ({ ...prev, [operadorId]: '' }));
     cargar();
@@ -569,8 +598,9 @@ export default function PanelControl() {
                   </View>
                   {pagoPeriodo?.estado === 'pendiente' && (
                     <Text style={styles.planSolicitado}>
-                      Eligió {planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ {pagoPeriodo.monto.toFixed(2)}) — pendiente de
-                      verificar
+                      {pagoPeriodo.monto_por_definir
+                        ? 'Quiere el plan UNLIMITED — contáctalo por WhatsApp para acordar la tarifa'
+                        : `Eligió ${planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ ${pagoPeriodo.monto.toFixed(2)}) — pendiente de verificar`}
                     </Text>
                   )}
                   {planActual !== 'demo' && op.plan_inicio && (
@@ -586,19 +616,23 @@ export default function PanelControl() {
                           ? `Pasará a ${planLabel(cambiosPendientes[op.id].plan_solicitado)} el ${
                               op.plan_inicio ? formatearFechaHora(fechaFinPlanPagado(op.plan_inicio).toISOString()) : '—'
                             }`
-                          : `Eligió ${planLabel(cambiosPendientes[op.id].plan_solicitado)} (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — pendiente de verificar`}
+                          : cambiosPendientes[op.id].monto_por_definir
+                            ? 'Quiere el plan UNLIMITED — contáctalo por WhatsApp para acordar la tarifa'
+                            : `Eligió ${planLabel(cambiosPendientes[op.id].plan_solicitado)} (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — pendiente de verificar`}
                       </Text>
                       {cambiosPendientes[op.id].estado === 'pendiente' && (
                         <View style={styles.cambioEnColaBotones}>
-                          <Pressable
-                            style={styles.cambioEnColaBtn}
-                            disabled={procesandoCambio === cambiosPendientes[op.id].id}
-                            onPress={() => validarCambioPlan(cambiosPendientes[op.id].id)}
-                          >
-                            <Text style={styles.cambioEnColaBtnTexto}>
-                              {procesandoCambio === cambiosPendientes[op.id].id ? '...' : 'Validar'}
-                            </Text>
-                          </Pressable>
+                          {!cambiosPendientes[op.id].monto_por_definir && (
+                            <Pressable
+                              style={styles.cambioEnColaBtn}
+                              disabled={procesandoCambio === cambiosPendientes[op.id].id}
+                              onPress={() => validarCambioPlan(cambiosPendientes[op.id].id)}
+                            >
+                              <Text style={styles.cambioEnColaBtnTexto}>
+                                {procesandoCambio === cambiosPendientes[op.id].id ? '...' : 'Validar'}
+                              </Text>
+                            </Pressable>
+                          )}
                           <Pressable
                             style={styles.cambioEnColaBtnRechazar}
                             disabled={procesandoCambio === cambiosPendientes[op.id].id}
@@ -644,12 +678,20 @@ export default function PanelControl() {
                 <Text style={styles.checkLabel}>Validación de pago</Text>
                 <RoundCheck
                   checked={pagoPeriodo?.estado === 'verificado'}
-                  disabled={!pagoPeriodo || pagoPeriodo.estado !== 'pendiente'}
+                  disabled={!pagoPeriodo || pagoPeriodo.estado !== 'pendiente' || pagoPeriodo.monto_por_definir}
                   loading={procesando === pagoPeriodo?.id}
                   onPress={() => pagoPeriodo && validarPago(pagoPeriodo.id, op.id, pagoPeriodo.monto)}
                 />
                 <Text style={styles.checkEstado}>
-                  {!pagoPeriodo ? 'Sin comprobante' : pagoPeriodo.estado === 'verificado' ? 'Verificado' : pagoPeriodo.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
+                  {!pagoPeriodo
+                    ? 'Sin comprobante'
+                    : pagoPeriodo.monto_por_definir
+                      ? 'A consultar (UNLIMITED)'
+                      : pagoPeriodo.estado === 'verificado'
+                        ? 'Verificado'
+                        : pagoPeriodo.estado === 'rechazado'
+                          ? 'Rechazado'
+                          : 'Pendiente'}
                 </Text>
               </View>
               <View style={styles.checkCol}>
@@ -688,28 +730,45 @@ export default function PanelControl() {
               </View>
             )}
 
-            {planActual === 'unlimited' && (
-              <View style={styles.unlimitedRow}>
-                <Text style={styles.unlimitedLabel}>Monto UNLIMITED (S/):</Text>
-                <TextInput
-                  style={styles.unlimitedInput}
-                  value={montosUnlimited[op.id] ?? ''}
-                  onChangeText={(t) => setMontosUnlimited((prev) => ({ ...prev, [op.id]: t }))}
-                  keyboardType="numeric"
-                  placeholder="Ej: 1500"
-                  placeholderTextColor={colors.textMuted}
-                />
-                <Pressable
-                  style={styles.unlimitedBtn}
-                  onPress={() => guardarMontoUnlimited(op.id)}
-                  disabled={procesando === `${op.id}_unlimited` || !montosUnlimited[op.id]}
-                >
-                  <Text style={styles.unlimitedBtnTexto}>
-                    {procesando === `${op.id}_unlimited` ? '...' : 'Fijar monto y activar'}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
+            {(() => {
+              const cambioUnlimitedPendiente = cambiosPendientes[op.id]?.monto_por_definir ? cambiosPendientes[op.id] : null;
+              const consultaUnlimitedPendiente = !!pagoPeriodo?.monto_por_definir || !!cambioUnlimitedPendiente;
+              if (planActual !== 'unlimited' && !consultaUnlimitedPendiente) return null;
+              return (
+                <View style={styles.unlimitedRow}>
+                  <Text style={styles.unlimitedLabel}>Monto UNLIMITED (S/):</Text>
+                  <TextInput
+                    style={styles.unlimitedInput}
+                    value={montosUnlimited[op.id] ?? ''}
+                    onChangeText={(t) => setMontosUnlimited((prev) => ({ ...prev, [op.id]: t }))}
+                    keyboardType="numeric"
+                    placeholder="Ej: 1500"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                  <Pressable
+                    style={styles.unlimitedBtn}
+                    onPress={() =>
+                      cambioUnlimitedPendiente
+                        ? fijarMontoCambioPendiente(cambioUnlimitedPendiente.id, op.id)
+                        : guardarMontoUnlimited(op.id)
+                    }
+                    disabled={
+                      procesando === `${op.id}_unlimited` ||
+                      procesandoCambio === cambioUnlimitedPendiente?.id ||
+                      !montosUnlimited[op.id]
+                    }
+                  >
+                    <Text style={styles.unlimitedBtnTexto}>
+                      {procesando === `${op.id}_unlimited` || procesandoCambio === cambioUnlimitedPendiente?.id
+                        ? '...'
+                        : cambioUnlimitedPendiente
+                          ? 'Fijar monto acordado'
+                          : 'Fijar monto y activar'}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })()}
 
             <View style={styles.peligroBloque}>
               {eliminandoOperadorId === op.id ? (

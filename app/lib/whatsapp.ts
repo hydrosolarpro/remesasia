@@ -52,6 +52,17 @@ export function construirEnlaceWhatsAppSinDestino(mensaje: string): string {
   return `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
 }
 
+// Número de WhatsApp del administrador/dueño del SaaS (el mismo que usan
+// las landings de venta, ver NUMERO_VENTAS en
+// remesas-perú-venezuela/src/components/ModalCalificacion.tsx). Se usa
+// para que un Operador Perú consulte directamente la tarifa del plan
+// UNLIMITED, que no tiene precio fijo.
+export const NUMERO_ADMIN_WHATSAPP = '51960442025';
+
+export function construirEnlaceWhatsAppAdmin(mensaje: string): string {
+  return `https://wa.me/${NUMERO_ADMIN_WHATSAPP}?text=${encodeURIComponent(mensaje)}`;
+}
+
 // Mensaje de confirmación enviado automáticamente al validar un depósito
 // (tanto el de Perú -> cliente, como el de Venezuela -> beneficiario): el
 // mismo texto para ambos casos, a pedido explícito del negocio.

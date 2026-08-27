@@ -68,13 +68,12 @@ export default function Perfil() {
   const [miVe, setMiVe] = useState<OperadorVenezuelaPerfil | null>(null);
 
   const [solicitandoPlan, setSolicitandoPlan] = useState<string | null>(null);
-  const [eligiendoPlanCambio, setEligiendoPlanCambio] = useState(false);
   const { planInicio, cambioPendiente } = useEstadoPlanNegocio(negocioId);
   // Plan que el Operador principal eligió y ya envió a pagar (pendiente de
   // que el administrador lo verifique) -- se muestra aparte de "TU PLAN"
   // (el plan vigente) para que quede claro cuál es el plan que eligió
   // mientras el administrador todavía no lo confirma.
-  const [pagoPeriodoActual, setPagoPeriodoActual] = useState<{ periodo: string; monto: number; estado: string } | null>(null);
+  const [pagoPeriodoActual, setPagoPeriodoActual] = useState<{ periodo: string; monto: number; monto_por_definir: boolean; estado: string } | null>(null);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -97,11 +96,11 @@ export default function Perfil() {
       const periodo = new Date().toISOString().slice(0, 7);
       const { data: pago } = await supabase
         .from('pagos_suscripcion')
-        .select('periodo, monto, estado')
+        .select('periodo, monto, monto_por_definir, estado')
         .eq('operador_peru_id', usuario.id)
         .eq('periodo', periodo)
         .maybeSingle();
-      setPagoPeriodoActual(pago as { periodo: string; monto: number; estado: string } | null);
+      setPagoPeriodoActual(pago as { periodo: string; monto: number; monto_por_definir: boolean; estado: string } | null);
     } else if (ctx.tipo === 'miembro' && ctx.miembroId) {
       cargarMiembro(ctx.miembroId, ctx.negocioId);
     }
@@ -384,8 +383,9 @@ export default function Perfil() {
           {pagoPeriodoActual?.estado === 'pendiente' && (
             <View style={styles.solicitudPendienteBox}>
               <Text style={styles.solicitudPendienteTexto}>
-                Elegiste el plan {planLabel(planDesdeMonto(pagoPeriodoActual.monto))} (S/ {pagoPeriodoActual.monto.toFixed(2)}) —
-                pendiente de verificación del administrador.
+                {pagoPeriodoActual.monto_por_definir
+                  ? 'Consultaste el plan UNLIMITED — en breve el administrador te confirmará el monto acordado por WhatsApp.'
+                  : `Elegiste el plan ${planLabel(planDesdeMonto(pagoPeriodoActual.monto))} (S/ ${pagoPeriodoActual.monto.toFixed(2)}) — pendiente de verificación del administrador.`}
               </Text>
             </View>
           )}
@@ -404,44 +404,29 @@ export default function Perfil() {
           )}
 
           {/* Aviso de renovación: aparece los últimos DIAS_AVISO_RENOVACION
-              días del ciclo, y solo si no hay ya un cambio en camino. */}
+              días del ciclo, y solo si no hay ya un cambio en camino.
+              "Cambiar de plan" más abajo ya lista TODOS los planes
+              disponibles, así que acá solo queda el atajo de renovar el
+              mismo. */}
           {usuario.plan !== 'demo' && !cambioPendiente && debeAvisarRenovacion(planInicio) && (
             <View style={styles.avisoRenovacionBox}>
               <Text style={styles.avisoRenovacionTitulo}>
                 Tu plan vence en {diasRestantesPlanPagado(planInicio)} día{diasRestantesPlanPagado(planInicio) === 1 ? '' : 's'}
               </Text>
               <Text style={styles.avisoRenovacionTexto}>Renueva o cambia de plan para seguir sin interrupciones.</Text>
-              <View style={styles.avisoRenovacionBotones}>
-                <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(usuario.plan)}>
-                  <Text style={styles.metaSolicitarBtnTexto}>Renovar el mismo plan →</Text>
-                </Pressable>
-                <Pressable style={styles.metaSolicitarBtnOutline} onPress={() => setEligiendoPlanCambio((v) => !v)}>
-                  <Text style={styles.metaSolicitarBtnOutlineTexto}>Cambiar a otro plan →</Text>
-                </Pressable>
-              </View>
-              {eligiendoPlanCambio && (
-                <View style={styles.selectorPlanCambio}>
-                  {ORDEN_PLANES.filter((p) => p !== 'demo' && p !== usuario.plan).map((p) => (
-                    <Pressable
-                      key={p}
-                      style={styles.selectorPlanCambioOpcion}
-                      onPress={() => {
-                        setSolicitandoPlan(p);
-                        setEligiendoPlanCambio(false);
-                      }}
-                    >
-                      <Text style={styles.selectorPlanCambioTexto}>{planLabel(p)}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
+              <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(usuario.plan)}>
+                <Text style={styles.metaSolicitarBtnTexto}>Renovar el mismo plan →</Text>
+              </Pressable>
             </View>
           )}
 
-          {siguientesPlanes(usuario.plan).length > 0 && (
+          {/* Cualquier operador puede solicitar cualquier plan por encima
+              del que tiene, en cualquier momento -- no solo el siguiente
+              nivel ni solo cerca del vencimiento. */}
+          {siguientesPlanes(usuario.plan, ORDEN_PLANES.length).length > 0 && (
             <View style={styles.metaBloque}>
-              <Text style={styles.metaTitulo}>Próxima Meta</Text>
-              {siguientesPlanes(usuario.plan).map((planSiguiente) => {
+              <Text style={styles.metaTitulo}>Cambiar de plan</Text>
+              {siguientesPlanes(usuario.plan, ORDEN_PLANES.length).map((planSiguiente) => {
                 const limites = obtenerLimitesPlan(planSiguiente);
                 return (
                   <View key={planSiguiente} style={styles.metaFila}>
@@ -471,6 +456,7 @@ export default function Perfil() {
                 </Pressable>
               </View>
               <FormularioSolicitudPlan
+                key={solicitandoPlan}
                 plan={solicitandoPlan}
                 modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
                 onEnviado={() => {
@@ -844,25 +830,6 @@ const styles = StyleSheet.create({
   },
   avisoRenovacionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   avisoRenovacionTexto: { color: colors.textMuted, fontSize: 14, lineHeight: 18 },
-  avisoRenovacionBotones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  metaSolicitarBtnOutline: {
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  metaSolicitarBtnOutlineTexto: { color: colors.primary, fontWeight: '700', fontSize: 14 },
-  selectorPlanCambio: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  selectorPlanCambioOpcion: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: colors.cardAlt,
-  },
-  selectorPlanCambioTexto: { color: colors.text, fontWeight: '700', fontSize: 13 },
   metaBloque: { marginTop: 8, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   metaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   metaFila: {
