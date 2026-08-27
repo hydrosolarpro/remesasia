@@ -33,6 +33,7 @@ export default function ClientesRegistrados() {
   const [errorEnlace, setErrorEnlace] = useState<string | null>(null);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [planNegocio, setPlanNegocio] = useState('demo');
+  const [limiteClientesUnlimited, setLimiteClientesUnlimited] = useState<number | null>(null);
   const [miembros, setMiembros] = useState<OperadorPeruMiembro[]>([]);
   const [derivandoCliente, setDerivandoCliente] = useState<Usuario | null>(null);
   const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
@@ -48,8 +49,9 @@ export default function ClientesRegistrados() {
       setEsPrincipal(ctx.tipo === 'principal');
       // El cupo de clientes es del negocio (dueño), no de la sesión actual
       // -- un miembro de equipo no tiene su propio "plan".
-      const { data: principalData } = await supabase.from('usuarios').select('plan').eq('id', ctx.negocioId).maybeSingle();
+      const { data: principalData } = await supabase.from('usuarios').select('plan, limite_clientes_unlimited').eq('id', ctx.negocioId).maybeSingle();
       if (principalData?.plan) setPlanNegocio(principalData.plan);
+      setLimiteClientesUnlimited(principalData?.limite_clientes_unlimited ?? null);
     });
   }, [usuario]);
 
@@ -275,7 +277,7 @@ export default function ClientesRegistrados() {
         <Text style={styles.cardTitulo}>Cupo de clientes</Text>
         <Text style={styles.cardTexto}>
           {(() => {
-            const cupo = obtenerLimiteClientes(planNegocio);
+            const cupo = obtenerLimiteClientes(planNegocio, limiteClientesUnlimited);
             if (cupo === Infinity) return `${clientes.length} clientes — plan ${planNegocio.toUpperCase()} sin límite.`;
             return `${clientes.length} de ${cupo} clientes usados — te quedan ${Math.max(0, cupo - clientes.length)} cupos.`;
           })()}

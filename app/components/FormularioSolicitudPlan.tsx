@@ -22,6 +22,7 @@ type FormaPago = 'yape' | 'transferencia';
 // con un monto que el cliente todavía no conoce.
 function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onEnviado?: () => void }) {
   const { usuario, refreshUsuario } = useAuth();
+  const [cupoSolicitado, setCupoSolicitado] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enviado, setEnviado] = useState(false);
@@ -30,6 +31,11 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
 
   const consultarPorWhatsApp = async () => {
     setError(null);
+    const cupo = parseInt(cupoSolicitado, 10);
+    if (!cupo || cupo <= 0) {
+      setError('Indica cuántos clientes necesitas atender.');
+      return;
+    }
     setEnviando(true);
     try {
       if (modo === 'nueva') {
@@ -39,6 +45,7 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
             periodo: periodoActual(),
             monto: 0,
             monto_por_definir: true,
+            limite_clientes: cupo,
             comprobante_url: null,
             estado: 'pendiente',
           },
@@ -51,6 +58,7 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
           plan_solicitado: 'unlimited',
           monto: 0,
           monto_por_definir: true,
+          limite_clientes: cupo,
           comprobante_url: null,
           estado: 'pendiente',
         });
@@ -62,7 +70,7 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
         }
       }
 
-      const mensaje = `Hola! Soy ${usuario.nombre} (${usuario.email}). Quiero consultar la tarifa del plan UNLIMITED para mi negocio en Remesas PERÚ-VENEZUELA.`;
+      const mensaje = `Hola! Soy ${usuario.nombre} (${usuario.email}). Quiero consultar la tarifa del plan UNLIMITED para mi negocio en Remesas PERÚ-VENEZUELA -- necesito atender hasta ${cupo} clientes.`;
       Linking.openURL(construirEnlaceWhatsAppAdmin(mensaje));
       await refreshUsuario();
       setEnviado(true);
@@ -80,9 +88,18 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
         <Text style={styles.seccionTitulo}>Plan UNLIMITED</Text>
         <Text style={styles.avisoTexto}>
           El plan UNLIMITED no tiene una tarifa fija: se acuerda directamente con el administrador según el volumen de tu
-          negocio. Toca el botón para consultarlo por WhatsApp -- quedará registrado en tu perfil como "a consultar" hasta
-          que el administrador te confirme el monto.
+          negocio. Indica cuántos clientes necesitas atender y toca el botón para consultarlo por WhatsApp -- quedará
+          registrado en tu perfil como "a consultar" hasta que el administrador te confirme el monto y el cupo.
         </Text>
+        <Text style={styles.label}>¿Cuántos clientes necesitas atender?</Text>
+        <TextInput
+          style={styles.input}
+          value={cupoSolicitado}
+          onChangeText={setCupoSolicitado}
+          keyboardType="numeric"
+          placeholder="Ej: 2000"
+          placeholderTextColor={colors.textMuted}
+        />
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}

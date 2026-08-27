@@ -34,6 +34,7 @@ interface Pago {
   estado: 'pendiente' | 'verificado' | 'rechazado';
   monto: number;
   monto_por_definir: boolean;
+  limite_clientes: number | null;
   comprobante_url: string | null;
 }
 
@@ -42,6 +43,7 @@ interface CambioPendienteFila {
   plan_solicitado: string;
   monto: number;
   monto_por_definir: boolean;
+  limite_clientes: number | null;
   comprobante_url: string | null;
   estado: 'pendiente' | 'verificado';
 }
@@ -73,6 +75,7 @@ interface OperadorFila {
   plan: PlanOperador;
   demo_inicio: string | null;
   plan_inicio: string | null;
+  limite_clientes_unlimited: number | null;
   perfil_negocio: { nombre_negocio: string } | null;
   pagos_suscripcion: Pago[];
   totalClientes: number;
@@ -114,6 +117,10 @@ export default function PanelControl() {
   const [demoExtendido, setDemoExtendido] = useState<Record<string, string>>({});
   const [calendarioDemoAbierto, setCalendarioDemoAbierto] = useState<string | null>(null);
   const [montosUnlimited, setMontosUnlimited] = useState<Record<string, string>>({});
+  const [limitesClientesUnlimited, setLimitesClientesUnlimited] = useState<Record<string, string>>({});
+  // Comprobantes colapsados por defecto (ver comprobantesAbiertos más
+  // abajo) -- evita ocupar espacio de la tarjeta en la lista completa.
+  const [comprobantesAbiertos, setComprobantesAbiertos] = useState<Record<string, boolean>>({});
   // Renovación/cambio de plan ya pagado, todavía sin activarse -- a lo
   // más uno abierto por operador (ver cambios_plan_pendientes).
   const [cambiosPendientes, setCambiosPendientes] = useState<Record<string, CambioPendienteFila>>({});
@@ -141,7 +148,7 @@ export default function PanelControl() {
     const { data, error } = await supabase
       .from('usuarios')
       .select(
-        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, plan_inicio, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto, monto_por_definir, comprobante_url)'
+        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, plan_inicio, limite_clientes_unlimited, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto, monto_por_definir, limite_clientes, comprobante_url)'
       )
       .eq('rol', 'operador_peru')
       .order('created_at', { ascending: false });
@@ -149,7 +156,7 @@ export default function PanelControl() {
 
     const { data: cambios } = await supabase
       .from('cambios_plan_pendientes')
-      .select('id, operador_peru_id, plan_solicitado, monto, monto_por_definir, comprobante_url, estado')
+      .select('id, operador_peru_id, plan_solicitado, monto, monto_por_definir, limite_clientes, comprobante_url, estado')
       .neq('estado', 'rechazado')
       .is('activado_at', null);
     const mapaCambios: Record<string, CambioPendienteFila> = {};
@@ -159,6 +166,7 @@ export default function PanelControl() {
         plan_solicitado: c.plan_solicitado,
         monto: c.monto,
         monto_por_definir: c.monto_por_definir,
+        limite_clientes: c.limite_clientes,
         comprobante_url: c.comprobante_url,
         estado: c.estado as 'pendiente' | 'verificado',
       };
@@ -244,7 +252,7 @@ export default function PanelControl() {
     return () => clearInterval(id);
   }, [cargar]);
 
-  const validarPago = async (pagoId: string, operadorId: string, monto: number) => {
+  const validarPago = async (pagoId: string, operadorId: string, monto: number, limiteClientes: number | null) => {
     setProcesando(pagoId);
     const { data: usuarioAuth } = await supabase.auth.getUser();
     const { error: errorPago } = await supabase
@@ -259,7 +267,12 @@ export default function PanelControl() {
     const plan = planDesdeMonto(monto);
     const { error: errorPlan } = await supabase
       .from('usuarios')
-      .update({ plan, acceso_concedido: true, plan_inicio: new Date().toISOString() })
+      .update({
+        plan,
+        acceso_concedido: true,
+        plan_inicio: new Date().toISOString(),
+        ...(plan === 'unlimited' ? { limite_clientes_unlimited: limiteClientes } : {}),
+      })
       .eq('id', operadorId);
     setProcesando(null);
     if (errorPlan) {
@@ -313,17 +326,29 @@ export default function PanelControl() {
   // cubren INSERT y el UPDATE puntual de rechazar/reenviar, no "admin
   // fija el monto sobre una fila pendiente" -- un UPDATE de cliente ahí
   // quedaba bloqueado en silencio (0 filas, sin error).
-  const fijarPrecioUnlimited = async (op: OperadorFila) => {
+  // `limiteClientesPrecargado`: lo que el operador pidió al consultar (ver
+  // SolicitudUnlimited) -- si el admin no tocó el campo (lo dejó con el
+  // valor precargado que se ve en pantalla), hay que usar igual ese
+  // número en vez de perderlo por no estar en el estado local todavía.
+  const fijarPrecioUnlimited = async (op: OperadorFila, limiteClientesPrecargado: number | null) => {
     const monto = parseFloat(montosUnlimited[op.id]);
     if (!monto || monto <= 0) return;
+    const limiteTexto = limitesClientesUnlimited[op.id];
+    const limite = limiteTexto ? parseInt(limiteTexto, 10) : limiteClientesPrecargado;
+    if (limiteTexto && (!limite || limite <= 0)) return;
     setProcesando(`${op.id}_unlimited`);
-    const { error } = await supabase.rpc('admin_fijar_precio_unlimited', { p_operador_id: op.id, p_monto: monto });
+    const { error } = await supabase.rpc('admin_fijar_precio_unlimited', {
+      p_operador_id: op.id,
+      p_monto: monto,
+      p_limite_clientes: limite,
+    });
     setProcesando(null);
     if (error) {
       Alert.alert('No se pudo fijar el monto UNLIMITED', error.message);
       return;
     }
     setMontosUnlimited((prev) => ({ ...prev, [op.id]: '' }));
+    setLimitesClientesUnlimited((prev) => ({ ...prev, [op.id]: '' }));
     cargar();
   };
 
@@ -527,7 +552,7 @@ export default function PanelControl() {
         const { pagoPeriodo, planActual, planMonto } = calcularPlanActual(op);
         const esDemo = op.plan === 'demo' || planActual === 'demo';
         const extendido = demoExtendido[op.id];
-        const cupoClientes = obtenerLimiteClientes(planActual);
+        const cupoClientes = obtenerLimiteClientes(planActual, op.limite_clientes_unlimited);
 
         return (
           <View key={op.id} style={[styles.fila, cardShadow]}>
@@ -573,10 +598,20 @@ export default function PanelControl() {
                     <>
                       <Text style={styles.planSolicitado}>
                         {pagoPeriodo.monto_por_definir
-                          ? 'Quiere el plan UNLIMITED — contáctalo por WhatsApp para acordar la tarifa'
+                          ? `Quiere el plan UNLIMITED${pagoPeriodo.limite_clientes ? ` para hasta ${pagoPeriodo.limite_clientes} clientes` : ''} — contáctalo por WhatsApp para acordar la tarifa`
                           : `Eligió ${planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ ${pagoPeriodo.monto.toFixed(2)}) — pendiente de verificar`}
                       </Text>
                       {pagoPeriodo.comprobante_url && (
+                        <Pressable
+                          style={styles.comprobanteToggleBtn}
+                          onPress={() => setComprobantesAbiertos((prev) => ({ ...prev, [pagoPeriodo.id]: !prev[pagoPeriodo.id] }))}
+                        >
+                          <Text style={styles.comprobanteToggleTexto}>
+                            {comprobantesAbiertos[pagoPeriodo.id] ? '▲ Ocultar comprobante' : '▼ Ver comprobante'}
+                          </Text>
+                        </Pressable>
+                      )}
+                      {pagoPeriodo.comprobante_url && comprobantesAbiertos[pagoPeriodo.id] && (
                         <Pressable onPress={() => setZoomUri(pagoPeriodo.comprobante_url)}>
                           <Image source={{ uri: pagoPeriodo.comprobante_url }} style={styles.comprobanteThumb} resizeMode="cover" />
                           <Text style={styles.comprobanteVerTexto}>🔍 Toca para verlo completo</Text>
@@ -598,12 +633,24 @@ export default function PanelControl() {
                               op.plan_inicio ? formatearFechaHora(fechaFinPlanPagado(op.plan_inicio).toISOString()) : '—'
                             }`
                           : cambiosPendientes[op.id].monto_por_definir
-                            ? 'Quiere el plan UNLIMITED — contáctalo por WhatsApp para acordar la tarifa'
+                            ? `Quiere el plan UNLIMITED${cambiosPendientes[op.id].limite_clientes ? ` para hasta ${cambiosPendientes[op.id].limite_clientes} clientes` : ''} — contáctalo por WhatsApp para acordar la tarifa`
                             : !cambiosPendientes[op.id].comprobante_url
-                              ? `Tarifa UNLIMITED fijada (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — esperando que pague`
+                              ? `Tarifa UNLIMITED fijada (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}${cambiosPendientes[op.id].limite_clientes ? ` · hasta ${cambiosPendientes[op.id].limite_clientes} clientes` : ''}) — esperando que pague`
                               : `Eligió ${planLabel(cambiosPendientes[op.id].plan_solicitado)} (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — pendiente de verificar`}
                       </Text>
                       {cambiosPendientes[op.id].comprobante_url && (
+                        <Pressable
+                          style={styles.comprobanteToggleBtn}
+                          onPress={() =>
+                            setComprobantesAbiertos((prev) => ({ ...prev, [cambiosPendientes[op.id].id]: !prev[cambiosPendientes[op.id].id] }))
+                          }
+                        >
+                          <Text style={styles.comprobanteToggleTexto}>
+                            {comprobantesAbiertos[cambiosPendientes[op.id].id] ? '▲ Ocultar comprobante' : '▼ Ver comprobante'}
+                          </Text>
+                        </Pressable>
+                      )}
+                      {cambiosPendientes[op.id].comprobante_url && comprobantesAbiertos[cambiosPendientes[op.id].id] && (
                         <Pressable onPress={() => setZoomUri(cambiosPendientes[op.id].comprobante_url)}>
                           <Image source={{ uri: cambiosPendientes[op.id].comprobante_url! }} style={styles.comprobanteThumb} resizeMode="cover" />
                           <Text style={styles.comprobanteVerTexto}>🔍 Toca para verlo completo</Text>
@@ -669,7 +716,7 @@ export default function PanelControl() {
                   checked={pagoPeriodo?.estado === 'verificado'}
                   disabled={!pagoPeriodo || pagoPeriodo.estado !== 'pendiente' || pagoPeriodo.monto_por_definir || !pagoPeriodo.comprobante_url}
                   loading={procesando === pagoPeriodo?.id}
-                  onPress={() => pagoPeriodo && validarPago(pagoPeriodo.id, op.id, pagoPeriodo.monto)}
+                  onPress={() => pagoPeriodo && validarPago(pagoPeriodo.id, op.id, pagoPeriodo.monto, pagoPeriodo.limite_clientes)}
                 />
                 <Text style={styles.checkEstado}>
                   {!pagoPeriodo
@@ -732,24 +779,40 @@ export default function PanelControl() {
               // arriba lo confirman.
               const yaFijado = planActual === 'unlimited' || cambiosPendientes[op.id]?.plan_solicitado === 'unlimited';
               const etiquetaBoton = yaFijado ? 'Actualizar monto' : 'Fijar plan UNLIMITED';
+              // Precarga con lo que el operador pidió al consultar (ver
+              // SolicitudUnlimited) -- el admin puede tocarlo antes de fijar.
+              const cupoSolicitado = pagoPeriodo?.limite_clientes ?? cambiosPendientes[op.id]?.limite_clientes ?? null;
               return (
-                <View style={styles.unlimitedRow}>
-                  <Text style={styles.unlimitedLabel}>Plan UNLIMITED — monto (S/):</Text>
-                  <TextInput
-                    style={styles.unlimitedInput}
-                    value={montosUnlimited[op.id] ?? ''}
-                    onChangeText={(t) => setMontosUnlimited((prev) => ({ ...prev, [op.id]: t }))}
-                    keyboardType="numeric"
-                    placeholder="Ej: 1500"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                  <Pressable
-                    style={styles.unlimitedBtn}
-                    onPress={() => fijarPrecioUnlimited(op)}
-                    disabled={procesando === `${op.id}_unlimited` || !montosUnlimited[op.id]}
-                  >
-                    <Text style={styles.unlimitedBtnTexto}>{procesando === `${op.id}_unlimited` ? '...' : etiquetaBoton}</Text>
-                  </Pressable>
+                <View style={styles.unlimitedBloque}>
+                  <View style={styles.unlimitedRow}>
+                    <Text style={styles.unlimitedLabel}>Plan UNLIMITED — monto (S/):</Text>
+                    <TextInput
+                      style={styles.unlimitedInput}
+                      value={montosUnlimited[op.id] ?? ''}
+                      onChangeText={(t) => setMontosUnlimited((prev) => ({ ...prev, [op.id]: t }))}
+                      keyboardType="numeric"
+                      placeholder="Ej: 1500"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  <View style={styles.unlimitedRow}>
+                    <Text style={styles.unlimitedLabel}>Límite de clientes:</Text>
+                    <TextInput
+                      style={styles.unlimitedInput}
+                      value={limitesClientesUnlimited[op.id] ?? (cupoSolicitado ? String(cupoSolicitado) : '')}
+                      onChangeText={(t) => setLimitesClientesUnlimited((prev) => ({ ...prev, [op.id]: t }))}
+                      keyboardType="numeric"
+                      placeholder="Ej: 2000"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                    <Pressable
+                      style={styles.unlimitedBtn}
+                      onPress={() => fijarPrecioUnlimited(op, cupoSolicitado)}
+                      disabled={procesando === `${op.id}_unlimited` || !montosUnlimited[op.id]}
+                    >
+                      <Text style={styles.unlimitedBtnTexto}>{procesando === `${op.id}_unlimited` ? '...' : etiquetaBoton}</Text>
+                    </Pressable>
+                  </View>
                 </View>
               );
             })()}
@@ -868,6 +931,8 @@ const styles = StyleSheet.create({
   planSolicitado: { color: colors.warning, fontSize: 12, fontWeight: '700' },
   comprobanteThumb: { width: '100%', height: 140, borderRadius: radius.sm, backgroundColor: colors.cardAlt, marginTop: 6 },
   comprobanteVerTexto: { color: colors.accent, fontWeight: '700', fontSize: 12, textAlign: 'center', marginTop: 4 },
+  comprobanteToggleBtn: { alignSelf: 'flex-start', marginTop: 4 },
+  comprobanteToggleTexto: { color: colors.accent, fontWeight: '700', fontSize: 12 },
   planFechas: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   cambioEnColaBox: {
     marginTop: 4,
@@ -908,7 +973,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   calendarioDemoTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  unlimitedRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  unlimitedBloque: { gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  unlimitedRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   unlimitedLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
   unlimitedInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, color: colors.text, fontSize: 16, backgroundColor: colors.cardAlt, maxWidth: 100 },
   unlimitedBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },

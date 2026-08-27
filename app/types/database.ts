@@ -29,6 +29,8 @@ export interface Usuario {
   demo_inicio: string | null;
   /** Momento exacto en que se activó el plan pagado vigente -- ancla su ciclo de 30 días (ver lib/plan.ts). */
   plan_inicio: string | null;
+  /** Solo plan 'unlimited': cupo de clientes acordado con el administrador (sin esto, sin límite -- ver lib/plan.ts). */
+  limite_clientes_unlimited: number | null;
   created_at: string;
   /** Notificaciones automáticas por Telegram (rol 'cliente'): ver perfil del cliente. */
   telegram_chat_id: string | null;

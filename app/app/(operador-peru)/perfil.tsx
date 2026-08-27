@@ -77,14 +77,29 @@ export default function Perfil() {
     periodo: string;
     monto: number;
     monto_por_definir: boolean;
+    limite_clientes: number | null;
     comprobante_url: string | null;
     estado: string;
+    motivo_rechazo: string | null;
   } | null>(null);
   // Monto mensual que el administrador fijó para el plan UNLIMITED (no
   // tiene tarifa fija -- ver FormularioSolicitudPlan/panel-control.tsx).
   // Se toma del último pago verificado, igual que precioPlanOperador() del
   // lado del admin, para que el operador vea el mismo monto acordado.
   const [montoUnlimitedActual, setMontoUnlimitedActual] = useState<number | null>(null);
+  // El hook useEstadoPlanNegocio (cambioPendiente) excluye a propósito las
+  // filas 'rechazado' -- para poder avisarle al operador que su pago de
+  // UNLIMITED fue rechazado (y que vuelva a subirlo) hace falta esta
+  // consulta aparte, que sí las incluye.
+  const [cambioUnlimitedFila, setCambioUnlimitedFila] = useState<{
+    id: string;
+    monto: number;
+    monto_por_definir: boolean;
+    limite_clientes: number | null;
+    comprobante_url: string | null;
+    estado: string;
+    motivo_rechazo: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -107,13 +122,25 @@ export default function Perfil() {
       const periodo = new Date().toISOString().slice(0, 7);
       const { data: pago } = await supabase
         .from('pagos_suscripcion')
-        .select('periodo, monto, monto_por_definir, comprobante_url, estado')
+        .select('periodo, monto, monto_por_definir, limite_clientes, comprobante_url, estado, motivo_rechazo')
         .eq('operador_peru_id', usuario.id)
         .eq('periodo', periodo)
         .maybeSingle();
-      setPagoPeriodoActual(
-        pago as { periodo: string; monto: number; monto_por_definir: boolean; comprobante_url: string | null; estado: string } | null
-      );
+      setPagoPeriodoActual(pago as typeof pagoPeriodoActual);
+
+      // Última solicitud de UNLIMITED por cambios_plan_pendientes (incluye
+      // 'rechazado', a diferencia de cambioPendiente del hook) -- para
+      // poder avisar el rechazo y ofrecer reenviar el comprobante.
+      const { data: cambioUnlimited } = await supabase
+        .from('cambios_plan_pendientes')
+        .select('id, monto, monto_por_definir, limite_clientes, comprobante_url, estado, motivo_rechazo')
+        .eq('operador_peru_id', usuario.id)
+        .eq('plan_solicitado', 'unlimited')
+        .is('activado_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setCambioUnlimitedFila(cambioUnlimited as typeof cambioUnlimitedFila);
 
       if (usuario.plan === 'unlimited') {
         const { data: ultimoPago } = await supabase
@@ -340,29 +367,38 @@ export default function Perfil() {
     );
   }
 
-  // El admin ya fijó la tarifa de UNLIMITED (consultada por WhatsApp,
-  // ver SolicitudUnlimited) pero todavía no hay comprobante subido -- toca
-  // completar el pago con el mismo formulario que cualquier otro plan.
-  // Puede venir de `pagos_suscripcion` (sin plan pagado vigente todavía) o
-  // de `cambios_plan_pendientes` (ya tenía un plan pagado y pidió cambiar).
-  const montoUnlimitedPorPagar =
-    pagoPeriodoActual &&
-    pagoPeriodoActual.estado === 'pendiente' &&
-    !pagoPeriodoActual.monto_por_definir &&
-    !pagoPeriodoActual.comprobante_url &&
-    planDesdeMonto(pagoPeriodoActual.monto) === 'unlimited'
-      ? pagoPeriodoActual.monto
-      : cambioPendiente &&
-          cambioPendiente.planSolicitado === 'unlimited' &&
-          cambioPendiente.estado === 'pendiente' &&
-          !cambioPendiente.montoPorDefinir &&
-          !cambioPendiente.comprobanteUrl
-        ? cambioPendiente.monto
-        : null;
+  // Estado de la solicitud de UNLIMITED del operador, sea por
+  // `pagos_suscripcion` (sin plan pagado vigente todavía) o por
+  // `cambios_plan_pendientes` (ya tenía un plan pagado y pidió cambiar).
+  // "Por pagar" cubre dos casos con el mismo CTA "Pagar ahora": el admin
+  // ya fijó el monto y todavía no hay comprobante, o el admin RECHAZÓ el
+  // comprobante anterior (el depósito no llegó) y hay que volver a
+  // subirlo -- en ambos casos se reusa el mismo formulario de pago.
+  const pagoEsUnlimited =
+    pagoPeriodoActual && !pagoPeriodoActual.monto_por_definir && planDesdeMonto(pagoPeriodoActual.monto) === 'unlimited';
+  const unlimitedInfo = (() => {
+    if (pagoEsUnlimited && pagoPeriodoActual) {
+      if (pagoPeriodoActual.estado === 'rechazado') {
+        return { porPagar: pagoPeriodoActual.monto, rechazado: true, motivo: pagoPeriodoActual.motivo_rechazo, limite: pagoPeriodoActual.limite_clientes };
+      }
+      if (pagoPeriodoActual.estado === 'pendiente' && !pagoPeriodoActual.comprobante_url) {
+        return { porPagar: pagoPeriodoActual.monto, rechazado: false, motivo: null, limite: pagoPeriodoActual.limite_clientes };
+      }
+    }
+    if (cambioUnlimitedFila && !cambioUnlimitedFila.monto_por_definir) {
+      if (cambioUnlimitedFila.estado === 'rechazado') {
+        return { porPagar: cambioUnlimitedFila.monto, rechazado: true, motivo: cambioUnlimitedFila.motivo_rechazo, limite: cambioUnlimitedFila.limite_clientes };
+      }
+      if (cambioUnlimitedFila.estado === 'pendiente' && !cambioUnlimitedFila.comprobante_url) {
+        return { porPagar: cambioUnlimitedFila.monto, rechazado: false, motivo: null, limite: cambioUnlimitedFila.limite_clientes };
+      }
+    }
+    return null;
+  })();
   // Solo para suprimir el aviso genérico de "cambio en camino" cuando ya
   // se muestra el CTA dedicado de UNLIMITED de abajo (evita el mensaje
   // duplicado).
-  const cambioUnlimitedPorPagar = cambioPendiente?.planSolicitado === 'unlimited' && montoUnlimitedPorPagar !== null;
+  const cambioUnlimitedPorPagar = cambioPendiente?.planSolicitado === 'unlimited' && unlimitedInfo !== null;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -419,6 +455,9 @@ export default function Perfil() {
         <View style={[styles.card, cardShadow, styles.planCardGrande]}>
           <Text style={styles.cardTitulo}>TU PLAN</Text>
           <Text style={styles.planNombreGrande}>{planLabel(usuario.plan, montoUnlimitedActual ?? undefined)}</Text>
+          {usuario.plan === 'unlimited' && usuario.limite_clientes_unlimited && (
+            <Text style={styles.cardTexto}>Cupo acordado: hasta {usuario.limite_clientes_unlimited} clientes.</Text>
+          )}
           <Text style={styles.cardTexto}>
             {usuario.plan === 'demo'
               ? `Quedan ${diasRestantesDemo(usuario.demo_inicio)} días${
@@ -429,19 +468,23 @@ export default function Perfil() {
                 : 'Esperando la verificación de tu primer pago.'}
           </Text>
 
-          {montoUnlimitedPorPagar !== null && (
+          {unlimitedInfo && (
             <View style={styles.avisoRenovacionBox}>
-              <Text style={styles.avisoRenovacionTitulo}>Tu plan UNLIMITED: S/ {montoUnlimitedPorPagar.toFixed(2)}/mes</Text>
+              <Text style={styles.avisoRenovacionTitulo}>
+                {unlimitedInfo.rechazado ? '⚠️ Tu pago de UNLIMITED fue rechazado' : `Tu plan UNLIMITED: S/ ${unlimitedInfo.porPagar.toFixed(2)}/mes`}
+              </Text>
               <Text style={styles.avisoRenovacionTexto}>
-                El administrador ya fijó tu tarifa acordada. Completa el pago para activarlo.
+                {unlimitedInfo.rechazado
+                  ? `El administrador no confirmó tu depósito de S/ ${unlimitedInfo.porPagar.toFixed(2)}${unlimitedInfo.motivo ? `: ${unlimitedInfo.motivo}` : ' -- revisa el monto y la cuenta.'} Vuelve a subir tu comprobante.`
+                  : `El administrador ya fijó tu tarifa acordada${unlimitedInfo.limite ? ` (hasta ${unlimitedInfo.limite} clientes)` : ''}. Completa el pago para activarlo.`}
               </Text>
               <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan('unlimited')}>
-                <Text style={styles.metaSolicitarBtnTexto}>Pagar ahora →</Text>
+                <Text style={styles.metaSolicitarBtnTexto}>{unlimitedInfo.rechazado ? 'Volver a subir comprobante →' : 'Pagar ahora →'}</Text>
               </Pressable>
             </View>
           )}
 
-          {montoUnlimitedPorPagar === null && pagoPeriodoActual?.estado === 'pendiente' && (
+          {!unlimitedInfo && pagoPeriodoActual?.estado === 'pendiente' && (
             <View style={styles.solicitudPendienteBox}>
               <Text style={styles.solicitudPendienteTexto}>
                 {pagoPeriodoActual.monto_por_definir
@@ -522,7 +565,7 @@ export default function Perfil() {
                 key={solicitandoPlan}
                 plan={solicitandoPlan}
                 modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
-                montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? (montoUnlimitedPorPagar ?? undefined) : undefined}
+                montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? (unlimitedInfo?.porPagar ?? undefined) : undefined}
                 onEnviado={() => {
                   setSolicitandoPlan(null);
                   cargarContexto();

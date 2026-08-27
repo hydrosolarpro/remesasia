@@ -68,12 +68,21 @@ export const LIMITES_PLAN: Record<string, { clientes: number; peru: number; vene
 // siguientes planes por encima del actual).
 export const ORDEN_PLANES = ['demo', 'starter', 'pro', 'expert', 'avance', 'ultra', 'unlimited'];
 
-export function obtenerLimitesPlan(plan: string) {
-  return LIMITES_PLAN[plan] ?? LIMITES_PLAN.demo;
+// `limiteClientesUnlimited`: cupo de clientes acordado caso por caso para
+// el plan UNLIMITED (no es literalmente ilimitado en la práctica del
+// negocio -- ver 0090_limite_clientes_unlimited.sql). Solo se usa cuando
+// plan === 'unlimited' y viene definido; el resto de los planes ignoran
+// este parámetro.
+export function obtenerLimitesPlan(plan: string, limiteClientesUnlimited?: number | null) {
+  const base = LIMITES_PLAN[plan] ?? LIMITES_PLAN.demo;
+  if (plan === 'unlimited' && limiteClientesUnlimited) {
+    return { ...base, clientes: limiteClientesUnlimited };
+  }
+  return base;
 }
 
-export function obtenerLimiteClientes(plan: string): number {
-  return obtenerLimitesPlan(plan).clientes;
+export function obtenerLimiteClientes(plan: string, limiteClientesUnlimited?: number | null): number {
+  return obtenerLimitesPlan(plan, limiteClientesUnlimited).clientes;
 }
 
 export function obtenerLimitesEquipo(plan: string): { peru: number; venezuela: number } {
