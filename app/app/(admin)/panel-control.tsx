@@ -405,7 +405,7 @@ export default function PanelControl() {
   // o simplemente no lo ha usado todavía.
   const reenviarInvitacion = (p: PendienteFila) => {
     const enlace = construirEnlaceInvitacion(p.token);
-    const mensaje = `Hola ${p.nombre}! Te recordamos tu acceso DEMO gratis de 7 días a Remesas PERÚ-VENEZUELA. Continúa con Google usando tu correo ${p.email}. Accede aquí: ${enlace}`;
+    const mensaje = `Hola !!! ${p.nombre}. Te recordamos tu acceso DEMO gratis de 7 días a Remesas PERÚ-VENEZUELA. Continúa con Google usando tu correo y usar tu propia contraseña de tu correo ${p.email}, Accede aquí: ${enlace}`;
     const enlaceWa = construirEnlaceWhatsAppGenerico(p.telefono, mensaje);
     if (!enlaceWa) {
       Alert.alert('Teléfono inválido', 'No se pudo armar el enlace de WhatsApp con el teléfono de este prospecto.');
