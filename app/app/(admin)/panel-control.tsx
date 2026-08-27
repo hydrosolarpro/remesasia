@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Alert, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { RoleTag } from '../../components/RoleTag';
 import { RoundCheck } from '../../components/RoundCheck';
 import { CalendarioDias } from '../../components/CalendarioFecha';
@@ -37,6 +39,23 @@ interface CambioPendienteFila {
   plan_solicitado: string;
   monto: number;
   estado: 'pendiente' | 'verificado';
+}
+
+// Prospecto que ya completó el formulario de la landing (y ya se le
+// generó su invitación de operador_peru) pero todavía no inició sesión
+// con Google -- por eso no existe su fila en `usuarios` todavía (ver
+// nota en 0087_invitaciones_vincula_prospecto.sql: no se fabrica esa
+// cuenta de antemano para no arriesgar que su login real choque después
+// con un correo "ya registrado").
+interface PendienteFila {
+  invitacionId: string;
+  token: string;
+  nombre: string;
+  email: string;
+  telefono: string;
+  puntaje: number;
+  calificado: boolean;
+  created_at: string;
 }
 
 interface OperadorFila {
@@ -84,6 +103,7 @@ function precioPlanOperador(op: OperadorFila, planActual: string): number {
 
 export default function PanelControl() {
   const [operadores, setOperadores] = useState<OperadorFila[]>([]);
+  const [pendientes, setPendientes] = useState<PendienteFila[]>([]);
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
   const [demoExtendido, setDemoExtendido] = useState<Record<string, string>>({});
@@ -155,6 +175,33 @@ export default function PanelControl() {
     (miembros ?? []).forEach((m) => {
       conteoPe[m.operador_peru_id] = (conteoPe[m.operador_peru_id] ?? 0) + 1;
     });
+
+    // Prospectos que ya completaron el formulario de la landing (con su
+    // invitación de operador_peru ya generada) pero todavía no inician
+    // sesión con Google -- por eso no aparecen en `operadores` (ver
+    // PendienteFila arriba).
+    const { data: pendientesData, error: errorPendientes } = await supabase
+      .from('invitaciones')
+      .select('id, token, created_at, prospectos(nombre, email, telefono, puntaje, calificado)')
+      .eq('tipo', 'operador_peru')
+      .is('usado_por', null)
+      .not('prospecto_id', 'is', null)
+      .order('created_at', { ascending: false });
+    if (errorPendientes) console.error('Error cargando pendientes:', errorPendientes.message);
+    setPendientes(
+      ((pendientesData as unknown as { id: string; token: string; created_at: string; prospectos: { nombre: string; email: string; telefono: string; puntaje: number; calificado: boolean } | null }[] | null) ?? [])
+        .filter((p) => p.prospectos)
+        .map((p) => ({
+          invitacionId: p.id,
+          token: p.token,
+          created_at: p.created_at,
+          nombre: p.prospectos!.nombre,
+          email: p.prospectos!.email,
+          telefono: p.prospectos!.telefono,
+          puntaje: p.prospectos!.puntaje,
+          calificado: p.prospectos!.calificado,
+        }))
+    );
 
     setOperadores(
       ((data as unknown as OperadorFila[] | null) ?? []).map((op) => ({
@@ -353,6 +400,20 @@ export default function PanelControl() {
     cargar();
   };
 
+  // Reenvía por WhatsApp el mismo enlace de acceso que el prospecto ya
+  // recibió al completar el formulario -- por si no le llegó, lo perdió,
+  // o simplemente no lo ha usado todavía.
+  const reenviarInvitacion = (p: PendienteFila) => {
+    const enlace = construirEnlaceInvitacion(p.token);
+    const mensaje = `Hola ${p.nombre}! Te recordamos tu acceso DEMO gratis de 7 días a Remesas PERÚ-VENEZUELA. Continúa con Google usando tu correo ${p.email}. Accede aquí: ${enlace}`;
+    const enlaceWa = construirEnlaceWhatsAppGenerico(p.telefono, mensaje);
+    if (!enlaceWa) {
+      Alert.alert('Teléfono inválido', 'No se pudo armar el enlace de WhatsApp con el teléfono de este prospecto.');
+      return;
+    }
+    Linking.openURL(enlaceWa);
+  };
+
   const totalOperadores = operadores.length;
   const totalClientesGlobal = operadores.reduce((acc, op) => acc + op.totalClientes, 0);
   const totalVenezuelaGlobal = operadores.reduce((acc, op) => acc + op.totalVenezuela, 0);
@@ -433,6 +494,32 @@ export default function PanelControl() {
           </View>
         </View>
       </View>
+
+      {pendientes.length > 0 && (
+        <View style={[styles.resumen, cardShadow]}>
+          <Text style={styles.resumenTitulo}>Prospectos pendientes de activar ({pendientes.length})</Text>
+          <Text style={styles.pendienteAyuda}>
+            Ya completaron el formulario de la landing y tienen su enlace de acceso, pero todavía no inician sesión
+            con Google -- por eso no aparecen abajo como operadores.
+          </Text>
+          {pendientes.map((p) => (
+            <View key={p.invitacionId} style={styles.pendienteFila}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.nombre}>{p.nombre}</Text>
+                <Text style={styles.dato}>{p.email}</Text>
+                <Text style={styles.dato}>{p.telefono}</Text>
+                <Text style={styles.fecha}>
+                  {p.calificado ? '✓ Calificado' : '— No calificado'} · {p.puntaje} pts · Registrado el{' '}
+                  {new Date(p.created_at).toLocaleDateString('es-PE')}
+                </Text>
+              </View>
+              <Pressable style={styles.reenviarBtn} onPress={() => reenviarInvitacion(p)}>
+                <Text style={styles.reenviarBtnTexto}>💬 Reenviar enlace</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
 
       {operadores.map((op, i) => {
         const { pagoPeriodo, planActual, planMonto } = calcularPlanActual(op);
@@ -702,6 +789,18 @@ const styles = StyleSheet.create({
   desglosePlan: { color: colors.text, fontSize: 13, fontWeight: '800', width: 90 },
   desgloseDato: { color: colors.textMuted, fontSize: 13, flex: 1, minWidth: 140 },
   desgloseSubtotal: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  pendienteAyuda: { color: colors.textMuted, fontSize: 13, lineHeight: 17, marginTop: -4 },
+  pendienteFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 10,
+    marginTop: 4,
+  },
+  reenviarBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
+  reenviarBtnTexto: { color: colors.text, fontSize: 13, fontWeight: '700' },
   fila: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 2 },
   filaHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   numero: { color: colors.textMuted, fontSize: 14, fontWeight: '800' },

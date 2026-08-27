@@ -30,19 +30,19 @@ const LANDING_BASE_URL = (
   process.env.EXPO_PUBLIC_LANDING_BASE_URL ?? 'https://remesas-per-venezuela-env-oya.ai.studio'
 ).trim();
 
-export async function crearInvitacion(tipo: TipoInvitacion, negocioOperadorPeruId?: string) {
-  const { data: usuario } = await supabase.auth.getUser();
-  const { data, error } = await supabase
-    .from('invitaciones')
-    .insert({
-      tipo,
-      negocio_operador_peru_id: tipo === 'cliente' ? negocioOperadorPeruId : null,
-      creado_por: usuario.user!.id,
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+// Landing de captación de OPERADORES (remesas-perú-venezuela/, proyecto
+// "remesas-peru-venezuela-saas" en Vercel) -- distinta de LANDING_BASE_URL
+// de arriba, que es la de captación de CLIENTES ("envíoya"). El admin
+// comparte este enlace fijo (sin token) desde (admin)/index.tsx: quien lo
+// abre completa ahí el cuestionario de calificación y ahí mismo
+// registrar_prospecto() le arma su invitación y acceso -- ver
+// ModalCalificacion.tsx de esa landing.
+const OPERADOR_LANDING_BASE_URL = (
+  process.env.EXPO_PUBLIC_OPERADOR_LANDING_BASE_URL ?? 'https://remesas-peru-venezuela-saas.vercel.app'
+).trim();
+
+export function construirEnlaceLandingOperador() {
+  return OPERADOR_LANDING_BASE_URL;
 }
 
 // El enlace de clientes es único y reutilizable por operador: si ya existe

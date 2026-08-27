@@ -4,7 +4,7 @@ import { useFocusEffect, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { crearInvitacion, construirEnlaceInvitacion } from '../../lib/invitaciones';
+import { construirEnlaceLandingOperador } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
 import { planDesdeMonto } from '../../lib/plan';
 import { RoleTag } from '../../components/RoleTag';
@@ -37,8 +37,11 @@ export default function PanelAdmin() {
   const [pagosPendientes, setPagosPendientes] = useState<PagoPendiente[]>([]);
   const [config, setConfig] = useState<ConfiguracionPagosAdmin | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [enlaceInvitacion, setEnlaceInvitacion] = useState<string | null>(null);
-  const [generandoInvitacion, setGenerandoInvitacion] = useState(false);
+  // Enlace fijo (sin token) a la landing de captación de operadores: quien
+  // lo abre completa ahí el cuestionario de DEMO y ella misma le arma el
+  // acceso -- ya no se genera una invitación directa por adelantado (ver
+  // construirEnlaceLandingOperador).
+  const [enlaceInvitacion] = useState<string>(construirEnlaceLandingOperador());
   const [copiado, setCopiado] = useState(false);
   const [procesandoPago, setProcesandoPago] = useState<string | null>(null);
   const [rechazandoId, setRechazandoId] = useState<string | null>(null);
@@ -82,20 +85,9 @@ export default function PanelAdmin() {
     return () => clearInterval(id);
   }, [cargar]);
 
-  const invitarOperador = async () => {
-    setGenerandoInvitacion(true);
-    setCopiado(false);
-    try {
-      const inv = await crearInvitacion('operador_peru');
-      const enlace = construirEnlaceInvitacion(inv.token);
-      setEnlaceInvitacion(enlace);
-      const mensaje = `Te invito al aplicativo inteligente y automático remesas Perú Venezuela. Accede a la versión DEMO gratis por 7 días. Debes usar un correo electrónico verificable Gmail, junto con tu contraseña. Accede y descubre todos los beneficios que este aplicativo puede darte para el crecimiento y la eficiencia de tu negocio de remesas. Accede aquí: ${enlace}`;
-      Linking.openURL(construirEnlaceWhatsAppSinDestino(mensaje));
-    } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo crear la invitación.');
-    } finally {
-      setGenerandoInvitacion(false);
-    }
+  const invitarOperador = () => {
+    const mensaje = `Te invito al aplicativo inteligente y automático remesas Perú Venezuela. Completa el formulario y accede a la versión DEMO gratis por 7 días. Accede aquí: ${enlaceInvitacion}`;
+    Linking.openURL(construirEnlaceWhatsAppSinDestino(mensaje));
   };
 
   const copiarEnlace = async () => {
@@ -154,20 +146,21 @@ export default function PanelAdmin() {
       </Pressable>
 
       <Section titulo="Invitar Operador Perú">
-        <Text style={styles.texto}>Genera un enlace y compártelo por WhatsApp. Al abrirlo, esa persona entra directo como Operador Perú.</Text>
-        <Pressable style={styles.boton} onPress={invitarOperador} disabled={generandoInvitacion}>
-          {generandoInvitacion ? <ActivityIndicator color={colors.text} /> : <Text style={styles.botonTexto}>Generar enlace</Text>}
+        <Text style={styles.texto}>
+          Comparte este enlace a la landing de captación. Ahí completa el formulario del DEMO y, apenas termina,
+          entra directo como Operador Perú con Google -- ya no hace falta generar una invitación aparte.
+        </Text>
+        <Pressable style={styles.boton} onPress={invitarOperador}>
+          <Text style={styles.botonTexto}>💬 Compartir por WhatsApp</Text>
         </Pressable>
-        {enlaceInvitacion && (
-          <View style={styles.enlaceRow}>
-            <Text style={styles.enlaceTexto} numberOfLines={1}>
-              {enlaceInvitacion}
-            </Text>
-            <Pressable style={styles.copiarBtn} onPress={copiarEnlace}>
-              <Text style={styles.copiarBtnTexto}>{copiado ? '✓ Copiado' : 'Copiar'}</Text>
-            </Pressable>
-          </View>
-        )}
+        <View style={styles.enlaceRow}>
+          <Text style={styles.enlaceTexto} numberOfLines={1}>
+            {enlaceInvitacion}
+          </Text>
+          <Pressable style={styles.copiarBtn} onPress={copiarEnlace}>
+            <Text style={styles.copiarBtnTexto}>{copiado ? '✓ Copiado' : 'Copiar'}</Text>
+          </Pressable>
+        </View>
       </Section>
 
       <Section titulo={`Pagos pendientes de verificar (${pagosPendientes.length})`}>
