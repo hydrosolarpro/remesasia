@@ -74,6 +74,11 @@ export default function Perfil() {
   // (el plan vigente) para que quede claro cuál es el plan que eligió
   // mientras el administrador todavía no lo confirma.
   const [pagoPeriodoActual, setPagoPeriodoActual] = useState<{ periodo: string; monto: number; monto_por_definir: boolean; estado: string } | null>(null);
+  // Monto mensual que el administrador fijó para el plan UNLIMITED (no
+  // tiene tarifa fija -- ver FormularioSolicitudPlan/panel-control.tsx).
+  // Se toma del último pago verificado, igual que precioPlanOperador() del
+  // lado del admin, para que el operador vea el mismo monto acordado.
+  const [montoUnlimitedActual, setMontoUnlimitedActual] = useState<number | null>(null);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -101,6 +106,18 @@ export default function Perfil() {
         .eq('periodo', periodo)
         .maybeSingle();
       setPagoPeriodoActual(pago as { periodo: string; monto: number; monto_por_definir: boolean; estado: string } | null);
+
+      if (usuario.plan === 'unlimited') {
+        const { data: ultimoPago } = await supabase
+          .from('pagos_suscripcion')
+          .select('monto')
+          .eq('operador_peru_id', usuario.id)
+          .eq('estado', 'verificado')
+          .order('periodo', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setMontoUnlimitedActual(ultimoPago?.monto ?? null);
+      }
     } else if (ctx.tipo === 'miembro' && ctx.miembroId) {
       cargarMiembro(ctx.miembroId, ctx.negocioId);
     }
@@ -369,7 +386,7 @@ export default function Perfil() {
       {esPrincipal && usuario && (
         <View style={[styles.card, cardShadow, styles.planCardGrande]}>
           <Text style={styles.cardTitulo}>TU PLAN</Text>
-          <Text style={styles.planNombreGrande}>{planLabel(usuario.plan)}</Text>
+          <Text style={styles.planNombreGrande}>{planLabel(usuario.plan, montoUnlimitedActual ?? undefined)}</Text>
           <Text style={styles.cardTexto}>
             {usuario.plan === 'demo'
               ? `Quedan ${diasRestantesDemo(usuario.demo_inicio)} días${

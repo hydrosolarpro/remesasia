@@ -731,12 +731,20 @@ export default function PanelControl() {
             )}
 
             {(() => {
+              // Disponible siempre, en CUALQUIER tarjeta -- no solo cuando ya
+              // está en UNLIMITED o hay una consulta en camino -- para que el
+              // admin pueda asignarlo directo apenas se acuerde el monto con
+              // el cliente, sin depender de que él lo haya "consultado" antes
+              // desde su Perfil.
               const cambioUnlimitedPendiente = cambiosPendientes[op.id]?.monto_por_definir ? cambiosPendientes[op.id] : null;
-              const consultaUnlimitedPendiente = !!pagoPeriodo?.monto_por_definir || !!cambioUnlimitedPendiente;
-              if (planActual !== 'unlimited' && !consultaUnlimitedPendiente) return null;
+              const etiquetaBoton = cambioUnlimitedPendiente
+                ? 'Fijar monto acordado'
+                : planActual === 'unlimited'
+                  ? 'Actualizar monto'
+                  : 'Asignar plan UNLIMITED';
               return (
                 <View style={styles.unlimitedRow}>
-                  <Text style={styles.unlimitedLabel}>Monto UNLIMITED (S/):</Text>
+                  <Text style={styles.unlimitedLabel}>Plan UNLIMITED — monto (S/):</Text>
                   <TextInput
                     style={styles.unlimitedInput}
                     value={montosUnlimited[op.id] ?? ''}
@@ -759,11 +767,7 @@ export default function PanelControl() {
                     }
                   >
                     <Text style={styles.unlimitedBtnTexto}>
-                      {procesando === `${op.id}_unlimited` || procesandoCambio === cambioUnlimitedPendiente?.id
-                        ? '...'
-                        : cambioUnlimitedPendiente
-                          ? 'Fijar monto acordado'
-                          : 'Fijar monto y activar'}
+                      {procesando === `${op.id}_unlimited` || procesandoCambio === cambioUnlimitedPendiente?.id ? '...' : etiquetaBoton}
                     </Text>
                   </Pressable>
                 </View>
