@@ -131,7 +131,8 @@ async function generarImagenBytes(
     }
   }
 
-  const geminiKey = Deno.env.get('GEMINI_API_KEY');
+  const geminiKey =
+    Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_API KEY');
   if (geminiKey) {
     try {
       return await generarConGemini(prompt, redSocial, geminiKey);
