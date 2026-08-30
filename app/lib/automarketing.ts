@@ -1,0 +1,156 @@
+import { Platform } from 'react-native';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { supabase } from './supabase';
+import { PublicacionMarketing } from '../types/database';
+
+// ─────────────────────────────────────────────────────────────
+// Automarketing: catálogos de variación y helpers para la pantalla
+// (operador-peru)/automarketing.tsx. La generación real (imagen + texto)
+// vive en la Edge Function `generar-publicacion-marketing`, que tiene su
+// propia copia de estos catálogos (Deno no comparte este árbol) -- si se
+// editan acá, actualízalos también allá.
+// ─────────────────────────────────────────────────────────────
+
+export type RedSocial = 'facebook' | 'instagram' | 'tiktok';
+
+export const CONCEPTOS = [
+  'familia latina feliz recibiendo dinero',
+  'smartphone moderno con app de remesas',
+  'conexión entre Perú y Venezuela',
+  'manos unidas en señal de apoyo',
+  'persona sonriente usando celular',
+  'mapa de Perú y Venezuela con corazones',
+  'familia reunida celebrando',
+  'joven profesional enviando dinero',
+] as const;
+
+export const ESTILOS = [
+  'flat illustration',
+  'fotografía realista',
+  'estilo minimalista',
+  '3d render moderno',
+  'diseño geométrico',
+  'acuarela artística',
+] as const;
+
+export const PALETAS = [
+  'cálidos y vibrantes',
+  'azules y blancos',
+  'tonos pastel suaves',
+  'rojo y dorado',
+  'colores patrios Perú Venezuela',
+] as const;
+
+export const ENFOQUES = [
+  'emocional y familiar',
+  'tecnológico y moderno',
+  'confianza y seguridad',
+  'rapidez y eficiencia',
+  'comunidad y apoyo',
+] as const;
+
+export const TAMANOS_RED_SOCIAL: Record<RedSocial, { ancho: number; alto: number; etiqueta: string; icono: string }> = {
+  facebook: { ancho: 1080, alto: 1080, etiqueta: 'Facebook · 1080×1080', icono: '📘' },
+  instagram: { ancho: 1080, alto: 1080, etiqueta: 'Instagram · 1080×1080', icono: '📸' },
+  tiktok: { ancho: 1080, alto: 1920, etiqueta: 'TikTok · 1080×1920', icono: '🎵' },
+};
+
+// Mensaje predefinido para el enlace de WhatsApp (wa.me) que acompaña la
+// publicación -- sin tasas ni precios, solo la invitación a escribir.
+export const MENSAJE_WHATSAPP_PREDEFINIDO =
+  'Hola 👋 Quiero enviar dinero a Venezuela con ustedes. ¿Me ayudan?';
+
+export interface CuerpoGenerar {
+  red_social: RedSocial;
+  concepto?: string;
+  estilo?: string;
+  paleta?: string;
+  enfoque?: string;
+  wa_link?: string | null;
+  invitacion_link?: string | null;
+  regenerar_solo?: 'imagen' | 'texto';
+  imagen_url_previa?: string;
+  imagen_prompt_previo?: string;
+  texto_previo?: string;
+}
+
+export async function generarPublicacion(cuerpo: CuerpoGenerar): Promise<PublicacionMarketing> {
+  const { data, error } = await supabase.functions.invoke('generar-publicacion-marketing', { body: cuerpo });
+  if (error) {
+    // La función devuelve { error: '...' } con status !=2xx; supabase-js lo
+    // envuelve en un FunctionsHttpError cuyo cuerpo hay que leer aparte.
+    let mensaje = error.message;
+    try {
+      const detalle = await (error as { context?: Response }).context?.json();
+      if (detalle?.error) mensaje = detalle.error;
+    } catch {
+      // se queda con error.message
+    }
+    throw new Error(mensaje);
+  }
+  return data as PublicacionMarketing;
+}
+
+export async function listarPublicaciones(operadorPeruId: string): Promise<PublicacionMarketing[]> {
+  const { data } = await supabase
+    .from('publicaciones_marketing')
+    .select('*')
+    .eq('operador_peru_id', operadorPeruId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return (data as PublicacionMarketing[] | null) ?? [];
+}
+
+export async function eliminarPublicacion(id: string): Promise<void> {
+  await supabase.from('publicaciones_marketing').delete().eq('id', id);
+}
+
+// Descarga una imagen a partir de un data URI (lo que devuelve
+// ViewShot.capture({ result: 'data-uri' })). En web dispara la descarga del
+// navegador; en nativo escribe un archivo temporal y abre el diálogo de
+// compartir.
+export async function descargarImagenDataUri(dataUri: string, nombreArchivo: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    const enlace = document.createElement('a');
+    enlace.href = dataUri;
+    enlace.download = nombreArchivo;
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+    return;
+  }
+  const base64 = dataUri.includes(',') ? dataUri.slice(dataUri.indexOf(',') + 1) : dataUri;
+  const archivo = new File(Paths.cache, nombreArchivo);
+  archivo.create({ overwrite: true });
+  archivo.write(base64, { encoding: 'base64' });
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(archivo.uri, { mimeType: 'image/png' });
+  }
+}
+
+// Descarga la imagen IA "pelada" (sin la tarjeta compuesta) directo desde
+// su URL pública de Storage -- respaldo por si la captura de ViewShot falla
+// en web al incluir una imagen remota.
+export async function descargarImagenDesdeUrl(url: string, nombreArchivo: string): Promise<void> {
+  const resp = await fetch(url);
+  const blob = await resp.blob();
+  if (Platform.OS === 'web') {
+    const objectUrl = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = objectUrl;
+    enlace.download = nombreArchivo;
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+    URL.revokeObjectURL(objectUrl);
+    return;
+  }
+  const buffer = new Uint8Array(await blob.arrayBuffer());
+  const archivo = new File(Paths.cache, nombreArchivo);
+  archivo.create({ overwrite: true });
+  archivo.write(buffer);
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(archivo.uri, { mimeType: 'image/jpeg' });
+  }
+}

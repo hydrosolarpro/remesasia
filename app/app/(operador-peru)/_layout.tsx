@@ -14,6 +14,7 @@ const ICONO = {
   tasa: '💱',
   estadisticas: '📊',
   clientes: '👥',
+  automarketing: '📣',
   perfil: '👤',
 };
 
@@ -89,6 +90,16 @@ export default function OperadorPeruLayout() {
           <Tabs.Screen
             name="clientes"
             options={{ title: 'Clientes', tabBarIcon: ({ color, focused }) => <TabIcon nombre="clientes" color={color} focused={focused} /> }}
+          />
+          {/* Automarketing: exclusivo del Operador principal de Perú. Para el
+              equipo (operador_peru_miembro) la pestaña se oculta con href:null. */}
+          <Tabs.Screen
+            name="automarketing"
+            options={{
+              title: 'Marketing',
+              href: usuario?.rol === 'operador_peru' ? undefined : null,
+              tabBarIcon: ({ color, focused }) => <TabIcon nombre="automarketing" color={color} focused={focused} />,
+            }}
           />
           <Tabs.Screen
             name="perfil"

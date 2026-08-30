@@ -149,8 +149,31 @@ export interface PerfilNegocio {
   horario_fin: string;
   compartir_rentabilidad_ve: boolean;
   compartir_rentabilidad_pe_miembros: boolean;
+  /** Automarketing: WhatsApp que se muestra en las publicaciones generadas (ver 0092). */
+  whatsapp_marketing: string | null;
+  /** Automarketing: estilo visual por defecto para las publicaciones (ver 0092). */
+  estilo_marketing_preferido: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Automarketing (0092): publicación para redes sociales generada con IA.
+export interface PublicacionMarketing {
+  id: string;
+  operador_peru_id: string;
+  red_social: 'facebook' | 'instagram' | 'tiktok';
+  concepto: string;
+  estilo: string;
+  paleta: string;
+  enfoque: string;
+  imagen_prompt: string;
+  imagen_url: string;
+  texto: string;
+  wa_link: string | null;
+  invitacion_link: string | null;
+  ancho: number;
+  alto: number;
+  created_at: string;
 }
 
 export interface CuentaBancariaOperador {
