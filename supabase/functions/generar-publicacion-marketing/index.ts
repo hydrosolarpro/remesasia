@@ -113,6 +113,22 @@ function construirPromptImagen(concepto: string, estilo: string, paleta: string)
   );
 }
 
+// Busca la API key de Google de forma tolerante al nombre exacto del
+// secreto (GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_APIKEY, con o sin
+// guion/espacio...). Ignora las variables propias de Supabase.
+function leerKeyGoogle(): string | undefined {
+  const directos = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_APIKEY', 'GOOGLE_API KEY', 'GEMINI_KEY'];
+  for (const n of directos) {
+    const v = Deno.env.get(n);
+    if (v) return v.trim();
+  }
+  for (const [nombre, valor] of Object.entries(Deno.env.toObject())) {
+    if (/^SUPABASE_/i.test(nombre)) continue;
+    if (/(gemini|google).*(api)?.*key/i.test(nombre) && valor) return valor.trim();
+  }
+  return undefined;
+}
+
 // Genera los bytes de la imagen. Orden de preferencia según qué secreto
 // esté configurado:
 //   1. Together AI — FLUX  (TOGETHER_API_KEY)   -> calidad pro, gratis
@@ -131,8 +147,7 @@ async function generarImagenBytes(
     }
   }
 
-  const geminiKey =
-    Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GOOGLE_API KEY');
+  const geminiKey = leerKeyGoogle();
   if (geminiKey) {
     try {
       return await generarConGemini(prompt, redSocial, geminiKey);
