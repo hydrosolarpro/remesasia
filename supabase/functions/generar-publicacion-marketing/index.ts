@@ -23,14 +23,14 @@ import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
  * comparte el árbol de `app/`. Si se editan allá, actualízalos aquí también.
  */
 const CONCEPTOS = [
-  'familia latina feliz recibiendo dinero',
-  'smartphone moderno con app de remesas',
-  'conexión entre Perú y Venezuela',
-  'manos unidas en señal de apoyo',
-  'persona sonriente usando celular',
-  'mapa de Perú y Venezuela con corazones',
-  'familia reunida celebrando',
-  'joven profesional enviando dinero',
+  'familia venezolana feliz recibiendo dinero enviado desde Perú',
+  'persona en Perú enviando dinero a su familia con el celular',
+  'celular mostrando una transferencia de dinero de Perú a Venezuela',
+  'manos entregando billetes con las banderas de Perú y Venezuela de fondo',
+  'videollamada familiar entre Perú y Venezuela al recibir una remesa',
+  'mapa de Sudamérica con una línea de dinero uniendo Perú y Venezuela',
+  'beneficiario en Venezuela retirando el dinero de una remesa, sonriente',
+  'joven migrante venezolano en Perú apoyando económicamente a su familia',
 ];
 
 const ESTILOS = [
@@ -103,13 +103,17 @@ const DIMS_POR_RED: Record<string, { w: number; h: number }> = {
 
 function construirPromptImagen(concepto: string, estilo: string, paleta: string): string {
   return (
-    `Imagen publicitaria profesional de alta gama para redes sociales de un servicio de ` +
-    `remesas de dinero entre Perú y Venezuela. Escena principal: ${concepto}. ` +
+    `Imagen publicitaria profesional para promocionar un servicio de ENVÍO DE DINERO ` +
+    `(remesas familiares) de Perú hacia Venezuela. El tema de las remesas debe leerse de ` +
+    `inmediato. Escena principal: ${concepto}. ` +
+    `Incluye de forma sutil señales de ambos países (colores de la bandera de Perú: rojo y ` +
+    `blanco; y de Venezuela: amarillo, azul y rojo; o siluetas/mapa de Sudamérica) y del ` +
+    `dinero que llega a la familia (celular con una transferencia, billetes, manos que ` +
+    `reciben efectivo, videollamada familiar). ` +
     `Estilo visual: ${estilo}. Paleta de colores: ${paleta}. ` +
     `Acabado de agencia creativa: iluminación cuidada, composición equilibrada dejando ` +
     `espacio para texto, aspecto premium, moderno y confiable. Personas latinas reales y ` +
-    `expresivas cuando la escena lo pida. Sin ningún texto, sin letras, sin números, sin ` +
-    `logotipos ni marcas de agua.`
+    `expresivas. Sin ningún texto, sin letras, sin números, sin logotipos ni marcas de agua.`
   );
 }
 

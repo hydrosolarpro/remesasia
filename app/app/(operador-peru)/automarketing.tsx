@@ -13,11 +13,12 @@ import {
 } from 'react-native';
 import ViewShot, { ViewShotRef } from 'react-native-view-shot';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
-import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { extensionDeImagen, mimeDeExtension, validarTamanoImagen, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
 import { Collapsible } from '../../components/Collapsible';
 import { colors, radius, cardShadow } from '../../constants/theme';
 import {
@@ -25,7 +26,6 @@ import {
   ESTILOS,
   ENFOQUES,
   TAMANOS_RED_SOCIAL,
-  MENSAJE_WHATSAPP_PREDEFINIDO,
   RedSocial,
   generarPublicacion,
   listarPublicaciones,
@@ -33,6 +33,7 @@ import {
   descargarImagenDesdeUrl,
   eliminarPublicacion,
   construirCaption,
+  construirWaLink,
   telefonoDesdeWa,
   dominioVisible,
 } from '../../lib/automarketing';
@@ -72,9 +73,8 @@ export default function Automarketing() {
 
   const shotRef = useRef<ViewShotRef>(null);
 
-  const waLink = whatsappMarketing.trim()
-    ? construirEnlaceWhatsAppGenerico(whatsappMarketing, MENSAJE_WHATSAPP_PREDEFINIDO)
-    : null;
+  const waLink = construirWaLink(whatsappMarketing);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
@@ -127,7 +127,7 @@ export default function Automarketing() {
     setError(null);
     if (!nombreNegocio.trim()) return setError('Escribe el nombre del negocio.');
     if (!whatsappMarketing.trim()) return setError('Escribe tu número de WhatsApp.');
-    if (!construirEnlaceWhatsAppGenerico(whatsappMarketing, 'x')) {
+    if (!construirWaLink(whatsappMarketing)) {
       return setError('El número de WhatsApp no es válido. Escríbelo con código de país, ej. +51 999 999 999.');
     }
     setGuardandoConfig(true);
@@ -194,6 +194,51 @@ export default function Automarketing() {
       setError(e instanceof Error ? e.message : 'No se pudo descargar la imagen.');
     } finally {
       setDescargando(false);
+    }
+  };
+
+  // Reemplaza la imagen IA de la publicación actual por una que el usuario
+  // elige de su galería. Se sube a Storage y se actualiza la fila para que
+  // el historial y la descarga usen la nueva imagen.
+  const usarMiImagen = async () => {
+    if (!pub || !negocioId) return;
+    setError(null);
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos para elegir una imagen.');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.9 });
+    if (res.canceled) return;
+    const asset = res.assets[0];
+    if (!(await validarTamanoImagen(asset))) {
+      Alert.alert('Imagen muy pesada', `Supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
+      return;
+    }
+    setSubiendoImagen(true);
+    try {
+      const ext = extensionDeImagen(asset);
+      const path = `marketing/${negocioId}/${Date.now()}.${ext}`;
+      const arrayBuffer = await (await fetch(asset.uri)).arrayBuffer();
+      const { error: upErr } = await supabase.storage
+        .from('comprobantes')
+        .upload(path, arrayBuffer, { upsert: true, contentType: mimeDeExtension(ext) });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from('comprobantes').getPublicUrl(path);
+      const url = `${data.publicUrl}?t=${Date.now()}`;
+
+      const anchoImg = asset.width ?? pub.ancho;
+      const altoImg = asset.height ?? pub.alto;
+      await supabase
+        .from('publicaciones_marketing')
+        .update({ imagen_url: url, ancho: anchoImg, alto: altoImg })
+        .eq('id', pub.id);
+      setPub({ ...pub, imagen_url: url, ancho: anchoImg, alto: altoImg });
+      setHistorial(await listarPublicaciones(negocioId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo subir la imagen.');
+    } finally {
+      setSubiendoImagen(false);
     }
   };
 
@@ -341,6 +386,10 @@ export default function Automarketing() {
           <Text style={styles.ayuda}>
             Deja todo en "Aleatorio" para que la IA elija entre 1 200 combinaciones. Red: {redSocial ? TAMANOS_RED_SOCIAL[redSocial].etiqueta : ''}.
           </Text>
+          <Text style={styles.ayuda}>
+            La imagen se genera con el tamaño de la red. Después podrás reemplazarla por una tuya
+            {redSocial === 'tiktok' ? ' (ideal 1080×1920 px, vertical)' : ' (ideal 1080×1080 px, cuadrada)'}.
+          </Text>
 
           <Text style={styles.label}>Enfoque del texto</Text>
           <View style={styles.chipsWrap}>
@@ -413,6 +462,22 @@ export default function Automarketing() {
               ) : null}
             </View>
           </ViewShot>
+
+          <Pressable
+            style={styles.btnImagenPropia}
+            onPress={usarMiImagen}
+            disabled={subiendoImagen || descargando || generando !== null}
+          >
+            {subiendoImagen ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : (
+              <Text style={styles.btnImagenPropiaTexto}>📷 Usar mi propia imagen</Text>
+            )}
+          </Pressable>
+          <Text style={styles.dimHint}>
+            Tamaño recomendado para {pub.red_social.charAt(0).toUpperCase() + pub.red_social.slice(1)}:{' '}
+            {pub.red_social === 'tiktok' ? '1080×1920 px (vertical 9:16)' : '1080×1080 px (cuadrada 1:1)'}.
+          </Text>
 
           <View style={styles.pasosBox}>
             <Text style={styles.pasosTitulo}>
@@ -598,6 +663,9 @@ const styles = StyleSheet.create({
   paso: { color: colors.textMuted, fontSize: 14, lineHeight: 19 },
   btnCopiar: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.accent, borderRadius: radius.sm, padding: 13, alignItems: 'center' },
   btnCopiarTexto: { color: colors.accent, fontWeight: '800', fontSize: 15 },
+  btnImagenPropia: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center', backgroundColor: colors.cardAlt },
+  btnImagenPropiaTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
+  dimHint: { color: colors.textMuted, fontSize: 12, lineHeight: 16, marginTop: -4 },
   histFila: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 6 },
   histAbrir: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
   histMiniatura: { width: 54, height: 54, borderRadius: radius.sm, backgroundColor: colors.cardAlt },

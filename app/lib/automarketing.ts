@@ -15,14 +15,14 @@ import { PublicacionMarketing } from '../types/database';
 export type RedSocial = 'facebook' | 'instagram' | 'tiktok';
 
 export const CONCEPTOS = [
-  'familia latina feliz recibiendo dinero',
-  'smartphone moderno con app de remesas',
-  'conexión entre Perú y Venezuela',
-  'manos unidas en señal de apoyo',
-  'persona sonriente usando celular',
-  'mapa de Perú y Venezuela con corazones',
-  'familia reunida celebrando',
-  'joven profesional enviando dinero',
+  'familia venezolana feliz recibiendo dinero enviado desde Perú',
+  'persona en Perú enviando dinero a su familia con el celular',
+  'celular mostrando una transferencia de dinero de Perú a Venezuela',
+  'manos entregando billetes con las banderas de Perú y Venezuela de fondo',
+  'videollamada familiar entre Perú y Venezuela al recibir una remesa',
+  'mapa de Sudamérica con una línea de dinero uniendo Perú y Venezuela',
+  'beneficiario en Venezuela retirando el dinero de una remesa, sonriente',
+  'joven migrante venezolano en Perú apoyando económicamente a su familia',
 ] as const;
 
 export const ESTILOS = [
@@ -56,11 +56,14 @@ export const TAMANOS_RED_SOCIAL: Record<RedSocial, { ancho: number; alto: number
   tiktok: { ancho: 1080, alto: 1920, etiqueta: 'TikTok · 1080×1920', icono: '🎵' },
 };
 
-// Mensaje que queda pre-escrito en el chat de WhatsApp al abrir el enlace
-// wa.me de la publicación. Sin emojis a propósito: los emojis se
-// percent-codifican en la URL (%F0%9F...) y ensucian el enlace cuando se
-// muestra como texto.
-export const MENSAJE_WHATSAPP_PREDEFINIDO = 'Requiero unirme como cliente, mas información.';
+// Enlace de WhatsApp para la publicación: SOLO wa.me + el teléfono del
+// operador, sin ?text=... (a pedido del negocio, para que el enlace se vea
+// limpio y abra el chat sin mensaje pre-escrito).
+export function construirWaLink(telefono: string | null | undefined): string | null {
+  if (!telefono) return null;
+  const soloDigitos = telefono.replace(/\D/g, '');
+  return soloDigitos.length >= 8 ? `https://wa.me/${soloDigitos}` : null;
+}
 
 // Versión "bonita" del enlace de WhatsApp para MOSTRAR en la publicación:
 // sin https:// y sin la cadena ?text=... (que es ilegible). El enlace real
