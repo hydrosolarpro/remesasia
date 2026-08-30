@@ -8,7 +8,6 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Linking,
   Alert,
   Platform,
 } from 'react-native';
@@ -377,7 +376,7 @@ export default function Automarketing() {
 
       {paso === 'resultado' && pub && (
         <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>3. Tu publicación</Text>
+          <Text style={styles.cardTitulo}>Así debe lucir tu publicación</Text>
           <Text style={styles.metaTexto}>
             {pub.red_social.toUpperCase()} · {pub.enfoque} · {pub.estilo}
           </Text>
@@ -415,28 +414,29 @@ export default function Automarketing() {
             </View>
           </ViewShot>
 
-          <Text style={styles.ayudaPublicar}>
-            Descarga la imagen y publícala. Pega el texto de abajo como descripción del post: ahí los enlaces de
-            WhatsApp y de registro sí funcionan al tocarlos.
-          </Text>
+          <View style={styles.pasosBox}>
+            <Text style={styles.pasosTitulo}>
+              Para publicarla en {pub.red_social.charAt(0).toUpperCase() + pub.red_social.slice(1)}:
+            </Text>
+            <Text style={styles.paso}>1. Toca “Descargar la publicación” y guarda la imagen en tu celular.</Text>
+            <Text style={styles.paso}>2. Toca “Copiar texto para publicar”.</Text>
+            <Text style={styles.paso}>
+              3. Abre {pub.red_social.charAt(0).toUpperCase() + pub.red_social.slice(1)}, crea una publicación nueva,
+              sube la imagen y pega el texto como descripción. Ahí los enlaces de WhatsApp y de registro sí funcionan.
+            </Text>
+          </View>
 
-          <Pressable style={styles.btnCopiar} onPress={copiarCaption}>
-            <Text style={styles.btnCopiarTexto}>{copiado ? '✓ Texto copiado' : '📋 Copiar texto para publicar'}</Text>
+          <Pressable style={styles.btnPrimario} onPress={descargar} disabled={descargando || generando !== null}>
+            {descargando ? (
+              <ActivityIndicator color={colors.text} />
+            ) : (
+              <Text style={styles.btnPrimarioTexto}>Descargar la publicación</Text>
+            )}
           </Pressable>
 
-          {/* Enlaces reales para probarlos al instante desde aquí. */}
-          <View style={styles.enlacesTap}>
-            {pub.wa_link ? (
-              <Pressable onPress={() => Linking.openURL(pub.wa_link!)}>
-                <Text style={styles.enlaceTapTexto}>💬 Probar el enlace de WhatsApp</Text>
-              </Pressable>
-            ) : null}
-            {pub.invitacion_link ? (
-              <Pressable onPress={() => Linking.openURL(pub.invitacion_link!)}>
-                <Text style={styles.enlaceTapTexto}>🔗 Probar el enlace de invitación</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          <Pressable style={styles.btnCopiar} onPress={copiarCaption} disabled={descargando || generando !== null}>
+            <Text style={styles.btnCopiarTexto}>{copiado ? '✓ Texto copiado' : '📋 Copiar texto para publicar'}</Text>
+          </Pressable>
 
           <View style={styles.chipsWrap}>
             <Pressable
@@ -462,13 +462,6 @@ export default function Automarketing() {
             </Pressable>
           </View>
 
-          <Pressable style={styles.btnPrimario} onPress={descargar} disabled={descargando || generando !== null}>
-            {descargando ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <Text style={styles.btnPrimarioTexto}>Descargar la publicación</Text>
-            )}
-          </Pressable>
           <Pressable style={styles.btnSecundario} onPress={descargarSoloImagen} disabled={descargando || generando !== null}>
             <Text style={styles.btnSecundarioTexto}>Descargar solo la imagen IA</Text>
           </Pressable>
@@ -593,11 +586,18 @@ const styles = StyleSheet.create({
   },
   pubCtaFuerte: { color: colors.text, fontSize: 17, fontWeight: '800' },
   pubCtaSuave: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
-  ayudaPublicar: { color: colors.textMuted, fontSize: 13, lineHeight: 18, marginTop: 4 },
+  pasosBox: {
+    backgroundColor: colors.cardAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 6,
+  },
+  pasosTitulo: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  paso: { color: colors.textMuted, fontSize: 14, lineHeight: 19 },
   btnCopiar: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.accent, borderRadius: radius.sm, padding: 13, alignItems: 'center' },
   btnCopiarTexto: { color: colors.accent, fontWeight: '800', fontSize: 15 },
-  enlacesTap: { gap: 8, marginTop: 2 },
-  enlaceTapTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   histFila: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 6 },
   histAbrir: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
   histMiniatura: { width: 54, height: 54, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
