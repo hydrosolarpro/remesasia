@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { View, StyleSheet, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -6,7 +7,41 @@ import { AuthProvider } from '../lib/auth';
 import { colors, APP_MAX_WIDTH_WIDE } from '../constants/theme';
 import { BannerTitle, BannerFlags } from '../components/AppBanner';
 
+// En web añadimos a mano el <head> que la plantilla por defecto de Expo no
+// trae. Clave para el problema de "me cierra la sesión en el acceso directo
+// del celular": con `apple-mobile-web-app-capable = no` y un manifest con
+// `display: browser`, el ícono que se agrega a la pantalla de inicio abre
+// el sitio DENTRO del navegador (Safari/Chrome) en vez de en una ventana
+// aislada. Así comparte el almacenamiento y la sesión con el navegador, y
+// el redirect de Google al iniciar sesión vuelve al mismo contexto en vez
+// de perderse.
+function useWebHeadTags() {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const set = (
+      tag: 'meta' | 'link',
+      attrs: Record<string, string>,
+      matchKey: string,
+    ) => {
+      const selector = `${tag}[${matchKey}="${attrs[matchKey]}"]`;
+      let el = document.head.querySelector(selector) as HTMLElement | null;
+      if (!el) {
+        el = document.createElement(tag);
+        document.head.appendChild(el);
+      }
+      Object.entries(attrs).forEach(([k, v]) => el!.setAttribute(k, v));
+    };
+    set('link', { rel: 'manifest', href: '/manifest.json' }, 'rel');
+    set('link', { rel: 'apple-touch-icon', href: '/app-icon.png' }, 'rel');
+    set('meta', { name: 'apple-mobile-web-app-capable', content: 'no' }, 'name');
+    set('meta', { name: 'mobile-web-app-capable', content: 'no' }, 'name');
+    set('meta', { name: 'theme-color', content: '#0A0E1B' }, 'name');
+    set('meta', { name: 'apple-mobile-web-app-title', content: 'Remesas IA' }, 'name');
+  }, []);
+}
+
 export default function RootLayout() {
+  useWebHeadTags();
   return (
     <SafeAreaProvider>
       <AuthProvider>
