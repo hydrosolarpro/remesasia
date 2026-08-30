@@ -8,7 +8,7 @@ import { colors, radius } from '../../constants/theme';
 // Registro de cliente, primera vez que inicia sesión: nombre completo,
 // teléfono y país. El email ya llegó de Google.
 export default function Registro() {
-  const { session, usuario, loading: authLoading, refreshUsuario } = useAuth();
+  const { session, usuario, loading: authLoading, refreshUsuario, signOut } = useAuth();
   const [nombre, setNombre] = useState(usuario?.nombre ?? '');
   const [apellido, setApellido] = useState('');
   const [telefono, setTelefono] = useState(usuario?.telefono ?? '');
@@ -58,7 +58,9 @@ export default function Registro() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Completa tu registro</Text>
-      <Text style={styles.subtitle}>Solo lo pedimos una vez.</Text>
+      <Text style={styles.subtitle}>
+        Ingresaste como cliente con {usuario.email}. Solo lo pedimos una vez.
+      </Text>
 
       <Text style={styles.label}>Nombre</Text>
       <TextInput
@@ -102,6 +104,13 @@ export default function Registro() {
       <Pressable style={styles.button} onPress={guardar} disabled={loading}>
         {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar y continuar</Text>}
       </Pressable>
+
+      {/* Salida para quien inició sesión con la cuenta equivocada (operador
+          o admin que entró con otro Gmail): así no queda atrapado en esta
+          pantalla sin poder cambiar de cuenta. */}
+      <Pressable style={styles.salir} onPress={signOut} disabled={loading}>
+        <Text style={styles.salirTexto}>Usar otra cuenta / cerrar sesión</Text>
+      </Pressable>
     </View>
   );
 }
@@ -130,4 +139,6 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   buttonText: { color: colors.text, fontWeight: '700', fontSize: 18 },
+  salir: { alignSelf: 'center', marginTop: 18, padding: 8 },
+  salirTexto: { color: colors.textMuted, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
 });
