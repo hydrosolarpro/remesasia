@@ -93,6 +93,14 @@ const ASPECTO_POR_RED: Record<string, string> = {
   tiktok: '9:16',
 };
 
+// Dimensiones concretas por red (múltiplos de 16) para los generadores que
+// piden width/height en vez de un aspecto.
+const DIMS_POR_RED: Record<string, { w: number; h: number }> = {
+  facebook: { w: 1024, h: 1024 },
+  instagram: { w: 1024, h: 1024 },
+  tiktok: { w: 768, h: 1344 },
+};
+
 function construirPromptImagen(concepto: string, estilo: string, paleta: string): string {
   return (
     `Imagen publicitaria profesional de alta gama para redes sociales de un servicio de ` +
@@ -105,22 +113,76 @@ function construirPromptImagen(concepto: string, estilo: string, paleta: string)
   );
 }
 
-// Genera los bytes de la imagen. Prioridad: Google Gemini 2.5 Flash Image
-// (secreto GEMINI_API_KEY) por su calidad profesional; si no hay key o
-// falla, cae a Pollinations.ai (gratis, sin key).
+// Genera los bytes de la imagen. Orden de preferencia según qué secreto
+// esté configurado:
+//   1. Together AI — FLUX  (TOGETHER_API_KEY)   -> calidad pro, gratis
+//   2. Google Gemini 2.5 Flash Image (GEMINI_API_KEY)
+//   3. Pollinations.ai (sin key)               -> respaldo siempre disponible
 async function generarImagenBytes(
   prompt: string,
   redSocial: string
 ): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
+  const togetherKey = Deno.env.get('TOGETHER_API_KEY');
+  if (togetherKey) {
+    try {
+      return await generarConTogether(prompt, redSocial, togetherKey);
+    } catch (err) {
+      console.error('generar-publicacion-marketing: Together falló —', err);
+    }
+  }
+
   const geminiKey = Deno.env.get('GEMINI_API_KEY');
   if (geminiKey) {
     try {
       return await generarConGemini(prompt, redSocial, geminiKey);
     } catch (err) {
-      console.error('generar-publicacion-marketing: Gemini falló, uso Pollinations —', err);
+      console.error('generar-publicacion-marketing: Gemini falló —', err);
     }
   }
+
   return await generarConPollinations(prompt, redSocial);
+}
+
+async function generarConTogether(
+  prompt: string,
+  redSocial: string,
+  apiKey: string
+): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
+  const { w, h } = DIMS_POR_RED[redSocial] ?? DIMS_POR_RED.facebook;
+  const modelo = Deno.env.get('TOGETHER_MODEL') || 'black-forest-labs/FLUX.1-schnell-Free';
+  const resp = await fetch('https://api.together.xyz/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: modelo,
+      prompt,
+      width: w,
+      height: h,
+      steps: 4,
+      n: 1,
+      response_format: 'b64_json',
+    }),
+  });
+  if (!resp.ok) {
+    const detalle = await resp.text().catch(() => '');
+    throw new Error(`Together ${resp.status}: ${detalle}`);
+  }
+  const data = await resp.json();
+  const item = data?.data?.[0];
+  const b64: string | undefined = item?.b64_json;
+  if (b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { bytes, contentType: 'image/jpeg', fuente: 'together' };
+  }
+  // Algunos endpoints gratis solo devuelven una URL temporal.
+  if (item?.url) {
+    const img = await fetch(item.url);
+    if (!img.ok) throw new Error(`Together URL respondió ${img.status}`);
+    return { bytes: new Uint8Array(await img.arrayBuffer()), contentType: 'image/jpeg', fuente: 'together' };
+  }
+  throw new Error('Together no devolvió imagen');
 }
 
 async function generarConGemini(
