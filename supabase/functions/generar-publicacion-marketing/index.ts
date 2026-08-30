@@ -87,6 +87,105 @@ function alAzar<T>(lista: T[]): T {
   return lista[Math.floor(Math.random() * lista.length)];
 }
 
+const ASPECTO_POR_RED: Record<string, string> = {
+  facebook: '1:1',
+  instagram: '1:1',
+  tiktok: '9:16',
+};
+
+function construirPromptImagen(concepto: string, estilo: string, paleta: string): string {
+  return (
+    `Imagen publicitaria profesional de alta gama para redes sociales de un servicio de ` +
+    `remesas de dinero entre Perú y Venezuela. Escena principal: ${concepto}. ` +
+    `Estilo visual: ${estilo}. Paleta de colores: ${paleta}. ` +
+    `Acabado de agencia creativa: iluminación cuidada, composición equilibrada dejando ` +
+    `espacio para texto, aspecto premium, moderno y confiable. Personas latinas reales y ` +
+    `expresivas cuando la escena lo pida. Sin ningún texto, sin letras, sin números, sin ` +
+    `logotipos ni marcas de agua.`
+  );
+}
+
+// Genera los bytes de la imagen. Prioridad: Google Gemini 2.5 Flash Image
+// (secreto GEMINI_API_KEY) por su calidad profesional; si no hay key o
+// falla, cae a Pollinations.ai (gratis, sin key).
+async function generarImagenBytes(
+  prompt: string,
+  redSocial: string
+): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
+  const geminiKey = Deno.env.get('GEMINI_API_KEY');
+  if (geminiKey) {
+    try {
+      return await generarConGemini(prompt, redSocial, geminiKey);
+    } catch (err) {
+      console.error('generar-publicacion-marketing: Gemini falló, uso Pollinations —', err);
+    }
+  }
+  return await generarConPollinations(prompt, redSocial);
+}
+
+async function generarConGemini(
+  prompt: string,
+  redSocial: string,
+  apiKey: string
+): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
+  const modelos = ['gemini-2.5-flash-image', 'gemini-2.5-flash-image-preview'];
+  const aspecto = ASPECTO_POR_RED[redSocial] ?? '1:1';
+  let ultimo = '';
+
+  for (const modelo of modelos) {
+    // Intento 1 con imageConfig (aspecto correcto); si el modelo no lo
+    // acepta (400), intento 2 sin generationConfig.
+    for (const conConfig of [true, false]) {
+      const body: Record<string, unknown> = { contents: [{ parts: [{ text: prompt }] }] };
+      if (conConfig) {
+        body.generationConfig = { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: aspecto } };
+      }
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify(body),
+        }
+      );
+      if (!resp.ok) {
+        ultimo = await resp.text().catch(() => '');
+        console.error('generar-publicacion-marketing: Gemini', modelo, resp.status, ultimo);
+        if (resp.status === 404) break; // ese nombre de modelo no existe -> siguiente modelo
+        continue; // 400/429/5xx -> reintenta sin config y luego siguiente modelo
+      }
+      const data = await resp.json();
+      const parts: { inlineData?: { data?: string; mimeType?: string } }[] =
+        data?.candidates?.[0]?.content?.parts ?? [];
+      const img = parts.find((p) => p?.inlineData?.data);
+      if (!img?.inlineData?.data) {
+        ultimo = 'Gemini no devolvió imagen';
+        continue;
+      }
+      const bin = atob(img.inlineData.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return { bytes, contentType: img.inlineData.mimeType ?? 'image/png', fuente: 'gemini' };
+    }
+  }
+  throw new Error(`Gemini sin resultado: ${ultimo}`);
+}
+
+async function generarConPollinations(
+  prompt: string,
+  redSocial: string
+): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
+  const { ancho, alto } = TAMANOS[redSocial];
+  const seed = Math.floor(Math.random() * 1_000_000);
+  const url =
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+    `?width=${ancho}&height=${alto}&seed=${seed}&nologo=true&enhance=true&model=flux`;
+  const token = Deno.env.get('POLLINATIONS_TOKEN');
+  const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!resp.ok) throw new Error(`Pollinations respondió ${resp.status}`);
+  return { bytes: new Uint8Array(await resp.arrayBuffer()), contentType: 'image/jpeg', fuente: 'pollinations' };
+}
+
 Deno.serve(async (req) => {
   const preflight = manejarPreflight(req);
   if (preflight) return preflight;
@@ -139,31 +238,20 @@ Deno.serve(async (req) => {
 
     const regenerarSolo: 'imagen' | 'texto' | undefined = cuerpo.regenerar_solo;
 
-    // ── Imagen (Pollinations) ────────────────────────────────────────────
-    const imagenPrompt =
-      `${concepto}, ${estilo}, colores ${paleta}, ilustración para redes sociales, ` +
-      `sin texto, sin letras, alta calidad, composición limpia`;
+    // ── Imagen (Gemini 2.5 Flash Image, con respaldo Pollinations) ───────
+    const imagenPrompt = construirPromptImagen(concepto, estilo, paleta);
 
     let imagenUrl: string = cuerpo.imagen_url_previa ?? '';
     let imagenPromptFinal: string = cuerpo.imagen_prompt_previo ?? imagenPrompt;
 
     if (regenerarSolo !== 'texto') {
       try {
-        const seed = Math.floor(Math.random() * 1_000_000);
-        const pollUrl =
-          `https://image.pollinations.ai/prompt/${encodeURIComponent(imagenPrompt)}` +
-          `?width=${ancho}&height=${alto}&seed=${seed}&nologo=true&model=flux`;
-        const pollToken = Deno.env.get('POLLINATIONS_TOKEN');
-        const pollResp = await fetch(pollUrl, {
-          headers: pollToken ? { Authorization: `Bearer ${pollToken}` } : {},
-        });
-        if (!pollResp.ok) throw new Error(`Pollinations respondió ${pollResp.status}`);
-        const bytes = new Uint8Array(await pollResp.arrayBuffer());
-
-        const path = `marketing/${user.id}/${crypto.randomUUID()}.jpg`;
+        const { bytes, contentType } = await generarImagenBytes(imagenPrompt, redSocial);
+        const ext = contentType.includes('png') ? 'png' : 'jpg';
+        const path = `marketing/${user.id}/${crypto.randomUUID()}.${ext}`;
         const { error: upErr } = await admin.storage
           .from('comprobantes')
-          .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+          .upload(path, bytes, { contentType, upsert: false });
         if (upErr) throw upErr;
         imagenUrl = `${admin.storage.from('comprobantes').getPublicUrl(path).data.publicUrl}?t=${Date.now()}`;
         imagenPromptFinal = imagenPrompt;
