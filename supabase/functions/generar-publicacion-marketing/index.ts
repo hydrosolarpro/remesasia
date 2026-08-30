@@ -131,13 +131,24 @@ function leerKeyGoogle(): string | undefined {
 
 // Genera los bytes de la imagen. Orden de preferencia según qué secreto
 // esté configurado:
-//   1. Together AI — FLUX  (TOGETHER_API_KEY)   -> calidad pro, gratis
-//   2. Google Gemini 2.5 Flash Image (GEMINI_API_KEY)
-//   3. Pollinations.ai (sin key)               -> respaldo siempre disponible
+//   1. Cloudflare Workers AI — FLUX schnell  (CF_ACCOUNT_ID + CF_API_TOKEN)  -> gratis sin tarjeta
+//   2. Together AI — FLUX                     (TOGETHER_API_KEY)
+//   3. Google Gemini 2.5 Flash Image          (GEMINI_API_KEY)  -> requiere billing
+//   4. Pollinations.ai (sin key)              -> respaldo siempre disponible
 async function generarImagenBytes(
   prompt: string,
   redSocial: string
 ): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
+  const cfAccount = Deno.env.get('CF_ACCOUNT_ID');
+  const cfToken = Deno.env.get('CF_API_TOKEN');
+  if (cfAccount && cfToken) {
+    try {
+      return await generarConCloudflare(prompt, cfAccount, cfToken);
+    } catch (err) {
+      console.error('generar-publicacion-marketing: Cloudflare falló —', err);
+    }
+  }
+
   const togetherKey = Deno.env.get('TOGETHER_API_KEY');
   if (togetherKey) {
     try {
@@ -157,6 +168,36 @@ async function generarImagenBytes(
   }
 
   return await generarConPollinations(prompt, redSocial);
+}
+
+// Cloudflare Workers AI: capa gratuita (sin tarjeta). FLUX-1-schnell
+// devuelve JSON con la imagen en base64 (JPEG). No acepta width/height:
+// sale ~1024x1024 y la tarjeta de la app recorta según la red.
+async function generarConCloudflare(
+  prompt: string,
+  accountId: string,
+  token: string
+): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
+  const modelo = Deno.env.get('CF_MODEL') || '@cf/black-forest-labs/flux-1-schnell';
+  const resp = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${modelo}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ prompt, steps: 8 }),
+    }
+  );
+  if (!resp.ok) {
+    const detalle = await resp.text().catch(() => '');
+    throw new Error(`Cloudflare ${resp.status}: ${detalle}`);
+  }
+  const data = await resp.json();
+  const b64: string | undefined = data?.result?.image;
+  if (!b64) throw new Error(`Cloudflare sin imagen: ${JSON.stringify(data?.errors ?? data)}`);
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return { bytes, contentType: 'image/jpeg', fuente: 'cloudflare' };
 }
 
 async function generarConTogether(
