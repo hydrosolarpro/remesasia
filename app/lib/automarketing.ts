@@ -56,10 +56,28 @@ export const TAMANOS_RED_SOCIAL: Record<RedSocial, { ancho: number; alto: number
   tiktok: { ancho: 1080, alto: 1920, etiqueta: 'TikTok · 1080×1920', icono: '🎵' },
 };
 
-// Mensaje predefinido para el enlace de WhatsApp (wa.me) que acompaña la
-// publicación -- sin tasas ni precios, solo la invitación a escribir.
-export const MENSAJE_WHATSAPP_PREDEFINIDO =
-  'Hola 👋 Quiero enviar dinero a Venezuela con ustedes. ¿Me ayudan?';
+// Mensaje que queda pre-escrito en el chat de WhatsApp al abrir el enlace
+// wa.me de la publicación. Sin emojis a propósito: los emojis se
+// percent-codifican en la URL (%F0%9F...) y ensucian el enlace cuando se
+// muestra como texto.
+export const MENSAJE_WHATSAPP_PREDEFINIDO = 'Requiero unirme como cliente, mas información.';
+
+// Versión "bonita" del enlace de WhatsApp para MOSTRAR en la publicación:
+// sin https:// y sin la cadena ?text=... (que es ilegible). El enlace real
+// y completo (con el mensaje pre-escrito) se sigue usando al tocarlo.
+export function waLinkVisible(waLink: string | null | undefined): string {
+  if (!waLink) return '';
+  return waLink
+    .replace(/^https?:\/\//, '')
+    .replace(/\?.*$/, '');
+}
+
+// URL sin el prefijo https:// para mostrarla más limpia (el enlace de
+// invitación sí conserva su query ?op=... porque identifica al operador).
+export function urlVisible(url: string | null | undefined): string {
+  if (!url) return '';
+  return url.replace(/^https?:\/\//, '');
+}
 
 export interface CuerpoGenerar {
   red_social: RedSocial;
@@ -102,8 +120,19 @@ export async function listarPublicaciones(operadorPeruId: string): Promise<Publi
   return (data as PublicacionMarketing[] | null) ?? [];
 }
 
-export async function eliminarPublicacion(id: string): Promise<void> {
-  await supabase.from('publicaciones_marketing').delete().eq('id', id);
+// Borra la publicación de la base de datos y, si se puede, también su
+// imagen del bucket de Storage -- para no acumular filas ni archivos.
+export async function eliminarPublicacion(id: string, imagenUrl?: string | null): Promise<void> {
+  const { error } = await supabase.from('publicaciones_marketing').delete().eq('id', id);
+  if (error) throw error;
+
+  if (imagenUrl) {
+    // .../object/public/comprobantes/marketing/<uid>/<uuid>.jpg?t=123 -> marketing/<uid>/<uuid>.jpg
+    const match = imagenUrl.match(/\/comprobantes\/([^?]+)/);
+    if (match) {
+      await supabase.storage.from('comprobantes').remove([decodeURIComponent(match[1])]).catch(() => {});
+    }
+  }
 }
 
 // Descarga una imagen a partir de un data URI (lo que devuelve

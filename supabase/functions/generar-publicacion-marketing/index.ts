@@ -64,7 +64,17 @@ const TAMANOS: Record<string, { ancho: number; alto: number }> = {
   tiktok: { ancho: 1080, alto: 1920 },
 };
 
-const GROQ_MODELO = 'llama-3.3-70b-versatile';
+// Modelos de Groq a intentar en orden. Se puede forzar uno con el secreto
+// GROQ_MODEL. Si un modelo devuelve "model_not_found" (Groq deja de
+// ofrecerlo o la cuenta no tiene acceso), se pasa al siguiente en vez de
+// fallar -- así no hay que redeployar cada vez que Groq rota su catálogo.
+const GROQ_MODELOS = [
+  ...(Deno.env.get('GROQ_MODEL') ? [Deno.env.get('GROQ_MODEL')!] : []),
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'openai/gpt-oss-20b',
+  'gemma2-9b-it',
+];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -179,29 +189,43 @@ Deno.serve(async (req) => {
         'NO escribas URLs, enlaces, números de teléfono ni "wa.me": la app los agrega aparte. ' +
         'Devuelve únicamente el texto de la publicación, sin comillas ni encabezados.';
 
-      const groqResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
-        body: JSON.stringify({
-          model: GROQ_MODELO,
-          temperature: 1.05,
-          max_tokens: 400,
-          messages: [
-            { role: 'system', content: sistema },
-            { role: 'user', content: 'Genera la publicación ahora. Debe ser distinta y original.' },
-          ],
-        }),
-      });
+      let ultimoDetalle = '';
+      for (const modelo of GROQ_MODELOS) {
+        const groqResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+          body: JSON.stringify({
+            model: modelo,
+            temperature: 1.05,
+            max_tokens: 400,
+            messages: [
+              { role: 'system', content: sistema },
+              { role: 'user', content: 'Genera la publicación ahora. Debe ser distinta y original.' },
+            ],
+          }),
+        });
 
-      if (!groqResp.ok) {
-        const detalle = await groqResp.text().catch(() => '');
-        console.error('generar-publicacion-marketing: Groq', groqResp.status, detalle);
-        if (!texto) return json({ error: 'No se pudo generar el texto. Intenta de nuevo.' }, 502);
-      } else {
-        const data = await groqResp.json();
-        const generado: string | undefined = data?.choices?.[0]?.message?.content?.trim();
-        if (generado) texto = generado;
-        else if (!texto) return json({ error: 'La IA no devolvió texto. Intenta de nuevo.' }, 502);
+        if (groqResp.ok) {
+          const data = await groqResp.json();
+          const generado: string | undefined = data?.choices?.[0]?.message?.content?.trim();
+          if (generado) {
+            texto = generado;
+            break;
+          }
+          ultimoDetalle = 'la IA no devolvió contenido';
+          continue;
+        }
+
+        ultimoDetalle = await groqResp.text().catch(() => '');
+        console.error('generar-publicacion-marketing: Groq', modelo, groqResp.status, ultimoDetalle);
+        // 404/400 = modelo no disponible en esta cuenta -> probar el siguiente.
+        // Cualquier otro error (401 key, 429 rate limit, 5xx) no se arregla
+        // cambiando de modelo: se corta acá.
+        if (groqResp.status !== 404 && groqResp.status !== 400) break;
+      }
+
+      if (!texto) {
+        return json({ error: `No se pudo generar el texto (Groq): ${ultimoDetalle || 'sin detalle'}` }, 502);
       }
     }
 

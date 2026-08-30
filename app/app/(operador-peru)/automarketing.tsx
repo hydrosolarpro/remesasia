@@ -8,6 +8,9 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Linking,
+  Alert,
+  Platform,
 } from 'react-native';
 import ViewShot, { ViewShotRef } from 'react-native-view-shot';
 import { useAuth } from '../../lib/auth';
@@ -28,6 +31,9 @@ import {
   listarPublicaciones,
   descargarImagenDataUri,
   descargarImagenDesdeUrl,
+  eliminarPublicacion,
+  waLinkVisible,
+  urlVisible,
 } from '../../lib/automarketing';
 import { PublicacionMarketing } from '../../types/database';
 
@@ -197,6 +203,35 @@ export default function Automarketing() {
     setPaso('resultado');
   };
 
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+
+  const borrarPublicacion = async (p: PublicacionMarketing) => {
+    const confirmar =
+      Platform.OS === 'web'
+        ? Promise.resolve(window.confirm('¿Eliminar esta publicación? No se puede deshacer.'))
+        : new Promise<boolean>((resolve) =>
+            Alert.alert('Eliminar publicación', 'No se puede deshacer.', [
+              { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Eliminar', style: 'destructive', onPress: () => resolve(true) },
+            ])
+          );
+    if (!(await confirmar)) return;
+
+    setEliminandoId(p.id);
+    try {
+      await eliminarPublicacion(p.id, p.imagen_url);
+      setHistorial((prev) => prev.filter((x) => x.id !== p.id));
+      if (pub?.id === p.id) {
+        setPub(null);
+        setPaso('inicio');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar la publicación.');
+    } finally {
+      setEliminandoId(null);
+    }
+  };
+
   if (cargando) {
     return (
       <View style={styles.center}>
@@ -358,9 +393,28 @@ export default function Automarketing() {
 
             <Text style={styles.pubTextoIA}>{pub.texto}</Text>
 
-            {pub.wa_link ? <Text style={styles.pubEnlace}>💬 Escríbenos por WhatsApp: {pub.wa_link}</Text> : null}
-            {pub.invitacion_link ? <Text style={styles.pubEnlace}>🔗 Regístrate aquí: {pub.invitacion_link}</Text> : null}
+            {pub.wa_link ? (
+              <Text style={styles.pubEnlace}>💬 Escríbenos por WhatsApp: {waLinkVisible(pub.wa_link)}</Text>
+            ) : null}
+            {pub.invitacion_link ? (
+              <Text style={styles.pubEnlace}>🔗 Regístrate aquí: {urlVisible(pub.invitacion_link)}</Text>
+            ) : null}
           </ViewShot>
+
+          {/* Enlaces reales (fuera de la imagen descargable): al tocarlos
+              abren directamente WhatsApp / el navegador. */}
+          <View style={styles.enlacesTap}>
+            {pub.wa_link ? (
+              <Pressable onPress={() => Linking.openURL(pub.wa_link!)}>
+                <Text style={styles.enlaceTapTexto}>💬 Abrir WhatsApp con el mensaje listo</Text>
+              </Pressable>
+            ) : null}
+            {pub.invitacion_link ? (
+              <Pressable onPress={() => Linking.openURL(pub.invitacion_link!)}>
+                <Text style={styles.enlaceTapTexto}>🔗 Abrir el enlace de invitación en el navegador</Text>
+              </Pressable>
+            ) : null}
+          </View>
 
           <View style={styles.chipsWrap}>
             <Pressable
@@ -411,17 +465,31 @@ export default function Automarketing() {
       {historial.length > 0 && (
         <Collapsible titulo={`Publicaciones anteriores (${historial.length})`}>
           {historial.map((p) => (
-            <Pressable key={p.id} style={styles.histFila} onPress={() => abrirDelHistorial(p)}>
-              <Image source={{ uri: p.imagen_url }} style={styles.histMiniatura} resizeMode="cover" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.histMeta}>
-                  {p.red_social.toUpperCase()} · {FORMATTER_FECHA.format(new Date(p.created_at))}
-                </Text>
-                <Text style={styles.histTexto} numberOfLines={2}>
-                  {p.texto}
-                </Text>
-              </View>
-            </Pressable>
+            <View key={p.id} style={styles.histFila}>
+              <Pressable style={styles.histAbrir} onPress={() => abrirDelHistorial(p)}>
+                <Image source={{ uri: p.imagen_url }} style={styles.histMiniatura} resizeMode="cover" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.histMeta}>
+                    {p.red_social.toUpperCase()} · {FORMATTER_FECHA.format(new Date(p.created_at))}
+                  </Text>
+                  <Text style={styles.histTexto} numberOfLines={2}>
+                    {p.texto}
+                  </Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={styles.histEliminar}
+                onPress={() => borrarPublicacion(p)}
+                disabled={eliminandoId === p.id}
+                hitSlop={8}
+              >
+                {eliminandoId === p.id ? (
+                  <ActivityIndicator color={colors.danger} size="small" />
+                ) : (
+                  <Text style={styles.histEliminarTexto}>🗑️</Text>
+                )}
+              </Pressable>
+            </View>
           ))}
         </Collapsible>
       )}
@@ -494,8 +562,13 @@ const styles = StyleSheet.create({
   pubImagen: { width: '100%', borderRadius: radius.sm, backgroundColor: colors.cardAlt },
   pubTextoIA: { color: colors.text, fontSize: 15, lineHeight: 21 },
   pubEnlace: { color: colors.accent, fontSize: 12, lineHeight: 16 },
-  histFila: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 6 },
+  enlacesTap: { gap: 8, marginTop: 2 },
+  enlaceTapTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
+  histFila: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 6 },
+  histAbrir: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
   histMiniatura: { width: 54, height: 54, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
   histMeta: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
   histTexto: { color: colors.text, fontSize: 13, lineHeight: 17 },
+  histEliminar: { padding: 8, alignItems: 'center', justifyContent: 'center' },
+  histEliminarTexto: { fontSize: 16 },
 });
