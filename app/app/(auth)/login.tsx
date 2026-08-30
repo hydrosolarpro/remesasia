@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { Redirect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { signInWithGoogle } from '../../lib/googleAuth';
+import { useAuth } from '../../lib/auth';
 import { colors, radius } from '../../constants/theme';
 
 const DESTACADOS = [
@@ -11,8 +13,16 @@ const DESTACADOS = [
 ];
 
 export default function Login() {
+  const { session, usuario, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Si ya hay sesión (p. ej. el acceso directo del celular quedó apuntando
+  // a /login, o el usuario vuelve atrás), mandar a la raíz para que
+  // index.tsx enrute a su panel en vez de mostrar "Continuar con Google".
+  if (!authLoading && session && usuario) {
+    return <Redirect href="/" />;
+  }
 
   const entrar = async () => {
     setError(null);

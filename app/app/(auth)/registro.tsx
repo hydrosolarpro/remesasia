@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { colors, radius } from '../../constants/theme';
@@ -8,13 +8,32 @@ import { colors, radius } from '../../constants/theme';
 // Registro de cliente, primera vez que inicia sesión: nombre completo,
 // teléfono y país. El email ya llegó de Google.
 export default function Registro() {
-  const { usuario, refreshUsuario } = useAuth();
+  const { session, usuario, loading: authLoading, refreshUsuario } = useAuth();
   const [nombre, setNombre] = useState(usuario?.nombre ?? '');
   const [apellido, setApellido] = useState('');
   const [telefono, setTelefono] = useState(usuario?.telefono ?? '');
   const [pais, setPais] = useState(usuario?.pais ?? 'Perú');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Esta pantalla es SOLO para un cliente que aún no completó sus datos.
+  // Si se llega aquí con otra sesión (operador, admin) o con un cliente que
+  // ya tiene teléfono -- p.ej. porque el acceso directo del celular quedó
+  // apuntando a /registro, o por un enlace viejo -- se rebota a la raíz
+  // para que index.tsx mande a cada quien a su panel.
+  if (authLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+  if (!session || !usuario) {
+    return <Redirect href="/(auth)/login" />;
+  }
+  if (usuario.rol !== 'cliente' || (usuario.telefono?.trim() ?? '') !== '') {
+    return <Redirect href="/" />;
+  }
 
   const guardar = async () => {
     setError(null);
