@@ -36,6 +36,9 @@ import {
   construirWaLink,
   telefonoDesdeWa,
   dominioVisible,
+  BANCO_IMAGENES,
+  urlBancoImagen,
+  BancoImagen,
 } from '../../lib/automarketing';
 import { PublicacionMarketing } from '../../types/database';
 
@@ -237,6 +240,28 @@ export default function Automarketing() {
       setHistorial(await listarPublicaciones(negocioId));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo subir la imagen.');
+    } finally {
+      setSubiendoImagen(false);
+    }
+  };
+
+  // Usa una imagen del "Banco de imágenes del sistema": ya es una URL
+  // pública estática, así que no hay que subir nada -- solo apuntar la
+  // publicación a ella.
+  const usarImagenBanco = async (img: BancoImagen) => {
+    if (!pub || !negocioId) return;
+    setError(null);
+    setSubiendoImagen(true);
+    try {
+      const url = urlBancoImagen(img.slug);
+      await supabase
+        .from('publicaciones_marketing')
+        .update({ imagen_url: url, ancho: img.ancho, alto: img.alto })
+        .eq('id', pub.id);
+      setPub({ ...pub, imagen_url: url, ancho: img.ancho, alto: img.alto });
+      setHistorial(await listarPublicaciones(negocioId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo usar la imagen.');
     } finally {
       setSubiendoImagen(false);
     }
@@ -479,6 +504,32 @@ export default function Automarketing() {
             {pub.red_social === 'tiktok' ? '1080×1920 px (vertical 9:16)' : '1080×1080 px (cuadrada 1:1)'}.
           </Text>
 
+          <Text style={styles.bancoTitulo}>Banco de imágenes del sistema</Text>
+          <Text style={styles.dimHint}>Toca una para usarla en tu publicación (se ajusta al tamaño de la red).</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bancoRow}>
+            {BANCO_IMAGENES.map((img) => {
+              const url = urlBancoImagen(img.slug);
+              const activa = pub.imagen_url === url;
+              return (
+                <Pressable
+                  key={img.slug}
+                  style={styles.bancoItem}
+                  onPress={() => usarImagenBanco(img)}
+                  disabled={subiendoImagen || descargando || generando !== null}
+                >
+                  <Image
+                    source={{ uri: url }}
+                    style={[styles.bancoThumb, activa && styles.bancoThumbActivo]}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.bancoLabel} numberOfLines={2}>
+                    {img.titulo}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
           <View style={styles.pasosBox}>
             <Text style={styles.pasosTitulo}>
               Para publicarla en {pub.red_social.charAt(0).toUpperCase() + pub.red_social.slice(1)}:
@@ -666,6 +717,19 @@ const styles = StyleSheet.create({
   btnImagenPropia: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center', backgroundColor: colors.cardAlt },
   btnImagenPropiaTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   dimHint: { color: colors.textMuted, fontSize: 12, lineHeight: 16, marginTop: -4 },
+  bancoTitulo: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 6 },
+  bancoRow: { gap: 10, paddingVertical: 2, paddingRight: 8 },
+  bancoItem: { width: 132, gap: 4 },
+  bancoThumb: {
+    width: 132,
+    height: 88,
+    borderRadius: radius.sm,
+    backgroundColor: colors.cardAlt,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  bancoThumbActivo: { borderColor: colors.primary },
+  bancoLabel: { color: colors.textMuted, fontSize: 11, lineHeight: 14 },
   histFila: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 6 },
   histAbrir: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
   histMiniatura: { width: 54, height: 54, borderRadius: radius.sm, backgroundColor: colors.cardAlt },

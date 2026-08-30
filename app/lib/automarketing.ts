@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { supabase } from './supabase';
+import { BASE_URL } from './invitaciones';
 import { PublicacionMarketing } from '../types/database';
 
 // ─────────────────────────────────────────────────────────────
@@ -55,6 +56,48 @@ export const TAMANOS_RED_SOCIAL: Record<RedSocial, { ancho: number; alto: number
   instagram: { ancho: 1080, alto: 1080, etiqueta: 'Instagram · 1080×1080', icono: '📸' },
   tiktok: { ancho: 1080, alto: 1920, etiqueta: 'TikTok · 1080×1920', icono: '🎵' },
 };
+
+// ── Banco de imágenes del sistema ────────────────────────────────────────
+// Imágenes curadas (tema remesas Perú-Venezuela) que el Operador principal
+// puede usar en su publicación sin generar con IA ni subir una propia. Los
+// archivos viven en app/public/banco-automarketing/<slug>.jpg y se sirven
+// como estáticos (mismo patrón que lib/materiales.ts).
+export interface BancoImagen {
+  slug: string;
+  titulo: string;
+  ancho: number;
+  alto: number;
+}
+
+export function urlBancoImagen(slug: string): string {
+  return `${BASE_URL}/banco-automarketing/${slug}.jpg`;
+}
+
+export const BANCO_IMAGENES: BancoImagen[] = [
+  { slug: 'familia-remesa-1', titulo: 'Familia y remesa 1', ancho: 1280, alto: 698 },
+  { slug: 'familia-remesa-2', titulo: 'Familia y remesa 2', ancho: 1280, alto: 698 },
+  { slug: 'familia-remesa-3', titulo: 'Familia y remesa 3', ancho: 1280, alto: 698 },
+  { slug: 'remittance-app-peru-ve', titulo: 'App de remesas Perú-Venezuela', ancho: 1280, alto: 714 },
+  { slug: 'remittance-office-family', titulo: 'La remesa conecta oficina y familia', ancho: 1280, alto: 714 },
+  { slug: 'remesas-peru-venezuela-ilustracion', titulo: 'Remesas Perú-Venezuela (ilustración)', ancho: 1280, alto: 1280 },
+  { slug: 'hand-smartphone-showing', titulo: 'Mano con celular mostrando la app', ancho: 1280, alto: 714 },
+  { slug: 'person-smartphone-transfer', titulo: 'Persona transfiriendo desde el celular', ancho: 1280, alto: 714 },
+  { slug: 'finger-pressing-send', titulo: 'Dedo presionando Enviar en el celular', ancho: 1280, alto: 714 },
+  { slug: 'finger-hovering-send', titulo: 'Dedo sobre el botón Enviar', ancho: 1280, alto: 714 },
+  { slug: 'smartphone-interface-remittance', titulo: 'Pantalla de la app de remesas', ancho: 1280, alto: 714 },
+  { slug: 'digital-interface-transfer', titulo: 'Interfaz digital de transferencia', ancho: 1280, alto: 714 },
+  { slug: 'hands-transfer-coins', titulo: 'Manos transfiriendo dinero', ancho: 1280, alto: 714 },
+  { slug: 'currency-moving-digital', titulo: 'Dinero moviéndose en digital', ancho: 1280, alto: 714 },
+  { slug: 'digital-bank-vault', titulo: 'Bóveda bancaria digital y segura', ancho: 1280, alto: 714 },
+  { slug: 'people-mobile-apps', titulo: 'Personas conectadas por apps móviles', ancho: 1280, alto: 714 },
+  { slug: 'golden-bridge-countries', titulo: 'Puente dorado entre dos países', ancho: 1280, alto: 714 },
+  { slug: 'light-beam-cities', titulo: 'Haz de luz uniendo dos ciudades', ancho: 1280, alto: 714 },
+  { slug: 'data-coast-mountains', titulo: 'Datos uniendo costa y montañas', ancho: 1280, alto: 714 },
+  { slug: 'data-fibers-tunnel', titulo: 'Fibras de datos en un túnel', ancho: 1280, alto: 714 },
+  { slug: 'rocket-peru-venezuela', titulo: 'Cohete entre Perú y Venezuela', ancho: 1280, alto: 714 },
+  { slug: 'rocket-from-smartphone', titulo: 'Cohete saliendo del celular', ancho: 1280, alto: 714 },
+  { slug: 'rocket-secure-money', titulo: 'Cohete: envío de dinero seguro', ancho: 1280, alto: 714 },
+];
 
 // Enlace de WhatsApp para la publicación: SOLO wa.me + el teléfono del
 // operador, sin ?text=... (a pedido del negocio, para que el enlace se vea
