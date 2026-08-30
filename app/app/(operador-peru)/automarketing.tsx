@@ -504,9 +504,9 @@ export default function Automarketing() {
             {pub.red_social === 'tiktok' ? '1080×1920 px (vertical 9:16)' : '1080×1080 px (cuadrada 1:1)'}.
           </Text>
 
-          <Text style={styles.bancoTitulo}>Banco de imágenes del sistema</Text>
+          <Text style={styles.bancoTitulo}>Banco de imágenes del sistema ({BANCO_IMAGENES.length})</Text>
           <Text style={styles.dimHint}>Toca una para usarla en tu publicación (se ajusta al tamaño de la red).</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bancoRow}>
+          <View style={styles.bancoGrid}>
             {BANCO_IMAGENES.map((img) => {
               const url = urlBancoImagen(img.slug);
               const activa = pub.imagen_url === url;
@@ -528,7 +528,7 @@ export default function Automarketing() {
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
 
           <View style={styles.pasosBox}>
             <Text style={styles.pasosTitulo}>
@@ -718,18 +718,18 @@ const styles = StyleSheet.create({
   btnImagenPropiaTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   dimHint: { color: colors.textMuted, fontSize: 12, lineHeight: 16, marginTop: -4 },
   bancoTitulo: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 6 },
-  bancoRow: { gap: 10, paddingVertical: 2, paddingRight: 8 },
-  bancoItem: { width: 132, gap: 4 },
+  bancoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  bancoItem: { width: 104, gap: 3 },
   bancoThumb: {
-    width: 132,
-    height: 88,
+    width: 104,
+    height: 72,
     borderRadius: radius.sm,
     backgroundColor: colors.cardAlt,
     borderWidth: 2,
     borderColor: colors.border,
   },
   bancoThumbActivo: { borderColor: colors.primary },
-  bancoLabel: { color: colors.textMuted, fontSize: 11, lineHeight: 14 },
+  bancoLabel: { color: colors.textMuted, fontSize: 10, lineHeight: 13 },
   histFila: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 6 },
   histAbrir: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
   histMiniatura: { width: 54, height: 54, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
