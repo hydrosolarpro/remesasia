@@ -399,7 +399,8 @@ Deno.serve(async (req) => {
 
     if (regenerarSolo !== 'texto') {
       try {
-        const { bytes, contentType } = await generarImagenBytes(imagenPrompt, redSocial);
+        const { bytes, contentType, fuente } = await generarImagenBytes(imagenPrompt, redSocial);
+        console.log(`generar-publicacion-marketing: imagen OK vía ${fuente} (${bytes.byteLength} bytes)`);
         const ext = contentType.includes('png') ? 'png' : 'jpg';
         const path = `marketing/${user.id}/${crypto.randomUUID()}.${ext}`;
         const { error: upErr } = await admin.storage
