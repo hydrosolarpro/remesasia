@@ -16,11 +16,11 @@ export default function Registro() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Esta pantalla es SOLO para un cliente que aún no completó sus datos.
-  // Si se llega aquí con otra sesión (operador, admin) o con un cliente que
-  // ya tiene teléfono -- p.ej. porque el acceso directo del celular quedó
-  // apuntando a /registro, o por un enlace viejo -- se rebota a la raíz
-  // para que index.tsx mande a cada quien a su panel.
+  // Esta pantalla es SOLO para un cliente INVITADO (vinculado a un operador
+  // por un enlace de invitación) que aún no completó sus datos. Cualquier
+  // otro caso -- otra sesión (operador, admin), un cliente que ya tiene
+  // teléfono, o un cliente sin operador vinculado -- se rebota a la raíz;
+  // index.tsx enruta a cada quien a su panel o al aviso "cuenta no activada".
   if (authLoading) {
     return (
       <View style={styles.container}>
@@ -31,7 +31,11 @@ export default function Registro() {
   if (!session || !usuario) {
     return <Redirect href="/(auth)/login" />;
   }
-  if (usuario.rol !== 'cliente' || (usuario.telefono?.trim() ?? '') !== '') {
+  if (
+    usuario.rol !== 'cliente' ||
+    !usuario.negocio_operador_peru_id ||
+    (usuario.telefono?.trim() ?? '') !== ''
+  ) {
     return <Redirect href="/" />;
   }
 
