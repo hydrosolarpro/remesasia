@@ -37,6 +37,17 @@ function useWebHeadTags() {
     set('meta', { name: 'mobile-web-app-capable', content: 'no' }, 'name');
     set('meta', { name: 'theme-color', content: '#0A0E1B' }, 'name');
     set('meta', { name: 'apple-mobile-web-app-title', content: 'Remesas IA' }, 'name');
+
+    // Pide almacenamiento persistente para que el navegador NO borre la
+    // sesión de Supabase (localStorage). Funciona en Chrome, Edge, Samsung
+    // Internet y Firefox; Safari lo ignora en silencio (ahí lo cubre abrir
+    // en el navegador en vez de ventana aislada). Sin efecto si ya estaba
+    // concedido o si la API no existe.
+    try {
+      navigator.storage?.persist?.().catch(() => {});
+    } catch {
+      /* API no disponible */
+    }
   }, []);
 }
 
