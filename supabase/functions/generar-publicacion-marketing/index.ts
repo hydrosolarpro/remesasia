@@ -233,19 +233,53 @@ async function generarConGemini(
   throw new Error(`Gemini sin resultado: ${ultimo}`);
 }
 
+// Pollinations es 100% gratis y sin registro. Se prueba primero su modelo
+// `gptimage` (acabado más profesional, tipo GPT-Image) y si falla o tarda
+// demasiado, se cae a `flux`. `enhance=true` deja que Pollinations mejore
+// el prompt antes de generar.
 async function generarConPollinations(
   prompt: string,
   redSocial: string
 ): Promise<{ bytes: Uint8Array; contentType: string; fuente: string }> {
   const { ancho, alto } = TAMANOS[redSocial];
-  const seed = Math.floor(Math.random() * 1_000_000);
-  const url =
-    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-    `?width=${ancho}&height=${alto}&seed=${seed}&nologo=true&enhance=true&model=flux`;
   const token = Deno.env.get('POLLINATIONS_TOKEN');
-  const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (!resp.ok) throw new Error(`Pollinations respondió ${resp.status}`);
-  return { bytes: new Uint8Array(await resp.arrayBuffer()), contentType: 'image/jpeg', fuente: 'pollinations' };
+  const modelos = (Deno.env.get('POLLINATIONS_MODEL') || 'gptimage,flux').split(',').map((m) => m.trim());
+
+  let ultimo = '';
+  for (const modelo of modelos) {
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const url =
+      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+      `?width=${ancho}&height=${alto}&seed=${seed}&nologo=true&enhance=true&private=true&model=${encodeURIComponent(modelo)}`;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 100_000);
+    try {
+      const resp = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: ctrl.signal,
+      });
+      if (!resp.ok) {
+        ultimo = `Pollinations ${modelo} respondió ${resp.status}`;
+        console.error('generar-publicacion-marketing:', ultimo);
+        continue;
+      }
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      if (bytes.byteLength < 1024) {
+        ultimo = `Pollinations ${modelo} devolvió una imagen vacía`;
+        continue;
+      }
+      const contentType = resp.headers.get('content-type')?.startsWith('image/')
+        ? resp.headers.get('content-type')!
+        : 'image/jpeg';
+      return { bytes, contentType, fuente: `pollinations/${modelo}` };
+    } catch (err) {
+      ultimo = `Pollinations ${modelo}: ${err instanceof Error ? err.message : String(err)}`;
+      console.error('generar-publicacion-marketing:', ultimo);
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  throw new Error(ultimo || 'Pollinations no devolvió imagen');
 }
 
 Deno.serve(async (req) => {
