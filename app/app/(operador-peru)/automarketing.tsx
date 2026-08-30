@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import ViewShot, { ViewShotRef } from 'react-native-view-shot';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
@@ -32,8 +33,9 @@ import {
   descargarImagenDataUri,
   descargarImagenDesdeUrl,
   eliminarPublicacion,
-  waLinkVisible,
-  urlVisible,
+  construirCaption,
+  telefonoDesdeWa,
+  dominioVisible,
 } from '../../lib/automarketing';
 import { PublicacionMarketing } from '../../types/database';
 
@@ -204,6 +206,14 @@ export default function Automarketing() {
   };
 
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
+  const copiarCaption = async () => {
+    if (!pub) return;
+    await Clipboard.setStringAsync(construirCaption(pub));
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 1800);
+  };
 
   const borrarPublicacion = async (p: PublicacionMarketing) => {
     const confirmar =
@@ -393,25 +403,37 @@ export default function Automarketing() {
 
             <Text style={styles.pubTextoIA}>{pub.texto}</Text>
 
-            {pub.wa_link ? (
-              <Text style={styles.pubEnlace}>💬 Escríbenos por WhatsApp: {waLinkVisible(pub.wa_link)}</Text>
-            ) : null}
-            {pub.invitacion_link ? (
-              <Text style={styles.pubEnlace}>🔗 Regístrate aquí: {urlVisible(pub.invitacion_link)}</Text>
-            ) : null}
+            {/* Franja de contacto dentro de la imagen: legible, sin URLs
+                largas (en una imagen los enlaces no son clicables). */}
+            <View style={styles.pubCta}>
+              {pub.wa_link ? (
+                <Text style={styles.pubCtaFuerte}>💬 WhatsApp: {telefonoDesdeWa(pub.wa_link)}</Text>
+              ) : null}
+              {pub.invitacion_link ? (
+                <Text style={styles.pubCtaSuave}>📝 Regístrate: {dominioVisible(pub.invitacion_link)}  ·  enlace en la descripción</Text>
+              ) : null}
+            </View>
           </ViewShot>
 
-          {/* Enlaces reales (fuera de la imagen descargable): al tocarlos
-              abren directamente WhatsApp / el navegador. */}
+          <Text style={styles.ayudaPublicar}>
+            Descarga la imagen y publícala. Pega el texto de abajo como descripción del post: ahí los enlaces de
+            WhatsApp y de registro sí funcionan al tocarlos.
+          </Text>
+
+          <Pressable style={styles.btnCopiar} onPress={copiarCaption}>
+            <Text style={styles.btnCopiarTexto}>{copiado ? '✓ Texto copiado' : '📋 Copiar texto para publicar'}</Text>
+          </Pressable>
+
+          {/* Enlaces reales para probarlos al instante desde aquí. */}
           <View style={styles.enlacesTap}>
             {pub.wa_link ? (
               <Pressable onPress={() => Linking.openURL(pub.wa_link!)}>
-                <Text style={styles.enlaceTapTexto}>💬 Abrir WhatsApp con el mensaje listo</Text>
+                <Text style={styles.enlaceTapTexto}>💬 Probar el enlace de WhatsApp</Text>
               </Pressable>
             ) : null}
             {pub.invitacion_link ? (
               <Pressable onPress={() => Linking.openURL(pub.invitacion_link!)}>
-                <Text style={styles.enlaceTapTexto}>🔗 Abrir el enlace de invitación en el navegador</Text>
+                <Text style={styles.enlaceTapTexto}>🔗 Probar el enlace de invitación</Text>
               </Pressable>
             ) : null}
           </View>
@@ -554,14 +576,26 @@ const styles = StyleSheet.create({
   filaBotones: { flexDirection: 'row', gap: 10, marginTop: 6 },
   btnRegenerar: { flexGrow: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', backgroundColor: colors.cardAlt },
   btnRegenerarTexto: { color: colors.accent, fontWeight: '700', fontSize: 13 },
-  publicacion: { backgroundColor: colors.card, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 },
-  pubHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pubLogo: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.cardAlt },
-  pubNegocio: { color: colors.text, fontSize: 17, fontWeight: '800' },
-  pubEslogan: { color: colors.textMuted, fontSize: 13 },
+  publicacion: { backgroundColor: colors.card, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 12 },
+  pubHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pubLogo: { width: 72, height: 72, borderRadius: radius.md, backgroundColor: colors.cardAlt },
+  pubNegocio: { color: colors.text, fontSize: 22, fontWeight: '900' },
+  pubEslogan: { color: colors.textMuted, fontSize: 15, marginTop: 2 },
   pubImagen: { width: '100%', borderRadius: radius.sm, backgroundColor: colors.cardAlt },
-  pubTextoIA: { color: colors.text, fontSize: 15, lineHeight: 21 },
-  pubEnlace: { color: colors.accent, fontSize: 12, lineHeight: 16 },
+  pubTextoIA: { color: colors.text, fontSize: 19, lineHeight: 27, fontWeight: '500' },
+  pubCta: {
+    backgroundColor: `${colors.primary}22`,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 4,
+  },
+  pubCtaFuerte: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  pubCtaSuave: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  ayudaPublicar: { color: colors.textMuted, fontSize: 13, lineHeight: 18, marginTop: 4 },
+  btnCopiar: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.accent, borderRadius: radius.sm, padding: 13, alignItems: 'center' },
+  btnCopiarTexto: { color: colors.accent, fontWeight: '800', fontSize: 15 },
   enlacesTap: { gap: 8, marginTop: 2 },
   enlaceTapTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   histFila: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 6 },

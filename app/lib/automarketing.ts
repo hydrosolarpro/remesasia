@@ -79,6 +79,35 @@ export function urlVisible(url: string | null | undefined): string {
   return url.replace(/^https?:\/\//, '');
 }
 
+// Solo el dominio de una URL (sin https:// ni ruta ni query) -- para
+// mostrarlo legible dentro de la imagen, donde un token largo no sirve.
+export function dominioVisible(url: string | null | undefined): string {
+  if (!url) return '';
+  return url.replace(/^https?:\/\//, '').replace(/[/?].*$/, '');
+}
+
+// Número de teléfono legible ("+51 960 442 025") a partir del enlace wa.me.
+export function telefonoDesdeWa(waLink: string | null | undefined): string {
+  if (!waLink) return '';
+  const m = waLink.match(/wa\.me\/(\d+)/);
+  if (!m) return '';
+  const d = m[1];
+  return `+${d.slice(0, 2)} ${d.slice(2).replace(/(\d{3})(?=\d)/g, '$1 ')}`.trim();
+}
+
+// Texto listo para pegar como descripción de la publicación en Facebook /
+// Instagram / TikTok. Ahí los enlaces SÍ son clicables (en la imagen no).
+export function construirCaption(p: {
+  texto: string;
+  wa_link: string | null;
+  invitacion_link: string | null;
+}): string {
+  const partes = [p.texto.trim()];
+  if (p.wa_link) partes.push(`💬 Escríbeme por WhatsApp: ${p.wa_link}`);
+  if (p.invitacion_link) partes.push(`📝 Regístrate aquí: ${p.invitacion_link}`);
+  return partes.join('\n\n');
+}
+
 export interface CuerpoGenerar {
   red_social: RedSocial;
   concepto?: string;
