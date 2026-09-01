@@ -12,7 +12,7 @@ export type EstadoSolicitud =
 
 export type MetodoPago = 'yape' | 'plin' | 'banco';
 export type TipoTransferencia = 'transferencia_bancaria' | 'pago_movil';
-export type PlanOperador = 'demo' | 'starter' | 'pro' | 'expert' | 'avance' | 'ultra' | 'unlimited';
+export type PlanOperador = 'demo' | 'starter' | 'pro' | 'expert' | 'avance' | 'ultra' | 'unlimited' | 'medida';
 
 export interface Usuario {
   id: string;
@@ -294,6 +294,12 @@ export interface PagoSuscripcion {
   operador_peru_id: string | null;
   periodo: string; // 'YYYY-MM'
   monto: number;
+  /** UNLIMITED consultado, sin tarifa fijada todavía por el admin. */
+  monto_por_definir: boolean;
+  /** Plan a la medida: monto = N × S/ 1 / mes; N se guarda en limite_clientes. */
+  plan_a_medida: boolean;
+  /** Cupo de clientes pactado (UNLIMITED y plan a la medida). */
+  limite_clientes: number | null;
   comprobante_url: string | null;
   estado: EstadoPago;
   motivo_rechazo: string | null;
@@ -308,6 +314,12 @@ export interface CambioPlanPendiente {
   operador_peru_id: string;
   plan_solicitado: PlanOperador;
   monto: number;
+  /** UNLIMITED consultado, sin tarifa fijada todavía por el admin. */
+  monto_por_definir: boolean;
+  /** Plan a la medida: monto = N × S/ 1 / mes; N se guarda en limite_clientes. */
+  plan_a_medida: boolean;
+  /** Cupo de clientes pactado (UNLIMITED y plan a la medida). */
+  limite_clientes: number | null;
   comprobante_url: string | null;
   estado: EstadoPago;
   motivo_rechazo: string | null;

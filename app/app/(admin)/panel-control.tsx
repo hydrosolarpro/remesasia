@@ -34,6 +34,7 @@ interface Pago {
   estado: 'pendiente' | 'verificado' | 'rechazado';
   monto: number;
   monto_por_definir: boolean;
+  plan_a_medida: boolean;
   limite_clientes: number | null;
   comprobante_url: string | null;
 }
@@ -43,6 +44,7 @@ interface CambioPendienteFila {
   plan_solicitado: string;
   monto: number;
   monto_por_definir: boolean;
+  plan_a_medida: boolean;
   limite_clientes: number | null;
   comprobante_url: string | null;
   estado: 'pendiente' | 'verificado';
@@ -92,7 +94,8 @@ interface OperadorFila {
 function calcularPlanActual(op: OperadorFila) {
   const pagoPeriodo = op.pagos_suscripcion.find((p) => p.periodo === periodoActual());
   const planActual = op.plan;
-  const planMonto = planActual === 'unlimited' ? precioPlanOperador(op, planActual) || undefined : undefined;
+  const planMonto =
+    planActual === 'unlimited' || planActual === 'medida' ? precioPlanOperador(op, planActual) || undefined : undefined;
   return { pagoPeriodo, planActual, planMonto };
 }
 
@@ -100,7 +103,7 @@ function calcularPlanActual(op: OperadorFila) {
 // para todos los planes salvo UNLIMITED, que se acuerda caso por caso con
 // el administrador (se toma el monto de su último pago verificado).
 function precioPlanOperador(op: OperadorFila, planActual: string): number {
-  if (planActual === 'unlimited') {
+  if (planActual === 'unlimited' || planActual === 'medida') {
     const verificados = op.pagos_suscripcion
       .filter((p) => p.estado === 'verificado')
       .sort((a, b) => b.periodo.localeCompare(a.periodo));
@@ -148,7 +151,7 @@ export default function PanelControl() {
     const { data, error } = await supabase
       .from('usuarios')
       .select(
-        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, plan_inicio, limite_clientes_unlimited, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto, monto_por_definir, limite_clientes, comprobante_url)'
+        'id, nombre, email, telefono, created_at, acceso_concedido, plan, demo_inicio, plan_inicio, limite_clientes_unlimited, perfil_negocio(nombre_negocio), pagos_suscripcion!pagos_suscripcion_operador_peru_id_fkey(id, periodo, estado, monto, monto_por_definir, plan_a_medida, limite_clientes, comprobante_url)'
       )
       .eq('rol', 'operador_peru')
       .order('created_at', { ascending: false });
@@ -156,7 +159,7 @@ export default function PanelControl() {
 
     const { data: cambios } = await supabase
       .from('cambios_plan_pendientes')
-      .select('id, operador_peru_id, plan_solicitado, monto, monto_por_definir, limite_clientes, comprobante_url, estado')
+      .select('id, operador_peru_id, plan_solicitado, monto, monto_por_definir, plan_a_medida, limite_clientes, comprobante_url, estado')
       .neq('estado', 'rechazado')
       .is('activado_at', null);
     const mapaCambios: Record<string, CambioPendienteFila> = {};
@@ -166,6 +169,7 @@ export default function PanelControl() {
         plan_solicitado: c.plan_solicitado,
         monto: c.monto,
         monto_por_definir: c.monto_por_definir,
+        plan_a_medida: c.plan_a_medida,
         limite_clientes: c.limite_clientes,
         comprobante_url: c.comprobante_url,
         estado: c.estado as 'pendiente' | 'verificado',
@@ -252,7 +256,13 @@ export default function PanelControl() {
     return () => clearInterval(id);
   }, [cargar]);
 
-  const validarPago = async (pagoId: string, operadorId: string, monto: number, limiteClientes: number | null) => {
+  const validarPago = async (
+    pagoId: string,
+    operadorId: string,
+    monto: number,
+    limiteClientes: number | null,
+    esMedida: boolean
+  ) => {
     setProcesando(pagoId);
     const { data: usuarioAuth } = await supabase.auth.getUser();
     const { error: errorPago } = await supabase
@@ -264,14 +274,17 @@ export default function PanelControl() {
       Alert.alert('No se pudo validar el pago', errorPago.message);
       return;
     }
-    const plan = planDesdeMonto(monto);
+    // Plan a la medida: la fila lo marca explícitamente (su monto = N × S/ 1
+    // no calza con ningún plan fijo). El cupo de clientes pactado se guarda
+    // en limite_clientes_unlimited, igual que UNLIMITED.
+    const plan = esMedida ? 'medida' : planDesdeMonto(monto);
     const { error: errorPlan } = await supabase
       .from('usuarios')
       .update({
         plan,
         acceso_concedido: true,
         plan_inicio: new Date().toISOString(),
-        ...(plan === 'unlimited' ? { limite_clientes_unlimited: limiteClientes } : {}),
+        ...(plan === 'unlimited' || plan === 'medida' ? { limite_clientes_unlimited: limiteClientes } : {}),
       })
       .eq('id', operadorId);
     setProcesando(null);
@@ -494,16 +507,21 @@ export default function PanelControl() {
 
         <View style={styles.desgloseWrap}>
           <Text style={styles.desgloseTitulo}>Desglose de Ganancia Bruta por plan</Text>
-          {ORDEN_PLANES.filter((p) => p !== 'demo').map((planId) => {
+          {[...ORDEN_PLANES.filter((p) => p !== 'demo'), 'medida'].map((planId) => {
             const fila = desglosePorPlan[planId];
             const cantidad = fila?.cantidad ?? 0;
             const subtotal = fila?.subtotal ?? 0;
+            const montoVariable = planId === 'unlimited' || planId === 'medida';
             return (
               <View key={planId} style={styles.desgloseFila}>
                 <Text style={styles.desglosePlan}>{NOMBRE_PLAN[planId] ?? planId.toUpperCase()}</Text>
                 <Text style={styles.desgloseDato}>
                   {cantidad} operador{cantidad === 1 ? '' : 'es'}
-                  {planId !== 'unlimited' ? ` × S/ ${(PRECIO_PLAN[planId] ?? 0).toFixed(2)}` : ' (monto acordado c/u)'}
+                  {montoVariable
+                    ? planId === 'medida'
+                      ? ' (S/ 1 por cliente/mes c/u)'
+                      : ' (monto acordado c/u)'
+                    : ` × S/ ${(PRECIO_PLAN[planId] ?? 0).toFixed(2)}`}
                 </Text>
                 <Text style={styles.desgloseSubtotal}>S/ {subtotal.toFixed(2)}</Text>
               </View>
@@ -599,7 +617,9 @@ export default function PanelControl() {
                       <Text style={styles.planSolicitado}>
                         {pagoPeriodo.monto_por_definir
                           ? `Quiere el plan UNLIMITED${pagoPeriodo.limite_clientes ? ` para hasta ${pagoPeriodo.limite_clientes} clientes` : ''} — contáctalo por WhatsApp para acordar la tarifa`
-                          : `Eligió ${planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ ${pagoPeriodo.monto.toFixed(2)}) — pendiente de verificar`}
+                          : pagoPeriodo.plan_a_medida
+                            ? `Eligió el plan A LA MEDIDA (S/ ${pagoPeriodo.monto.toFixed(2)}/mes${pagoPeriodo.limite_clientes ? ` · hasta ${pagoPeriodo.limite_clientes} clientes` : ''}) — pendiente de verificar`
+                            : `Eligió ${planLabel(planDesdeMonto(pagoPeriodo.monto))} (S/ ${pagoPeriodo.monto.toFixed(2)}) — pendiente de verificar`}
                       </Text>
                       {pagoPeriodo.comprobante_url && (
                         <Pressable
@@ -634,9 +654,11 @@ export default function PanelControl() {
                             }`
                           : cambiosPendientes[op.id].monto_por_definir
                             ? `Quiere el plan UNLIMITED${cambiosPendientes[op.id].limite_clientes ? ` para hasta ${cambiosPendientes[op.id].limite_clientes} clientes` : ''} — contáctalo por WhatsApp para acordar la tarifa`
-                            : !cambiosPendientes[op.id].comprobante_url
-                              ? `Tarifa UNLIMITED fijada (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}${cambiosPendientes[op.id].limite_clientes ? ` · hasta ${cambiosPendientes[op.id].limite_clientes} clientes` : ''}) — esperando que pague`
-                              : `Eligió ${planLabel(cambiosPendientes[op.id].plan_solicitado)} (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — pendiente de verificar`}
+                            : cambiosPendientes[op.id].plan_a_medida
+                              ? `Eligió el plan A LA MEDIDA (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}/mes${cambiosPendientes[op.id].limite_clientes ? ` · hasta ${cambiosPendientes[op.id].limite_clientes} clientes` : ''})${cambiosPendientes[op.id].comprobante_url ? ' — pendiente de verificar' : ' — esperando que pague'}`
+                              : !cambiosPendientes[op.id].comprobante_url
+                                ? `Tarifa UNLIMITED fijada (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}${cambiosPendientes[op.id].limite_clientes ? ` · hasta ${cambiosPendientes[op.id].limite_clientes} clientes` : ''}) — esperando que pague`
+                                : `Eligió ${planLabel(cambiosPendientes[op.id].plan_solicitado)} (S/ ${cambiosPendientes[op.id].monto.toFixed(2)}) — pendiente de verificar`}
                       </Text>
                       {cambiosPendientes[op.id].comprobante_url && (
                         <Pressable
@@ -716,7 +738,10 @@ export default function PanelControl() {
                   checked={pagoPeriodo?.estado === 'verificado'}
                   disabled={!pagoPeriodo || pagoPeriodo.estado !== 'pendiente' || pagoPeriodo.monto_por_definir || !pagoPeriodo.comprobante_url}
                   loading={procesando === pagoPeriodo?.id}
-                  onPress={() => pagoPeriodo && validarPago(pagoPeriodo.id, op.id, pagoPeriodo.monto, pagoPeriodo.limite_clientes)}
+                  onPress={() =>
+                    pagoPeriodo &&
+                    validarPago(pagoPeriodo.id, op.id, pagoPeriodo.monto, pagoPeriodo.limite_clientes, pagoPeriodo.plan_a_medida)
+                  }
                 />
                 <Text style={styles.checkEstado}>
                   {!pagoPeriodo

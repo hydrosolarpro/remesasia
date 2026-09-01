@@ -101,6 +101,17 @@ const PLANES: PlanContenido[] = [
     incluyeNuevasFuncionalidades: true,
   },
   {
+    id: 'medida',
+    encabezado: `A LA MEDIDA (S/ 1 por cliente / mes, 30 días)`,
+    acceso: 'Acceso completo a la plataforma digital por 30 días continuos con acceso vía Gmail de Google con autentificación segura y automática.',
+    registro:
+      'Registro de clientes finales según el número que contrates: la suscripción mensual se calcula sola como N° de clientes × S/ 1. Considera siempre un poco más de clientes según tu crecimiento mensual.',
+    operadores:
+      'Operadores en el país de recepción y de entrega según el tramo estándar equivalente a tu número de clientes (1–100 como STARTER, 101–200 como PRO, 201–400 como EXPERT, 401–600 como AVANCE, 601–1000 como ULTRA). Más de 1000 clientes: plan UNLIMITED.',
+    incluyeExtra: true,
+    incluyeNuevasFuncionalidades: true,
+  },
+  {
     id: 'unlimited',
     encabezado: `UNLIMITED (pago mensual 30 días)`,
     acceso: 'Acceso completo a la plataforma digital por 30 días continuos con acceso vía Gmail de Google con autentificación segura y automática.',

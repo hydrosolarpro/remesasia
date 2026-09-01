@@ -14,6 +14,9 @@ interface InfoPlanDueno {
   demo_inicio: string | null;
   plan_inicio: string | null;
   acceso_concedido: boolean;
+  // Plan 'medida' / 'unlimited': N° de clientes pactado -- se usa para
+  // reactivar el mismo plan a la medida (su monto = N × S/ 1).
+  limite_clientes_unlimited: number | null;
 }
 
 // Envuelve las pestañas del Operador Perú. Mientras el negocio esté en
@@ -45,6 +48,7 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
       demo_inicio: usuario.demo_inicio,
       plan_inicio: usuario.plan_inicio,
       acceso_concedido: usuario.acceso_concedido,
+      limite_clientes_unlimited: usuario.limite_clientes_unlimited,
     };
     if (usuario.rol === 'operador_peru_miembro') {
       const { data: miembro } = await supabase
@@ -56,7 +60,7 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
         idDueno = miembro.operador_peru_id;
         const { data: dueno } = await supabase
           .from('usuarios')
-          .select('plan, demo_inicio, plan_inicio, acceso_concedido')
+          .select('plan, demo_inicio, plan_inicio, acceso_concedido, limite_clientes_unlimited')
           .eq('id', idDueno)
           .maybeSingle();
         if (dueno) info = dueno as InfoPlanDueno;
@@ -160,7 +164,12 @@ export function SuscripcionGate({ children }: PropsWithChildren) {
           </View>
         )}
 
-        <FormularioSolicitudPlan plan={planParaReactivar} modo="nueva" onEnviado={cargar} />
+        <FormularioSolicitudPlan
+          plan={planParaReactivar}
+          modo="nueva"
+          onEnviado={cargar}
+          clientesAMedida={planParaReactivar === 'medida' ? infoPlanDueno.limite_clientes_unlimited ?? undefined : undefined}
+        />
       </ScrollView>
     );
   }

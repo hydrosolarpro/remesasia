@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { CopyField } from './CopyField';
 import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin } from '../types/database';
-import { PRECIO_PLAN, planLabel } from '../lib/plan';
+import { PRECIO_PLAN, planLabel, precioPlanMedida, tramoPlanMedida, NOMBRE_PLAN, PRECIO_MEDIDA_POR_CLIENTE } from '../lib/plan';
 import { construirEnlaceWhatsAppAdmin } from '../lib/whatsapp';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -146,6 +146,9 @@ export function FormularioSolicitudPlan(props: {
   modo: 'nueva' | 'cambio';
   onEnviado?: () => void;
   montoUnlimitedAcordado?: number;
+  // Solo plan 'medida': N° de clientes que el operador solicita. El monto
+  // (= N × S/ 1) y el cupo se derivan de acá -- ver lib/plan.ts.
+  clientesAMedida?: number;
 }) {
   if (props.plan === 'unlimited' && !props.montoUnlimitedAcordado) {
     return <SolicitudUnlimited modo={props.modo} onEnviado={props.onEnviado} />;
@@ -156,6 +159,7 @@ export function FormularioSolicitudPlan(props: {
       modo={props.modo}
       onEnviado={props.onEnviado}
       montoOverride={props.montoUnlimitedAcordado}
+      clientesAMedida={props.clientesAMedida}
     />
   );
 }
@@ -169,11 +173,13 @@ function FormularioSolicitudPlanFijo({
   modo,
   onEnviado,
   montoOverride,
+  clientesAMedida,
 }: {
   plan: string;
   modo: 'nueva' | 'cambio';
   onEnviado?: () => void;
   montoOverride?: number;
+  clientesAMedida?: number;
 }) {
   const { usuario, refreshUsuario } = useAuth();
   const [config, setConfig] = useState<ConfiguracionPagosAdmin | null>(null);
@@ -186,7 +192,10 @@ function FormularioSolicitudPlanFijo({
   const [error, setError] = useState<string | null>(null);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
-  const monto = montoOverride ?? PRECIO_PLAN[plan];
+  const esMedida = plan === 'medida';
+  const nClientesMedida = Math.round(clientesAMedida ?? 0);
+  const monto = esMedida ? precioPlanMedida(nClientesMedida) : (montoOverride ?? PRECIO_PLAN[plan]);
+  const tramoMedida = esMedida ? tramoPlanMedida(nClientesMedida) : null;
 
   useEffect(() => {
     supabase
@@ -261,6 +270,7 @@ function FormularioSolicitudPlanFijo({
             monto,
             comprobante_url: publicUrl.publicUrl,
             estado: 'pendiente',
+            ...(esMedida ? { plan_a_medida: true, limite_clientes: nClientesMedida } : {}),
           },
           { onConflict: 'operador_peru_id,periodo' }
         );
@@ -272,6 +282,7 @@ function FormularioSolicitudPlanFijo({
           monto,
           comprobante_url: publicUrl.publicUrl,
           estado: 'pendiente',
+          ...(esMedida ? { plan_a_medida: true, limite_clientes: nClientesMedida } : {}),
         });
         if (insertError) {
           if (insertError.code === '23505') {
@@ -292,10 +303,25 @@ function FormularioSolicitudPlanFijo({
 
   if (!usuario) return null;
 
+  if (esMedida && (nClientesMedida < 1 || tramoMedida === null)) {
+    return (
+      <View style={[styles.card, cardShadow]}>
+        <Text style={styles.seccionTitulo}>Plan a la medida</Text>
+        <Text style={styles.avisoTexto}>
+          {nClientesMedida < 1
+            ? 'Indica cuántos clientes vas a registrar para calcular tu plan a la medida.'
+            : 'Para más de 1000 clientes el plan a la medida no aplica: solicita el plan UNLIMITED y acuerda la tarifa con el administrador.'}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={{ gap: 12 }}>
       <Text style={styles.subtitulo}>
-        Solicitud de plan {planLabel(plan)} — S/ {monto.toFixed(2)} / mes — período {periodoActual()}
+        {esMedida
+          ? `Solicitud de plan ${NOMBRE_PLAN.medida} — S/ ${monto.toFixed(2)} / mes (${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]} — período ${periodoActual()}`
+          : `Solicitud de plan ${planLabel(plan)} — S/ ${monto.toFixed(2)} / mes — período ${periodoActual()}`}
       </Text>
 
       <View style={[styles.card, cardShadow]}>

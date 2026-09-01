@@ -86,7 +86,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal 
             <span>Suscripción Transparente</span>
           </div>
           <h2 className="text-3xl sm:text-5xl font-black italic uppercase text-white tracking-wide">
-            Escoge Tu <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">Plan</span>
+            Escoge tu plan <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">estándar</span>
           </h2>
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
             Elige el nivel de capacidad ideal para el volumen de tus operadores. Puedes iniciar con 7 días gratis sin compromisos.

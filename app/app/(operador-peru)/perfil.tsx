@@ -16,6 +16,10 @@ import {
   planDesdeMonto,
   planLabel,
   ORDEN_PLANES,
+  precioPlanMedida,
+  tramoPlanMedida,
+  NOMBRE_PLAN,
+  PRECIO_MEDIDA_POR_CLIENTE,
 } from '../../lib/plan';
 import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
@@ -68,6 +72,10 @@ export default function Perfil() {
   const [miVe, setMiVe] = useState<OperadorVenezuelaPerfil | null>(null);
 
   const [solicitandoPlan, setSolicitandoPlan] = useState<string | null>(null);
+  // Plan a la medida: N° de clientes que el operador quiere registrar. El
+  // monto (= N × S/ 1) y las características (tramo estándar equivalente)
+  // se calculan solos -- ver lib/plan.ts.
+  const [clientesMedida, setClientesMedida] = useState('');
   const { planInicio, cambioPendiente } = useEstadoPlanNegocio(negocioId);
   // Plan que el Operador principal eligió y ya envió a pagar (pendiente de
   // que el administrador lo verifique) -- se muestra aparte de "TU PLAN"
@@ -77,6 +85,7 @@ export default function Perfil() {
     periodo: string;
     monto: number;
     monto_por_definir: boolean;
+    plan_a_medida: boolean;
     limite_clientes: number | null;
     comprobante_url: string | null;
     estado: string;
@@ -122,7 +131,7 @@ export default function Perfil() {
       const periodo = new Date().toISOString().slice(0, 7);
       const { data: pago } = await supabase
         .from('pagos_suscripcion')
-        .select('periodo, monto, monto_por_definir, limite_clientes, comprobante_url, estado, motivo_rechazo')
+        .select('periodo, monto, monto_por_definir, plan_a_medida, limite_clientes, comprobante_url, estado, motivo_rechazo')
         .eq('operador_peru_id', usuario.id)
         .eq('periodo', periodo)
         .maybeSingle();
@@ -142,7 +151,7 @@ export default function Perfil() {
         .maybeSingle();
       setCambioUnlimitedFila(cambioUnlimited as typeof cambioUnlimitedFila);
 
-      if (usuario.plan === 'unlimited') {
+      if (usuario.plan === 'unlimited' || usuario.plan === 'medida') {
         const { data: ultimoPago } = await supabase
           .from('pagos_suscripcion')
           .select('monto')
@@ -203,6 +212,15 @@ export default function Perfil() {
   useEffect(() => {
     cargarContexto();
   }, [cargarContexto]);
+
+  // Si el operador ya está en un plan a la medida, precarga el campo con
+  // su N° de clientes pactado (para renovar / ajustar sobre ese número).
+  useEffect(() => {
+    if (usuario?.plan === 'medida' && usuario.limite_clientes_unlimited && clientesMedida === '') {
+      setClientesMedida(String(usuario.limite_clientes_unlimited));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.plan, usuario?.limite_clientes_unlimited]);
 
   // El vínculo a la sesión real se hace por correo (ver
   // vincular_cuenta_pendiente): si esta fila ya estaba vinculada
@@ -274,7 +292,7 @@ export default function Perfil() {
   const agregarVe = async () => {
     if (!negocioId || !usuario) return;
     setErrorVe(null);
-    const limites = obtenerLimitesEquipo(usuario.plan);
+    const limites = obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited);
     if (veList.length >= limites.venezuela) {
       setErrorVe(`Alcanzaste el límite de ${limites.venezuela} operadores en Venezuela de tu plan ${usuario.plan.toUpperCase()}.`);
       return;
@@ -305,7 +323,7 @@ export default function Perfil() {
   const agregarPe = async () => {
     if (!negocioId || !usuario) return;
     setErrorPe(null);
-    const limites = obtenerLimitesEquipo(usuario.plan);
+    const limites = obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited);
     if (peList.length >= limites.peru) {
       setErrorPe(`Alcanzaste el límite de ${limites.peru} miembro(s) de equipo en Perú de tu plan ${usuario.plan.toUpperCase()}.`);
       return;
@@ -374,8 +392,14 @@ export default function Perfil() {
   // ya fijó el monto y todavía no hay comprobante, o el admin RECHAZÓ el
   // comprobante anterior (el depósito no llegó) y hay que volver a
   // subirlo -- en ambos casos se reusa el mismo formulario de pago.
+  // Un pago a la medida (monto = N × S/ 1) puede coincidir por casualidad
+  // con el rango de UNLIMITED de planDesdeMonto -- se excluye explícitamente
+  // por su marca plan_a_medida para que no caiga en el CTA de UNLIMITED.
   const pagoEsUnlimited =
-    pagoPeriodoActual && !pagoPeriodoActual.monto_por_definir && planDesdeMonto(pagoPeriodoActual.monto) === 'unlimited';
+    pagoPeriodoActual &&
+    !pagoPeriodoActual.monto_por_definir &&
+    !pagoPeriodoActual.plan_a_medida &&
+    planDesdeMonto(pagoPeriodoActual.monto) === 'unlimited';
   const unlimitedInfo = (() => {
     if (pagoEsUnlimited && pagoPeriodoActual) {
       if (pagoPeriodoActual.estado === 'rechazado') {
@@ -455,8 +479,12 @@ export default function Perfil() {
         <View style={[styles.card, cardShadow, styles.planCardGrande]}>
           <Text style={styles.cardTitulo}>TU PLAN</Text>
           <Text style={styles.planNombreGrande}>{planLabel(usuario.plan, montoUnlimitedActual ?? undefined)}</Text>
-          {usuario.plan === 'unlimited' && usuario.limite_clientes_unlimited && (
-            <Text style={styles.cardTexto}>Cupo acordado: hasta {usuario.limite_clientes_unlimited} clientes.</Text>
+          {(usuario.plan === 'unlimited' || usuario.plan === 'medida') && usuario.limite_clientes_unlimited && (
+            <Text style={styles.cardTexto}>
+              {usuario.plan === 'medida'
+                ? `Plan a la medida: hasta ${usuario.limite_clientes_unlimited} clientes (S/ ${usuario.limite_clientes_unlimited} / mes).`
+                : `Cupo acordado: hasta ${usuario.limite_clientes_unlimited} clientes.`}
+            </Text>
           )}
           <Text style={styles.cardTexto}>
             {usuario.plan === 'demo'
@@ -489,7 +517,9 @@ export default function Perfil() {
               <Text style={styles.solicitudPendienteTexto}>
                 {pagoPeriodoActual.monto_por_definir
                   ? 'Consultaste el plan UNLIMITED — en breve el administrador te confirmará el monto acordado por WhatsApp.'
-                  : `Elegiste el plan ${planLabel(planDesdeMonto(pagoPeriodoActual.monto))} (S/ ${pagoPeriodoActual.monto.toFixed(2)}) — pendiente de verificación del administrador.`}
+                  : pagoPeriodoActual.plan_a_medida
+                    ? `Elegiste el plan A LA MEDIDA (S/ ${pagoPeriodoActual.monto.toFixed(2)}/mes${pagoPeriodoActual.limite_clientes ? ` · hasta ${pagoPeriodoActual.limite_clientes} clientes` : ''}) — pendiente de verificación del administrador.`
+                    : `Elegiste el plan ${planLabel(planDesdeMonto(pagoPeriodoActual.monto))} (S/ ${pagoPeriodoActual.monto.toFixed(2)}) — pendiente de verificación del administrador.`}
               </Text>
             </View>
           )}
@@ -553,6 +583,57 @@ export default function Perfil() {
             </View>
           )}
 
+          {/* PLAN A LA MEDIDA: el operador escribe cuántos clientes va a
+              registrar y la suscripción se calcula sola -- N × S/ 1 / mes,
+              con las características del tramo estándar equivalente. Más de
+              1000 clientes se deriva al plan UNLIMITED. Pasa por el mismo
+              formulario de pago y la misma validación manual del admin. */}
+          <View style={styles.metaBloque}>
+            <Text style={styles.metaTitulo}>Plan a la medida</Text>
+            <Text style={styles.metaFilaDato}>
+              Paga solo por los clientes que manejas: S/ {PRECIO_MEDIDA_POR_CLIENTE} por cliente / mes. Considera siempre un
+              poco más de clientes según tu crecimiento mensual.
+            </Text>
+            <Text style={styles.label}>¿Cuántos clientes vas a registrar?</Text>
+            <TextInput
+              style={styles.input}
+              value={clientesMedida}
+              onChangeText={(t) => setClientesMedida(t.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              placeholder="Ej: 150"
+              placeholderTextColor={colors.textMuted}
+            />
+            {(() => {
+              const nMedida = Math.round(Number(clientesMedida) || 0);
+              if (nMedida < 1) return null;
+              const tramo = tramoPlanMedida(nMedida);
+              if (tramo === null) {
+                return (
+                  <Text style={styles.metaFilaDato}>
+                    Más de 1000 clientes: solicita el plan UNLIMITED y acuerda la tarifa con el administrador.
+                  </Text>
+                );
+              }
+              const limitesMedida = obtenerLimitesPlan('medida', nMedida);
+              return (
+                <>
+                  <View style={styles.metaFila}>
+                    <View style={styles.metaFilaDatos}>
+                      <Text style={styles.metaFilaNombre}>S/ {precioPlanMedida(nMedida).toFixed(2)} / mes</Text>
+                      <Text style={styles.metaFilaDato}>
+                        {nMedida} clientes · {limitesMedida.peru} operador(es) Perú · {limitesMedida.venezuela} en Venezuela ·
+                        incluye las características del plan {NOMBRE_PLAN[tramo]}
+                      </Text>
+                    </View>
+                    <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan('medida')}>
+                      <Text style={styles.metaSolicitarBtnTexto}>Solicitar →</Text>
+                    </Pressable>
+                  </View>
+                </>
+              );
+            })()}
+          </View>
+
           {solicitandoPlan && (
             <View style={styles.metaFormulario}>
               <View style={styles.metaFormularioHeader}>
@@ -566,6 +647,7 @@ export default function Perfil() {
                 plan={solicitandoPlan}
                 modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
                 montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? (unlimitedInfo?.porPagar ?? undefined) : undefined}
+                clientesAMedida={solicitandoPlan === 'medida' ? Math.round(Number(clientesMedida) || 0) : undefined}
                 onEnviado={() => {
                   setSolicitandoPlan(null);
                   cargarContexto();
@@ -581,7 +663,7 @@ export default function Perfil() {
       {esPrincipal && (
         <Collapsible
           abiertoPorDefecto
-          titulo={`OPERADORES EN VENEZUELA - EQUIPO (${veList.length}/${obtenerLimitesEquipo(usuario.plan).venezuela})`}
+          titulo={`OPERADORES EN VENEZUELA - EQUIPO (${veList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela})`}
           subtitulo="Asigna a cada Operador de Venezuela los operadores de Perú que deberá atender."
         >
           {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
@@ -655,8 +737,8 @@ export default function Perfil() {
             </Collapsible>
           ))}
 
-          {veList.length >= obtenerLimitesEquipo(usuario.plan).venezuela ? (
-            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan).venezuela} operadores en Venezuela de tu plan.</Text>
+          {veList.length >= obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela ? (
+            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela} operadores en Venezuela de tu plan.</Text>
           ) : (
             <NuevoOperadorForm
               abierto={agregandoVe}
@@ -680,7 +762,7 @@ export default function Perfil() {
       {esPrincipal && (
         <Collapsible
           abiertoPorDefecto
-          titulo={`OPERADORES EN PERÚ - EQUIPO (${peList.length}/${obtenerLimitesEquipo(usuario.plan).peru})`}
+          titulo={`OPERADORES EN PERÚ - EQUIPO (${peList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru})`}
         >
           {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
           {peList.map((p) => {
@@ -766,8 +848,8 @@ export default function Perfil() {
             );
           })}
 
-          {peList.length >= obtenerLimitesEquipo(usuario.plan).peru ? (
-            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan).peru} miembro(s) de equipo en Perú de tu plan.</Text>
+          {peList.length >= obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru ? (
+            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru} miembro(s) de equipo en Perú de tu plan.</Text>
           ) : (
             <NuevoOperadorForm
               abierto={agregandoPe}

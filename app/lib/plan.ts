@@ -24,7 +24,35 @@ export const NOMBRE_PLAN: Record<string, string> = {
   avance: 'AVANCE',
   ultra: 'ULTRA',
   unlimited: 'UNLIMITED',
+  medida: 'A LA MEDIDA',
 };
+
+// PLAN A LA MEDIDA: la suscripción mensual se calcula sola -- N° de
+// clientes que el operador solicita × S/ 1 / mes. Las "características"
+// (cupos de equipo Perú/Venezuela y contenido) se heredan del tramo
+// estándar equivalente a ese N° de clientes. Más de 1000 clientes no
+// tiene tramo: se deriva a UNLIMITED (tarifa acordada con el admin).
+export const PRECIO_MEDIDA_POR_CLIENTE = 1;
+
+export function precioPlanMedida(nClientes: number): number {
+  return Math.max(0, Math.round(nClientes)) * PRECIO_MEDIDA_POR_CLIENTE;
+}
+
+// Tramo estándar cuyas características hereda un plan a la medida para un
+// N° de clientes dado. `null` = por encima de ULTRA (más de 1000): sin
+// tramo, se ofrece UNLIMITED.
+//   1 – 100 -> starter | 101 – 200 -> pro | 201 – 400 -> expert
+//   401 – 600 -> avance | 601 – 1000 -> ultra | > 1000 -> null
+export function tramoPlanMedida(nClientes: number): string | null {
+  const n = Math.round(nClientes);
+  if (n <= 0) return null;
+  if (n <= 100) return 'starter';
+  if (n <= 200) return 'pro';
+  if (n <= 400) return 'expert';
+  if (n <= 600) return 'avance';
+  if (n <= 1000) return 'ultra';
+  return null;
+}
 
 export function planDesdeMonto(monto: number): string {
   if (monto === 0) return 'demo';
@@ -37,12 +65,12 @@ export function planDesdeMonto(monto: number): string {
 }
 
 export function planLabel(plan: string, monto?: number): string {
-  if (plan === 'unlimited' && monto) return `UNLIMITED (S/ ${monto})`;
+  if ((plan === 'unlimited' || plan === 'medida') && monto) return `${NOMBRE_PLAN[plan]} (S/ ${monto})`;
   return NOMBRE_PLAN[plan] ?? plan.toUpperCase();
 }
 
 export function planPrecioLabel(plan: string, monto?: number): string {
-  if (plan === 'unlimited' && monto) return `S/ ${monto}/mes`;
+  if ((plan === 'unlimited' || plan === 'medida') && monto) return `S/ ${monto}/mes`;
   const p = PRECIO_PLAN[plan];
   return p !== undefined ? `S/ ${p}/mes` : '';
 }
@@ -62,7 +90,21 @@ export const LIMITES_PLAN: Record<string, { clientes: number; peru: number; vene
   avance: { clientes: 600, peru: 15, venezuela: 8 },
   ultra: { clientes: 1000, peru: 20, venezuela: 10 },
   unlimited: { clientes: Infinity, peru: Infinity, venezuela: Infinity },
+  // 'medida' no tiene límites fijos: dependen del N° de clientes pactado.
+  // Esta entrada solo es un piso de respaldo (equivale a STARTER) para
+  // llamadas que no pasan el N -- lo normal es que obtenerLimitesPlan
+  // enrute a limitesPlanMedida(nClientes).
+  medida: { clientes: 100, peru: 4, venezuela: 2 },
 };
+
+// Cupos de un plan a la medida para un N° de clientes dado: el cupo de
+// clientes es exactamente N, y el equipo Perú/Venezuela hereda el del
+// tramo estándar equivalente (ULTRA como piso si N supera 1000).
+export function limitesPlanMedida(nClientes: number): { clientes: number; peru: number; venezuela: number } {
+  const tramo = tramoPlanMedida(nClientes) ?? 'ultra';
+  const equipo = LIMITES_PLAN[tramo];
+  return { clientes: Math.max(0, Math.round(nClientes)), peru: equipo.peru, venezuela: equipo.venezuela };
+}
 
 // Orden de planes de menor a mayor, para calcular "próxima meta" (los
 // siguientes planes por encima del actual).
@@ -74,6 +116,11 @@ export const ORDEN_PLANES = ['demo', 'starter', 'pro', 'expert', 'avance', 'ultr
 // plan === 'unlimited' y viene definido; el resto de los planes ignoran
 // este parámetro.
 export function obtenerLimitesPlan(plan: string, limiteClientesUnlimited?: number | null) {
+  // 'medida': la misma columna limite_clientes_unlimited guarda el N°
+  // de clientes pactado -- de ahí salen todos los cupos.
+  if (plan === 'medida') {
+    return limitesPlanMedida(limiteClientesUnlimited ?? LIMITES_PLAN.medida.clientes);
+  }
   const base = LIMITES_PLAN[plan] ?? LIMITES_PLAN.demo;
   if (plan === 'unlimited' && limiteClientesUnlimited) {
     return { ...base, clientes: limiteClientesUnlimited };
@@ -85,8 +132,11 @@ export function obtenerLimiteClientes(plan: string, limiteClientesUnlimited?: nu
   return obtenerLimitesPlan(plan, limiteClientesUnlimited).clientes;
 }
 
-export function obtenerLimitesEquipo(plan: string): { peru: number; venezuela: number } {
-  const { peru, venezuela } = obtenerLimitesPlan(plan);
+export function obtenerLimitesEquipo(
+  plan: string,
+  limiteClientesUnlimited?: number | null
+): { peru: number; venezuela: number } {
+  const { peru, venezuela } = obtenerLimitesPlan(plan, limiteClientesUnlimited);
   return { peru, venezuela };
 }
 

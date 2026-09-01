@@ -26,3 +26,21 @@ export const MAX_SLIDER = 1200;
 export function recomendarPlan(clientes: number): PlanInfo | null {
   return PLANES.find((p) => clientes <= p.clientes) ?? null;
 }
+
+// PLAN A LA MEDIDA: la suscripción mensual se calcula sola -- N° de
+// clientes × S/ 1 / mes -- y las características (cupos de equipo y
+// contenido) se heredan del tramo estándar equivalente a ese N° de
+// clientes. Más de 1000 clientes: se deriva a UNLIMITED (tarifa acordada
+// con el administrador). Mismos números que la app real (app/lib/plan.ts).
+export const PRECIO_POR_CLIENTE_MEDIDA = 1;
+
+export function precioAMedida(clientes: number): number {
+  return Math.max(0, Math.round(clientes)) * PRECIO_POR_CLIENTE_MEDIDA;
+}
+
+// Tramo estándar cuyas características hereda un plan a la medida.
+// null = más de 1000 clientes (sin tramo -> UNLIMITED).
+export function tramoAMedida(clientes: number): PlanInfo | null {
+  if (Math.round(clientes) < 1) return null;
+  return PLANES.find((p) => clientes <= p.clientes) ?? null;
+}
