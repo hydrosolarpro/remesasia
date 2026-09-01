@@ -24,6 +24,8 @@ import {
 import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
 import { PlanesInfo } from '../../components/PlanesInfo';
+import { PinAccesoCard } from '../../components/PinAccesoCard';
+import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { Collapsible } from '../../components/Collapsible';
 import { ClientesMiembroList } from '../../components/ClientesMiembroList';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
@@ -734,6 +736,14 @@ export default function Perfil() {
                   <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
                 </Pressable>
               </View>
+              {esPrincipal && (
+                <GestionPinUsuario
+                  usuarioId={v.usuario_id ?? null}
+                  provision={{ tipo: 'operador_venezuela', refId: v.id }}
+                  telefonoSugerido={v.telefono}
+                  nombre={v.nombre}
+                />
+              )}
             </Collapsible>
           ))}
 
@@ -836,6 +846,13 @@ export default function Perfil() {
                   <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
                 </Pressable>
 
+                <GestionPinUsuario
+                  usuarioId={p.usuario_id ?? null}
+                  provision={{ tipo: 'operador_peru_miembro', refId: p.id }}
+                  telefonoSugerido={p.telefono}
+                  nombre={p.nombre}
+                />
+
                 <Collapsible titulo={`Clientes (${clientesPorMiembro[p.id] ?? 0})`}>
                   <ClientesMiembroList
                     miembro={p}
@@ -875,6 +892,8 @@ export default function Perfil() {
           <Text style={styles.buttonOutlineText}>Editar datos del negocio</Text>
         </Pressable>
       )}
+
+      <PinAccesoCard />
 
       <InstalarAppCard puedeEnviar />
 

@@ -18,6 +18,7 @@ export default function AuthLayout() {
       >
         <Stack.Screen name="login" options={{ headerBackVisible: false }} />
         <Stack.Screen name="registro" options={{ headerBackVisible: false }} />
+        <Stack.Screen name="nuevo-pin" options={{ headerBackVisible: false }} />
       </Stack>
     </NarrowShell>
   );

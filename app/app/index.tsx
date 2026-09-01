@@ -4,6 +4,7 @@ import { View, ActivityIndicator, Text, Pressable, StyleSheet } from 'react-nati
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { canjearInvitacion, leerTokenPendiente, limpiarTokenPendiente } from '../lib/invitaciones';
+import { miEstadoPin } from '../lib/pinAuth';
 import { Usuario } from '../types/database';
 import { colors, radius } from '../constants/theme';
 
@@ -27,6 +28,21 @@ export default function Index() {
       setResolviendo(true);
       setSinInvitacion(false);
       let usuarioActual = usuario;
+
+      // Entró con un PIN temporal (recuperación): antes que nada, obligar a
+      // definir el PIN definitivo.
+      try {
+        const estadoPin = await miEstadoPin();
+        if (estadoPin.pin_temporal) {
+          if (!cancelado) {
+            setDestino('/(auth)/nuevo-pin');
+            setResolviendo(false);
+          }
+          return;
+        }
+      } catch (e) {
+        console.error('Error consultando estado del PIN:', e);
+      }
 
       // 1. Intentar vincular cuenta si era un operador pre-registrado (por
       //    correo, en operador_peru_miembro / operador_venezuela_perfil).

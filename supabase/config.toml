@@ -31,3 +31,9 @@ enabled = true
 # Telegram dentro de la función (ver supabase/functions/telegram-webhook).
 [functions.telegram-webhook]
 verify_jwt = false
+
+# Login con teléfono + PIN: el usuario todavía no tiene sesión, así que no
+# puede enviar un JWT. El control (rate limit, bloqueo por intentos, hash)
+# vive en la RPC pin_verificar (ver supabase/functions/pin-login).
+[functions.pin-login]
+verify_jwt = false

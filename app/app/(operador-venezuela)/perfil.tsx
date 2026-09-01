@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/auth';
 import { registrarPushToken } from '../../lib/notifications';
 import { OperadorVenezuelaPerfil, Usuario } from '../../types/database';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
+import { PinAccesoCard } from '../../components/PinAccesoCard';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 // El Operador Venezuela ve, en solo lectura, los datos del Operador
@@ -73,6 +74,8 @@ export default function Perfil() {
           <Text style={styles.miembroNombre}>{veRow.comision_pct ?? 0}%</Text>
         </View>
       )}
+
+      <PinAccesoCard />
 
       <InstalarAppCard puedeEnviar />
     </ScrollView>

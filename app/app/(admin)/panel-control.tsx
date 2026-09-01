@@ -6,6 +6,7 @@ import { construirEnlaceInvitacion } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import { RoleTag } from '../../components/RoleTag';
 import { RoundCheck } from '../../components/RoundCheck';
+import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { CalendarioDias } from '../../components/CalendarioFecha';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import {
@@ -841,6 +842,8 @@ export default function PanelControl() {
                 </View>
               );
             })()}
+
+            <GestionPinUsuario usuarioId={op.id} telefonoSugerido={op.telefono} nombre={op.nombre} />
 
             <View style={styles.peligroBloque}>
               {eliminandoOperadorId === op.id ? (

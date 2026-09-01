@@ -17,6 +17,7 @@ import {
 } from '../../lib/perfilCliente';
 import { CanalNotificacion, DocumentoTipo } from '../../types/database';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
+import { PinAccesoCard } from '../../components/PinAccesoCard';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { colors, radius } from '../../constants/theme';
 
@@ -493,6 +494,8 @@ export default function Perfil() {
           </>
         )}
       </View>
+
+      <PinAccesoCard />
 
       <InstalarAppCard />
 

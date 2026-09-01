@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator, TextInput, Linking } from 'react-native';
 import { Redirect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { signInWithGoogle } from '../../lib/googleAuth';
+import { loginConPin, enlaceWaOlvidePin } from '../../lib/pinAuth';
 import { useAuth } from '../../lib/auth';
 import { colors, radius } from '../../constants/theme';
 
@@ -12,25 +13,57 @@ const DESTACADOS = [
   'Automatización, notificaciones instantáneas y perfil multi-operador.',
 ];
 
+type Metodo = 'pin' | 'google';
+
 export default function Login() {
   const { session, usuario, loading: authLoading } = useAuth();
+  const [metodo, setMetodo] = useState<Metodo>('pin');
+  const [telefono, setTelefono] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forzarNuevoPin, setForzarNuevoPin] = useState(false);
+
+  if (forzarNuevoPin) {
+    return <Redirect href="/(auth)/nuevo-pin" />;
+  }
 
   // Si ya hay sesión (p. ej. el acceso directo del celular quedó apuntando
   // a /login, o el usuario vuelve atrás), mandar a la raíz para que
-  // index.tsx enrute a su panel en vez de mostrar "Continuar con Google".
+  // index.tsx enrute a su panel.
   if (!authLoading && session && usuario) {
     return <Redirect href="/" />;
   }
 
-  const entrar = async () => {
+  const entrarConGoogle = async () => {
     setError(null);
     setLoading(true);
     try {
       await signInWithGoogle();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión con Google.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const entrarConPin = async () => {
+    setError(null);
+    if (!telefono.trim()) {
+      setError('Escribe tu número de teléfono.');
+      return;
+    }
+    if (!/^\d{4}$/.test(pin)) {
+      setError('El PIN es de 4 dígitos.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { pinTemporal } = await loginConPin(telefono.trim(), pin);
+      if (pinTemporal) setForzarNuevoPin(true);
+      // Si el PIN no era temporal, el cambio de sesión redirige solo (Redirect de arriba).
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
     } finally {
       setLoading(false);
     }
@@ -51,18 +84,73 @@ export default function Login() {
         ))}
       </View>
 
+      <View style={styles.tabs}>
+        <Pressable
+          style={[styles.tab, metodo === 'pin' && styles.tabActivo]}
+          onPress={() => {
+            setMetodo('pin');
+            setError(null);
+          }}
+        >
+          <Text style={[styles.tabTexto, metodo === 'pin' && styles.tabTextoActivo]}>Teléfono + PIN</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, metodo === 'google' && styles.tabActivo]}
+          onPress={() => {
+            setMetodo('google');
+            setError(null);
+          }}
+        >
+          <Text style={[styles.tabTexto, metodo === 'google' && styles.tabTextoActivo]}>Google</Text>
+        </Pressable>
+      </View>
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Pressable style={styles.button} onPress={entrar} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color={colors.bg} />
-        ) : (
-          <>
-            <GoogleIcon />
-            <Text style={styles.buttonText}>Continuar con Google</Text>
-          </>
-        )}
-      </Pressable>
+      {metodo === 'pin' ? (
+        <View style={styles.pinForm}>
+          <Text style={styles.label}>Número de teléfono</Text>
+          <TextInput
+            style={styles.input}
+            value={telefono}
+            onChangeText={setTelefono}
+            keyboardType="phone-pad"
+            placeholder="+51 9…  /  +58 4…"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+          />
+          <Text style={styles.label}>PIN de 4 dígitos</Text>
+          <TextInput
+            style={[styles.input, styles.inputPin]}
+            value={pin}
+            onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 4))}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={4}
+            placeholder="••••"
+            placeholderTextColor={colors.textMuted}
+          />
+
+          <Pressable style={styles.button} onPress={entrarConPin} disabled={loading}>
+            {loading ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.buttonText}>Entrar</Text>}
+          </Pressable>
+
+          <Pressable onPress={() => Linking.openURL(enlaceWaOlvidePin(telefono))}>
+            <Text style={styles.olvide}>¿Olvidaste tu PIN? Escríbenos por WhatsApp →</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable style={styles.button} onPress={entrarConGoogle} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color={colors.bg} />
+          ) : (
+            <>
+              <GoogleIcon />
+              <Text style={styles.buttonText}>Continuar con Google</Text>
+            </>
+          )}
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -95,11 +183,36 @@ const styles = StyleSheet.create({
   logo: { width: 72, height: 72, alignSelf: 'center', marginBottom: 4 },
   title: { color: colors.text, fontSize: 28, fontWeight: '800', textAlign: 'center' },
   subtitle: { color: colors.accent, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 24 },
-  destacados: { gap: 12, marginBottom: 32 },
+  destacados: { gap: 12, marginBottom: 24 },
   destacadoFila: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   destacadoCheck: { color: colors.success, fontSize: 15, fontWeight: '800', marginTop: 1 },
   destacadoTexto: { color: colors.textMuted, fontSize: 14, lineHeight: 19, flex: 1 },
-  error: { color: colors.danger, marginBottom: 12, fontSize: 15 },
+  tabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  tabActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  tabTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 14 },
+  tabTextoActivo: { color: colors.text },
+  error: { color: colors.danger, marginBottom: 8, fontSize: 15 },
+  pinForm: { gap: 4 },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 8 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    color: colors.text,
+    fontSize: 18,
+    marginTop: 5,
+    backgroundColor: colors.card,
+  },
+  inputPin: { letterSpacing: 8, textAlign: 'center', fontSize: 24 },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -108,6 +221,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: radius.md,
     padding: 16,
+    marginTop: 14,
   },
   buttonText: { color: '#1F1F1F', fontWeight: '700', fontSize: 18 },
+  olvide: { color: colors.accent, fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 14 },
 });
