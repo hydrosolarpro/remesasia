@@ -121,21 +121,40 @@ export const CalculadoraPlan: React.FC<CalculadoraPlanProps> = ({ onOpenDemoModa
             <div className="flex items-center justify-between gap-3">
               <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                Tu plan a la medida
+                Plan recomendado para tu negocio
               </span>
               <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-400">Automático</span>
             </div>
 
             {tramo ? (
               <>
-                <div>
-                  <h3 className="text-3xl font-black font-mono text-white uppercase tracking-wider">A la medida</h3>
-                  <div className="text-3xl font-extrabold font-mono text-white mt-2">
-                    S/ {precioMedida} <span className="text-xs font-normal text-slate-400">/mes</span>
+                {/* Plan estándar recomendado según el N° de clientes */}
+                <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-4">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">Plan estándar</span>
+                  <div className="flex items-baseline justify-between gap-2 mt-1">
+                    <h3 className="text-2xl font-black font-mono text-white uppercase tracking-wider">{tramo.nombre}</h3>
+                    <div className="text-xl font-extrabold font-mono text-white">
+                      S/ {tramo.precio} <span className="text-[10px] font-normal text-slate-400">/mes</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-2">
-                    {clientes} clientes × S/ {PRECIO_POR_CLIENTE_MEDIDA} — incluye las características del plan{' '}
+                  <p className="text-[11px] text-slate-400 mt-1">Cupo fijo: hasta {tramo.clientes} clientes</p>
+                </div>
+
+                {/* Plan a la medida: costo calculado = N° de clientes × S/ 1 / mes */}
+                <div className="rounded-2xl bg-blue-950/40 border border-blue-500/50 p-4">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-300">A la medida — pagas solo por tus clientes</span>
+                  <div className="flex items-baseline justify-between gap-2 mt-1">
+                    <h3 className="text-2xl font-black font-mono text-white uppercase tracking-wider">A la medida</h3>
+                    <div className="text-2xl font-extrabold font-mono text-white">
+                      S/ {precioMedida} <span className="text-[10px] font-normal text-slate-400">/mes</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {clientes} clientes × S/ {PRECIO_POR_CLIENTE_MEDIDA} — mismas características que el plan{' '}
                     <span className="text-white font-bold">{tramo.nombre}</span>
+                    {precioMedida < tramo.precio && (
+                      <span className="text-emerald-400 font-bold"> · ahorras S/ {tramo.precio - precioMedida}/mes</span>
+                    )}
                   </p>
                 </div>
 
@@ -150,15 +169,24 @@ export const CalculadoraPlan: React.FC<CalculadoraPlanProps> = ({ onOpenDemoModa
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={onOpenDemoModal}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all duration-300 cursor-pointer font-mono flex items-center justify-center gap-2 hover:scale-[1.02]"
-                >
-                  <Zap className="w-4 h-4" />
-                  <span>Solicitar plan a la medida</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={onOpenDemoModal}
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-500/30 transition-all duration-300 cursor-pointer font-mono flex items-center justify-center gap-2 hover:scale-[1.02]"
+                  >
+                    <Zap className="w-4 h-4" />
+                    <span>Solicitar plan a la medida (S/ {precioMedida}/mes)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onOpenDemoModal}
+                    className="w-full py-2.5 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 font-bold text-[11px] uppercase tracking-widest transition-all duration-300 cursor-pointer font-mono flex items-center justify-center gap-2"
+                  >
+                    <span>Solicitar plan {tramo.nombre} estándar (S/ {tramo.precio}/mes)</span>
+                  </button>
+                </div>
               </>
             ) : (
               <>
