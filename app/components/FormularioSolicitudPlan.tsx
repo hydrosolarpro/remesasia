@@ -295,7 +295,13 @@ function FormularioSolicitudPlanFijo({
       await refreshUsuario();
       onEnviado?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.');
+      // Los errores de Supabase no son instancias de Error; igual traen
+      // `message` -- mostrarlo en vez de un genérico que oculta la causa.
+      const msg =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || 'No se pudo enviar la solicitud.';
+      setError(msg);
     } finally {
       setEnviando(false);
     }
