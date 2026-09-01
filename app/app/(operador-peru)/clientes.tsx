@@ -11,6 +11,8 @@ import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { obtenerLimiteClientes } from '../../lib/plan';
 import { DOCUMENTO_TIPO_ETIQUETA, documentoClienteCompleto } from '../../lib/perfilCliente';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
+import { GestionPinUsuario } from '../../components/GestionPinUsuario';
+import { ProvisionarClientePin } from '../../components/ProvisionarClientePin';
 import { Usuario, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -273,6 +275,9 @@ export default function ClientesRegistrados() {
         )}
       </View>
 
+      <ProvisionarClientePin miembroId={miembroId} onCreado={cargarClientes} />
+
+
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.cardTitulo}>Cupo de clientes</Text>
         <Text style={styles.cardTexto}>
@@ -355,6 +360,12 @@ export default function ClientesRegistrados() {
                     <Text style={styles.derivarBtnTexto}>Derivar a un operador de Perú →</Text>
                   </Pressable>
                 )}
+                <GestionPinUsuario
+                  usuarioId={item.id}
+                  provision={{ tipo: 'cliente', refId: miembroId }}
+                  telefonoSugerido={item.telefono}
+                  nombre={item.nombre}
+                />
               </View>
             );
           })}

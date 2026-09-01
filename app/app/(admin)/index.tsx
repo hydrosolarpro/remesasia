@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { construirEnlaceLandingOperador } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
-import { planDesdeMonto } from '../../lib/plan';
+import { planDesdeMonto, planLabel } from '../../lib/plan';
 import { RoleTag } from '../../components/RoleTag';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { PinAccesoCard } from '../../components/PinAccesoCard';
@@ -27,6 +27,9 @@ interface PagoPendiente {
   operador_peru_id: string;
   periodo: string;
   monto: number;
+  // Plan a la medida: monto = N × S/ 1; N va en limite_clientes.
+  plan_a_medida: boolean;
+  limite_clientes: number | null;
   comprobante_url: string | null;
   created_at: string;
   operador: { nombre: string; email: string | null } | null;
@@ -122,10 +125,18 @@ export default function PanelAdmin() {
     // tenido acceso libre durante el DEMO). plan_inicio ancla el ciclo de
     // 30 días de este plan recién activado.
     if (estado === 'verificado') {
-      const plan = planDesdeMonto(pago.monto);
+      // Plan a la medida: la fila lo marca explícitamente (su monto = N × S/ 1
+      // no calza con ningún plan fijo). El cupo de clientes pactado se
+      // guarda en limite_clientes_unlimited, igual que UNLIMITED.
+      const plan = pago.plan_a_medida ? 'medida' : planDesdeMonto(pago.monto);
       const { error: errorPlan } = await supabase
         .from('usuarios')
-        .update({ plan, acceso_concedido: true, plan_inicio: new Date().toISOString() })
+        .update({
+          plan,
+          acceso_concedido: true,
+          plan_inicio: new Date().toISOString(),
+          ...(plan === 'medida' || plan === 'unlimited' ? { limite_clientes_unlimited: pago.limite_clientes } : {}),
+        })
         .eq('id', pago.operador_peru_id);
       if (errorPlan) {
         setProcesandoPago(null);
@@ -180,6 +191,11 @@ export default function PanelAdmin() {
             <Text style={styles.dato}>{pago.operador?.email}</Text>
             <Text style={styles.dato}>
               Período {pago.periodo} · S/ {pago.monto.toFixed(2)}
+            </Text>
+            <Text style={styles.dato}>
+              {pago.plan_a_medida
+                ? `Plan A LA MEDIDA — hasta ${pago.limite_clientes ?? '?'} clientes (S/ 1 por cliente/mes)`
+                : `Plan ${planLabel(planDesdeMonto(pago.monto))}`}
             </Text>
             {pago.comprobante_url && (
               <Pressable onPress={() => setZoomUri(pago.comprobante_url)}>
