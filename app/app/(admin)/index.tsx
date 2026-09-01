@@ -9,6 +9,7 @@ import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
 import { planDesdeMonto } from '../../lib/plan';
 import { RoleTag } from '../../components/RoleTag';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
+import { PinAccesoCard } from '../../components/PinAccesoCard';
 import { ConfiguracionPagosAdmin } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -259,6 +260,8 @@ export default function PanelAdmin() {
           </View>
         ))}
       </Section>
+
+      <PinAccesoCard />
 
       <Pressable style={styles.signOut} onPress={signOut}>
         <Text style={styles.signOutTexto}>Cerrar sesión</Text>
