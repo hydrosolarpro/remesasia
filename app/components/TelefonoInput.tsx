@@ -36,6 +36,19 @@ interface Props {
 
 export function TelefonoInput({ codigo, onCodigo, numero, onNumero }: Props) {
   const pais = PAISES_TELEFONO.find((p) => p.codigo === codigo) ?? PAISES_TELEFONO[0];
+
+  // Si el usuario igual escribe/pega el código de país en el campo del
+  // número, se lo quitamos: solo queremos los dígitos del abonado.
+  const limpiarNumero = (t: string) => {
+    let d = t.replace(/\D/g, '');
+    for (const p of PAISES_TELEFONO) {
+      if (d.startsWith(p.codigo) && d.length > p.digitos) {
+        d = d.slice(p.codigo.length);
+        break;
+      }
+    }
+    return d.slice(0, pais.digitos);
+  };
   return (
     <View style={styles.wrap}>
       <View style={styles.selector}>
@@ -56,12 +69,15 @@ export function TelefonoInput({ codigo, onCodigo, numero, onNumero }: Props) {
         <TextInput
           style={styles.input}
           value={numero}
-          onChangeText={(t) => onNumero(t.replace(/\D/g, '').slice(0, pais.digitos))}
+          onChangeText={(t) => onNumero(limpiarNumero(t))}
           keyboardType="number-pad"
           placeholder={pais.ejemplo}
           placeholderTextColor={colors.textMuted}
         />
       </View>
+      <Text style={styles.hint}>
+        Solo el número, sin el +{codigo} ({pais.digitos} dígitos).
+      </Text>
     </View>
   );
 }
@@ -102,4 +118,5 @@ const styles = StyleSheet.create({
     fontSize: 17,
     backgroundColor: colors.cardAlt,
   },
+  hint: { color: colors.textMuted, fontSize: 12 },
 });
