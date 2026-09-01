@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator, TextInput, Linking } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator, TextInput, Linking, ScrollView } from 'react-native';
 import { Redirect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { signInWithGoogle } from '../../lib/googleAuth';
@@ -70,7 +70,12 @@ export default function Login() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <Image source={require('../../assets/android-icon-foreground.png')} style={styles.logo} resizeMode="contain" />
       <Text style={styles.title}>Remesas PERÚ-VENEZUELA</Text>
       <Text style={styles.subtitle}>Y entérate al instante</Text>
@@ -151,7 +156,7 @@ export default function Login() {
           )}
         </Pressable>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -179,7 +184,8 @@ function GoogleIcon() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg, padding: 24, justifyContent: 'center', gap: 8 },
+  scroll: { flex: 1, backgroundColor: colors.bg },
+  container: { flexGrow: 1, backgroundColor: colors.bg, padding: 24, paddingBottom: 40, justifyContent: 'center', gap: 8 },
   logo: { width: 72, height: 72, alignSelf: 'center', marginBottom: 4 },
   title: { color: colors.text, fontSize: 28, fontWeight: '800', textAlign: 'center' },
   subtitle: { color: colors.accent, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 24 },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { miEstadoPin, definirMiPin } from '../../lib/pinAuth';
@@ -62,7 +62,7 @@ export default function NuevoPin() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.titulo}>{temporal ? 'Crea tu PIN definitivo' : 'Crear / cambiar tu PIN'}</Text>
       <Text style={styles.texto}>
         {temporal
@@ -114,13 +114,13 @@ export default function NuevoPin() {
       <Pressable onPress={temporal ? signOut : () => router.replace('/')}>
         <Text style={styles.secundario}>{temporal ? 'Cancelar y salir' : 'Ahora no'}</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
-  container: { flex: 1, backgroundColor: colors.bg, padding: 24, justifyContent: 'center', gap: 4 },
+  container: { flexGrow: 1, backgroundColor: colors.bg, padding: 24, paddingBottom: 40, justifyContent: 'center', gap: 4 },
   titulo: { color: colors.text, fontSize: 24, fontWeight: '800' },
   texto: { color: colors.textMuted, fontSize: 15, lineHeight: 20, marginBottom: 12 },
   label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 10 },
