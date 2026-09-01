@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Scroll
 import { router } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { miEstadoPin, definirMiPin } from '../../lib/pinAuth';
+import { TelefonoInput, telefonoCompleto, separarTelefono } from '../../components/TelefonoInput';
 import { colors, radius } from '../../constants/theme';
 
 // Pantalla para crear / cambiar el PIN de 4 dígitos de la propia cuenta.
@@ -10,7 +11,8 @@ import { colors, radius } from '../../constants/theme';
 // voluntariamente desde el Perfil ("Activar acceso con PIN").
 export default function NuevoPin() {
   const { usuario, signOut } = useAuth();
-  const [telefono, setTelefono] = useState('');
+  const [codigo, setCodigo] = useState('51');
+  const [numero, setNumero] = useState('');
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const [temporal, setTemporal] = useState(false);
@@ -22,16 +24,20 @@ export default function NuevoPin() {
     (async () => {
       const estado = await miEstadoPin();
       setTemporal(!!estado.pin_temporal);
-      if (estado.telefono) setTelefono(estado.telefono);
-      else if (usuario?.telefono) setTelefono(usuario.telefono);
+      const raw = estado.telefono ?? usuario?.telefono ?? '';
+      if (raw) {
+        const { codigo: c, numero: n } = separarTelefono(raw);
+        setCodigo(c);
+        setNumero(n);
+      }
       setCargando(false);
     })();
   }, [usuario?.telefono]);
 
   const guardar = async () => {
     setError(null);
-    if (!telefono.trim()) {
-      setError('Escribe tu número de teléfono con código de país.');
+    if (!numero.trim()) {
+      setError('Escribe tu número de teléfono.');
       return;
     }
     if (!/^\d{4}$/.test(pin)) {
@@ -44,7 +50,7 @@ export default function NuevoPin() {
     }
     setGuardando(true);
     try {
-      await definirMiPin(telefono.trim(), pin);
+      await definirMiPin(telefonoCompleto(codigo, numero), pin);
       router.replace('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el PIN.');
@@ -70,16 +76,8 @@ export default function NuevoPin() {
           : 'Con este PIN podrás entrar con tu número de teléfono, además de "Continuar con Google".'}
       </Text>
 
-      <Text style={styles.label}>Número de teléfono</Text>
-      <TextInput
-        style={styles.input}
-        value={telefono}
-        onChangeText={setTelefono}
-        keyboardType="phone-pad"
-        placeholder="+51 9…  /  +58 4…"
-        placeholderTextColor={colors.textMuted}
-        autoCapitalize="none"
-      />
+      <Text style={styles.label}>País y número de teléfono</Text>
+      <TelefonoInput codigo={codigo} onCodigo={setCodigo} numero={numero} onNumero={setNumero} />
 
       <Text style={styles.label}>Nuevo PIN (4 dígitos)</Text>
       <TextInput

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
 import { provisionarPin, enlaceWaEnviarPin } from '../lib/pinAuth';
+import { TelefonoInput, telefonoCompleto } from './TelefonoInput';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 // Alta de un cliente que entrará SOLO con teléfono + PIN, sin pasar nunca
@@ -11,7 +12,8 @@ import { colors, radius, cardShadow } from '../constants/theme';
 export function ProvisionarClientePin({ miembroId, onCreado }: { miembroId: string | null; onCreado?: () => void }) {
   const [abierto, setAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
-  const [telefono, setTelefono] = useState('');
+  const [codigo, setCodigo] = useState('51');
+  const [numero, setNumero] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pinCreado, setPinCreado] = useState<{ pin: string; telefono: string } | null>(null);
@@ -22,19 +24,19 @@ export function ProvisionarClientePin({ miembroId, onCreado }: { miembroId: stri
       setError('Escribe el nombre del cliente.');
       return;
     }
-    if (!telefono.trim()) {
-      setError('Escribe el teléfono con código de país.');
+    if (!numero.trim()) {
+      setError('Escribe el número de teléfono.');
       return;
     }
     setEnviando(true);
     try {
-      const { pin, telefono: tel } = await provisionarPin('cliente', miembroId, telefono.trim(), nombre.trim());
+      const { pin, telefono: tel } = await provisionarPin('cliente', miembroId, telefonoCompleto(codigo, numero), nombre.trim());
       setPinCreado({ pin, telefono: tel });
       Linking.openURL(enlaceWaEnviarPin(tel, pin)).catch(() => {
         if (Platform.OS === 'web') window.alert(`PIN temporal: ${pin} para +${tel}. Envíaselo por WhatsApp.`);
       });
       setNombre('');
-      setTelefono('');
+      setNumero('');
       onCreado?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo crear el acceso.');
@@ -59,15 +61,8 @@ export function ProvisionarClientePin({ miembroId, onCreado }: { miembroId: stri
         <View style={{ gap: 6 }}>
           <Text style={styles.label}>Nombre del cliente</Text>
           <TextInput style={styles.input} value={nombre} onChangeText={setNombre} placeholderTextColor={colors.textMuted} />
-          <Text style={styles.label}>Teléfono (con código de país)</Text>
-          <TextInput
-            style={styles.input}
-            value={telefono}
-            onChangeText={setTelefono}
-            keyboardType="phone-pad"
-            placeholder="+51 9…  /  +58 4…"
-            placeholderTextColor={colors.textMuted}
-          />
+          <Text style={styles.label}>País y número de teléfono</Text>
+          <TelefonoInput codigo={codigo} onCodigo={setCodigo} numero={numero} onNumero={setNumero} />
           {error && <Text style={styles.error}>{error}</Text>}
           <View style={styles.acciones}>
             <Pressable style={styles.boton} onPress={crear} disabled={enviando}>

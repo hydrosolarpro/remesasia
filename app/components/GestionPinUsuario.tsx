@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import {
   EstadoPin,
@@ -10,6 +10,7 @@ import {
   provisionarPin,
   enlaceWaEnviarPin,
 } from '../lib/pinAuth';
+import { TelefonoInput, telefonoCompleto, separarTelefono } from './TelefonoInput';
 import { colors, radius } from '../constants/theme';
 
 interface Props {
@@ -26,8 +27,10 @@ interface Props {
 // otra persona de su negocio: activarlo (PIN temporal) o regenerarlo si lo
 // olvidó, y enviarlo por un enlace wa.me.
 export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nombre, nombreNegocio }: Props) {
+  const sugerido = separarTelefono(telefonoSugerido);
   const [estado, setEstado] = useState<EstadoPin | null>(null);
-  const [tel, setTel] = useState(telefonoSugerido ?? '');
+  const [codigo, setCodigo] = useState(sugerido.codigo);
+  const [numero, setNumero] = useState(sugerido.numero);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pinGenerado, setPinGenerado] = useState<{ pin: string; telefono: string } | null>(null);
@@ -74,19 +77,19 @@ export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nomb
   const onRegenerar = () => usuarioId && ejecutar(() => regenerarPin(usuarioId));
   const onActivarExistente = () => {
     if (!usuarioId) return;
-    if (!tel.trim()) {
-      setError('Escribe el teléfono con código de país.');
+    if (!numero.trim()) {
+      setError('Escribe el número de teléfono.');
       return;
     }
-    ejecutar(() => activarPinPara(usuarioId, tel.trim()));
+    ejecutar(() => activarPinPara(usuarioId, telefonoCompleto(codigo, numero)));
   };
   const onProvisionar = () => {
     if (!provision) return;
-    if (!tel.trim()) {
-      setError('Escribe el teléfono con código de país.');
+    if (!numero.trim()) {
+      setError('Escribe el número de teléfono.');
       return;
     }
-    ejecutar(() => provisionarPin(provision.tipo, provision.refId, tel.trim(), nombre ?? ''));
+    ejecutar(() => provisionarPin(provision.tipo, provision.refId, telefonoCompleto(codigo, numero), nombre ?? ''));
   };
 
   const tienePin = !!estado?.tiene_pin;
@@ -112,14 +115,7 @@ export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nomb
               ? 'Esta persona aún no tiene PIN. Actívalo para que pueda entrar con su teléfono.'
               : 'Aún no inició sesión. Actívale el acceso con PIN y envíaselo por WhatsApp.'}
           </Text>
-          <TextInput
-            style={styles.input}
-            value={tel}
-            onChangeText={setTel}
-            keyboardType="phone-pad"
-            placeholder="+51 9…  /  +58 4…"
-            placeholderTextColor={colors.textMuted}
-          />
+          <TelefonoInput codigo={codigo} onCodigo={setCodigo} numero={numero} onNumero={setNumero} />
           <Pressable
             style={styles.btn}
             onPress={usuarioId ? onActivarExistente : onProvisionar}

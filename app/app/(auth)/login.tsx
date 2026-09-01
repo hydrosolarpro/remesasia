@@ -4,6 +4,7 @@ import { Redirect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { signInWithGoogle } from '../../lib/googleAuth';
 import { loginConPin, enlaceWaOlvidePin } from '../../lib/pinAuth';
+import { TelefonoInput, telefonoCompleto } from '../../components/TelefonoInput';
 import { useAuth } from '../../lib/auth';
 import { colors, radius } from '../../constants/theme';
 
@@ -18,7 +19,8 @@ type Metodo = 'pin' | 'google';
 export default function Login() {
   const { session, usuario, loading: authLoading } = useAuth();
   const [metodo, setMetodo] = useState<Metodo>('pin');
-  const [telefono, setTelefono] = useState('');
+  const [codigoTel, setCodigoTel] = useState('51');
+  const [numeroTel, setNumeroTel] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export default function Login() {
 
   const entrarConPin = async () => {
     setError(null);
-    if (!telefono.trim()) {
+    if (!numeroTel.trim()) {
       setError('Escribe tu número de teléfono.');
       return;
     }
@@ -59,7 +61,7 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const { pinTemporal } = await loginConPin(telefono.trim(), pin);
+      const { pinTemporal } = await loginConPin(telefonoCompleto(codigoTel, numeroTel), pin);
       if (pinTemporal) setForzarNuevoPin(true);
       // Si el PIN no era temporal, el cambio de sesión redirige solo (Redirect de arriba).
     } catch (err) {
@@ -114,16 +116,8 @@ export default function Login() {
 
       {metodo === 'pin' ? (
         <View style={styles.pinForm}>
-          <Text style={styles.label}>Número de teléfono</Text>
-          <TextInput
-            style={styles.input}
-            value={telefono}
-            onChangeText={setTelefono}
-            keyboardType="phone-pad"
-            placeholder="+51 9…  /  +58 4…"
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="none"
-          />
+          <Text style={styles.label}>País y número de teléfono</Text>
+          <TelefonoInput codigo={codigoTel} onCodigo={setCodigoTel} numero={numeroTel} onNumero={setNumeroTel} />
           <Text style={styles.label}>PIN de 4 dígitos</Text>
           <TextInput
             style={[styles.input, styles.inputPin]}
@@ -140,7 +134,7 @@ export default function Login() {
             {loading ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.buttonText}>Entrar</Text>}
           </Pressable>
 
-          <Pressable onPress={() => Linking.openURL(enlaceWaOlvidePin(telefono))}>
+          <Pressable onPress={() => Linking.openURL(enlaceWaOlvidePin(telefonoCompleto(codigoTel, numeroTel)))}>
             <Text style={styles.olvide}>¿Olvidaste tu PIN? Escríbenos por WhatsApp →</Text>
           </Pressable>
         </View>
