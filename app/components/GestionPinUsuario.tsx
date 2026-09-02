@@ -53,7 +53,7 @@ export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nomb
 
   const abrirWa = (pin: string, telefono: string) => {
     setPinGenerado({ pin, telefono });
-    const enlace = enlaceWaEnviarPin(telefono, pin, nombreNegocio);
+    const enlace = enlaceWaEnviarPin(telefono, pin, { nombreNegocio });
     Linking.openURL(enlace).catch(() => {
       const aviso = `PIN temporal: ${pin}. Envíaselo por WhatsApp al +${telefono}.`;
       if (Platform.OS === 'web') window.alert(aviso);

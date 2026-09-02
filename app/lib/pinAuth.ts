@@ -71,6 +71,31 @@ export async function activarPinPara(usuarioId: string, telefono: string): Promi
   return data as { pin: string; telefono: string };
 }
 
+/**
+ * Cliente que llega por un enlace de invitación y elige entrar con
+ * teléfono + PIN en vez de Google. Crea (o reenvía) su acceso pendiente
+ * a partir del token; la cuenta real se materializa en el primer login
+ * con `pin-login`. Devuelve el PIN temporal en claro una sola vez para
+ * armar el enlace wa.me. `reenvio` indica que ya existía una fila
+ * pendiente y solo se regeneró el PIN.
+ */
+export async function provisionarPinDesdeInvitacion(
+  token: string,
+  telefono: string,
+  nombre: string,
+  pin: string
+): Promise<{ pin: string; telefono: string; reenvio: boolean }> {
+  const { data, error } = await supabase.rpc('pin_provisionar_desde_invitacion', {
+    p_token: token,
+    p_telefono: telefono,
+    p_nombre: nombre,
+    p_pin: pin,
+  });
+  if (error) throw new Error(error.message);
+  if (!data?.ok) throw new Error(data?.error ?? 'No se pudo crear el acceso con PIN.');
+  return data as { pin: string; telefono: string; reenvio: boolean };
+}
+
 /** Activa el acceso con PIN para alguien que nunca inició sesión (equipo Perú / VE / cliente). */
 export async function provisionarPin(
   tipo: TipoAccesoPin,
@@ -88,11 +113,23 @@ export async function provisionarPin(
   return data as { pin: string; telefono: string };
 }
 
-/** Enlace wa.me para enviarle a un usuario su PIN (temporal o recién activado). */
-export function enlaceWaEnviarPin(telefonoE164: string, pin: string, nombreNegocio?: string): string {
-  const mensaje =
-    `Tu acceso a Remesas PERU-VENEZUELA${nombreNegocio ? ` (${nombreNegocio})` : ''}: entra con tu numero de telefono y este PIN: ${pin}. ` +
-    `Al ingresar te pedira crear tu PIN definitivo de 4 digitos.`;
+/**
+ * Enlace wa.me para enviarle a un usuario su número + PIN. Por defecto el
+ * PIN es temporal (recuperación / alta por el operador) y al entrar la app
+ * pide crear el definitivo. Con `temporal: false` el PIN ya es el
+ * definitivo que eligió el propio cliente: el mensaje solo se lo recuerda.
+ */
+export function enlaceWaEnviarPin(
+  telefonoE164: string,
+  pin: string,
+  opciones?: { nombreNegocio?: string; temporal?: boolean }
+): string {
+  const { nombreNegocio, temporal = true } = opciones ?? {};
+  const mensaje = temporal
+    ? `Tu acceso a Remesas PERU-VENEZUELA${nombreNegocio ? ` (${nombreNegocio})` : ''}: entra con tu numero de telefono y este PIN: ${pin}. ` +
+      `Al ingresar te pedira crear tu PIN definitivo de 4 digitos.`
+    : `Tu acceso a Remesas PERU-VENEZUELA${nombreNegocio ? ` (${nombreNegocio})` : ''}: entra con tu numero de telefono +${telefonoE164.replace(/\D/g, '')} y tu PIN: ${pin}. ` +
+      `Puedes cambiar tu PIN cuando quieras desde tu Perfil.`;
   return `https://wa.me/${telefonoE164.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
 }
 

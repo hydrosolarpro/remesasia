@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator, TextInput, Linking, ScrollView } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { signInWithGoogle } from '../../lib/googleAuth';
 import { loginConPin, enlaceWaOlvidePin } from '../../lib/pinAuth';
@@ -62,8 +62,16 @@ export default function Login() {
     setLoading(true);
     try {
       const { pinTemporal } = await loginConPin(telefonoCompleto(codigoTel, numeroTel), pin);
-      if (pinTemporal) setForzarNuevoPin(true);
-      // Si el PIN no era temporal, el cambio de sesión redirige solo (Redirect de arriba).
+      if (pinTemporal) {
+        setForzarNuevoPin(true);
+        return;
+      }
+      // PIN definitivo: la sesión ya quedó activa. No esperamos a que el
+      // <Redirect> de arriba reaccione al cambio de `usuario` (que se
+      // carga aparte, de forma asíncrona, y a veces deja la pantalla en
+      // blanco unos segundos): mandamos a la raíz, que enruta a cada rol
+      // a su panel (cliente / operador Perú / operador Venezuela / admin).
+      router.replace('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
     } finally {
