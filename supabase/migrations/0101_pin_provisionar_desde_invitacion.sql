@@ -21,10 +21,13 @@
 -- ingreso con ese PIN la app obliga a definir el definitivo. Si el
 -- teléfono ya pertenece a una cuenta real NO se toca: esa recuperación
 -- pasa por el operador (`pin_regenerar`) o por Google.
+--
+-- Todo calificado con esquema (`public.` / `extensions.`) porque esta
+-- función se aplicó a mano desde el SQL Editor, que corre con un
+-- search_path distinto al de `apply_migration`.
 
--- Reemplaza la firma de 3 args si quedó de una versión anterior de este
--- mismo archivo sin desplegar.
 drop function if exists pin_provisionar_desde_invitacion(text, text, text);
+drop function if exists pin_provisionar_desde_invitacion(text, text, text, text);
 
 create or replace function pin_provisionar_desde_invitacion(
   p_token text,
@@ -34,8 +37,8 @@ create or replace function pin_provisionar_desde_invitacion(
 ) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 declare
-  inv invitaciones;
-  r acceso_pin;
+  inv public.invitaciones;
+  r public.acceso_pin;
   v_tel text;
   v_pin text;
   v_plan text;
@@ -43,17 +46,17 @@ declare
   v_tope int;
   v_usados int;
 begin
-  v_tel := normalizar_telefono_e164(p_telefono);
+  v_tel := public.normalizar_telefono_e164(p_telefono);
   if v_tel is null then
     return jsonb_build_object('ok', false, 'error', 'Teléfono inválido. Escríbelo con el código de país (ej: +51 9…).');
   end if;
 
-  select * into inv from invitaciones where token = p_token;
+  select * into inv from public.invitaciones where token = p_token;
   if inv.id is null or inv.tipo <> 'cliente' or inv.negocio_operador_peru_id is null then
     return jsonb_build_object('ok', false, 'error', 'Enlace de invitación inválido.');
   end if;
 
-  select * into r from acceso_pin where telefono_e164 = v_tel;
+  select * into r from public.acceso_pin where telefono_e164 = v_tel;
   if found then
     if r.usuario_id is not null then
       return jsonb_build_object('ok', false, 'error',
@@ -65,8 +68,8 @@ begin
     -- Fila pendiente del mismo negocio: recuperación -> PIN TEMPORAL al
     -- azar, se cambia en el primer ingreso.
     v_pin := lpad((floor(random() * 10000))::int::text, 4, '0');
-    update acceso_pin
-      set pin_hash = crypt(v_pin, gen_salt('bf')),
+    update public.acceso_pin
+      set pin_hash = extensions.crypt(v_pin, extensions.gen_salt('bf')),
           pin_temporal = true,
           intentos_fallidos = 0,
           bloqueado_hasta = null,
@@ -84,13 +87,13 @@ begin
 
   -- Mismo tope de clientes que `canjear_invitacion` / `pin_provisionar`
   -- (según el plan del negocio).
-  select plan, limite_clientes_unlimited into v_plan, v_lim from usuarios where id = inv.negocio_operador_peru_id;
+  select plan, limite_clientes_unlimited into v_plan, v_lim from public.usuarios where id = inv.negocio_operador_peru_id;
   v_tope := case when v_plan in ('medida', 'unlimited') then coalesce(v_lim, 2147483647)
-                 else limite_clientes_plan(v_plan) end;
+                 else public.limite_clientes_plan(v_plan) end;
   select
-      (select count(*) from usuarios
+      (select count(*) from public.usuarios
         where negocio_operador_peru_id = inv.negocio_operador_peru_id and rol = 'cliente' and eliminado_at is null)
-    + (select count(*) from acceso_pin
+    + (select count(*) from public.acceso_pin
         where prov_rol = 'cliente' and prov_negocio_id = inv.negocio_operador_peru_id)
     into v_usados;
   if v_usados >= v_tope then
@@ -98,11 +101,11 @@ begin
       'Este negocio ya alcanzó su límite de ' || v_tope || ' clientes de su plan actual.');
   end if;
 
-  insert into acceso_pin (
+  insert into public.acceso_pin (
     telefono_e164, pin_hash, pin_temporal,
     prov_rol, prov_negocio_id, prov_miembro_id, prov_nombre
   ) values (
-    v_tel, crypt(p_pin, gen_salt('bf')), false,
+    v_tel, extensions.crypt(p_pin, extensions.gen_salt('bf')), false,
     'cliente', inv.negocio_operador_peru_id, inv.operador_peru_miembro_id, nullif(trim(p_nombre), '')
   );
 
