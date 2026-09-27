@@ -19,6 +19,7 @@ import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
  * identidades de Google.
  */
 const EMAIL_DOMAIN = 'pin.remesas-peru-venezuela.app';
+const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 Deno.serve(async (req) => {
   const preflight = manejarPreflight(req);
@@ -53,7 +54,12 @@ Deno.serve(async (req) => {
     } else {
       // modo === 'provision': materializar la cuenta.
       const telNorm = String(v.telefono);
-      email = `${telNorm}@${EMAIL_DOMAIN}`;
+      // Si al registrarse indicó su correo real (prov_email), la cuenta
+      // nace directamente con él -> sirve para "Continuar con Google" y se
+      // ve en el Perfil. Si no, el correo sintético de siempre.
+      const provEmail = String(v.prov_email ?? '').trim().toLowerCase();
+      const usarCorreoReal = RE_EMAIL.test(provEmail) && !provEmail.endsWith(`@${EMAIL_DOMAIN}`);
+      email = usarCorreoReal ? provEmail : `${telNorm}@${EMAIL_DOMAIN}`;
 
       let newUserId: string | null = null;
       const { data: created, error: cErr } = await admin.auth.admin.createUser({
@@ -63,7 +69,7 @@ Deno.serve(async (req) => {
       });
       if (created?.user) {
         newUserId = created.user.id;
-      } else {
+      } else if (!usarCorreoReal) {
         // Reintento tras una creación previa: la fila de usuarios ya existe
         // (handle_new_user la creó con este email sintético).
         const { data: u } = await admin.from('usuarios').select('id').eq('email', email).maybeSingle();
@@ -72,6 +78,17 @@ Deno.serve(async (req) => {
           return json({ error: 'No se pudo crear la cuenta.' }, 500);
         }
         newUserId = u.id;
+      } else {
+        // El correo real ya pertenece a otra cuenta: no la tocamos (evita
+        // apropiarse de una cuenta ajena por un correo mal tecleado).
+        console.error('pin-login: createUser (correo real en uso)', cErr);
+        return json(
+          {
+            error:
+              'Ese correo ya tiene una cuenta. Entra con "Continuar con Google" usando ese correo, o registra tu acceso sin correo y agrégalo luego desde tu Perfil.',
+          },
+          409
+        );
       }
 
       const { error: fErr } = await admin.rpc('pin_finalizar_provision', {

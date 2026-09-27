@@ -36,6 +36,8 @@ export default function Invitacion() {
 
   const [metodo, setMetodo] = useState<Metodo>('pin');
   const [nombre, setNombre] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [correo2, setCorreo2] = useState('');
   const [codigoTel, setCodigoTel] = useState('51');
   const [numeroTel, setNumeroTel] = useState('');
   const [pin, setPin] = useState('');
@@ -104,6 +106,14 @@ export default function Invitacion() {
       setError('Escribe tu número de teléfono.');
       return;
     }
+    if (correo.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim())) {
+      setError('El correo no es válido. Déjalo vacío si no quieres agregarlo ahora.');
+      return;
+    }
+    if (correo.trim() && correo.trim().toLowerCase() !== correo2.trim().toLowerCase()) {
+      setError('Los dos correos no coinciden. Escríbelo igual en ambos campos.');
+      return;
+    }
     if (!/^\d{4}$/.test(pin)) {
       setError('Elige un PIN de 4 dígitos.');
       return;
@@ -118,7 +128,8 @@ export default function Invitacion() {
         token,
         telefonoCompleto(codigoTel, numeroTel),
         nombre.trim(),
-        pin
+        pin,
+        correo.trim() || null
       );
       setPinEnviado(res);
       // `reenvio` = ya había una cuenta pendiente y el PIN elegido se
@@ -228,6 +239,46 @@ export default function Invitacion() {
               <Text style={styles.label}>País y número de teléfono</Text>
               <TelefonoInput codigo={codigoTel} onCodigo={setCodigoTel} numero={numeroTel} onNumero={setNumeroTel} />
 
+              <Text style={styles.label}>Correo (opcional)</Text>
+              <TextInput
+                style={styles.input}
+                value={correo}
+                onChangeText={(t) => setCorreo(t.replace(/\s/g, ''))}
+                placeholder="tucorreo@gmail.com"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                inputMode="email"
+              />
+              <TextInput
+                style={styles.input}
+                value={correo2}
+                onChangeText={(t) => setCorreo2(t.replace(/\s/g, ''))}
+                placeholder="Repite tu correo"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                inputMode="email"
+              />
+              {correo2.trim().length > 0 && (
+                <Text
+                  style={
+                    correo.trim().toLowerCase() === correo2.trim().toLowerCase() ? styles.correoOk : styles.error
+                  }
+                >
+                  {correo.trim().toLowerCase() === correo2.trim().toLowerCase()
+                    ? '✓ Los dos correos coinciden.'
+                    : 'Los dos correos aún no coinciden.'}
+                </Text>
+              )}
+              <Text style={styles.ayuda}>
+                Si pones tu correo, además del PIN podrás entrar con «Continuar con Google» usando ese mismo
+                correo. Debe ser válido y tuyo: para entrar con Google te pedirá su contraseña, que es privada y
+                solo tú la conoces. Puedes dejarlo vacío y agregarlo luego desde tu Perfil.
+              </Text>
+
               <Text style={styles.label}>Elige tu PIN (4 dígitos)</Text>
               <TextInput
                 style={[styles.input, styles.inputPin]}
@@ -283,6 +334,7 @@ const styles = StyleSheet.create({
   titulo: { color: colors.text, fontSize: 23, fontWeight: '800', textAlign: 'center', marginTop: 16 },
   subtitulo: { color: colors.textMuted, fontSize: 16, textAlign: 'center', marginBottom: 16 },
   error: { color: colors.danger, fontSize: 15, textAlign: 'center', marginBottom: 8 },
+  correoOk: { color: colors.success, fontSize: 13, fontWeight: '600', marginTop: 4 },
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   tab: {
     flex: 1,

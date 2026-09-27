@@ -7,6 +7,15 @@ import { NUMERO_ADMIN_WHATSAPP } from './whatsapp';
 
 export type TipoAccesoPin = 'operador_venezuela' | 'operador_peru_miembro' | 'cliente';
 
+// Dominio de los correos SINTÉTICOS que se le asignan a una cuenta creada
+// con teléfono + PIN cuando la persona no dio su correo real. No sirven
+// para "Continuar con Google" ni para mostrar en el Perfil.
+export const DOMINIO_CORREO_PIN = 'pin.remesas-peru-venezuela.app';
+
+export function esCorreoPinSintetico(correo?: string | null): boolean {
+  return !!correo && correo.toLowerCase().endsWith(`@${DOMINIO_CORREO_PIN}`);
+}
+
 export interface EstadoPin {
   tiene_pin: boolean;
   pin_temporal?: boolean;
@@ -83,17 +92,35 @@ export async function provisionarPinDesdeInvitacion(
   token: string,
   telefono: string,
   nombre: string,
-  pin: string
+  pin: string,
+  /** Correo real opcional: si se indica, la cuenta se crea con él (sirve para Google y se ve en el Perfil). */
+  correo?: string | null
 ): Promise<{ pin: string; telefono: string; reenvio: boolean }> {
   const { data, error } = await supabase.rpc('pin_provisionar_desde_invitacion', {
     p_token: token,
     p_telefono: telefono,
     p_nombre: nombre,
     p_pin: pin,
+    p_email: correo?.trim() ? correo.trim() : null,
   });
   if (error) throw new Error(error.message);
   if (!data?.ok) throw new Error(data?.error ?? 'No se pudo crear el acceso con PIN.');
   return data as { pin: string; telefono: string; reenvio: boolean };
+}
+
+/**
+ * La persona con sesión activa vincula su correo real a su cuenta: pasa a
+ * ser el correo de su sesión y del Perfil, y desde entonces también puede
+ * entrar con "Continuar con Google" usando ese correo. El acceso con PIN
+ * sigue igual. No se verifica que el buzón exista.
+ */
+export async function vincularCorreoSesion(correo: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('vincular-correo', { body: { correo } });
+  if (error) throw new Error(await mensajeDeError(error, 'No se pudo vincular el correo.'));
+  if (!data?.ok) throw new Error(data?.error ?? 'No se pudo vincular el correo.');
+  // El JWT actual todavía lleva el correo viejo: refrescar la sesión para
+  // que `usuario.email` y el resto de la app vean el nuevo.
+  await supabase.auth.refreshSession().catch(() => {});
 }
 
 /** Activa el acceso con PIN para alguien que nunca inició sesión (equipo Perú / VE / cliente). */

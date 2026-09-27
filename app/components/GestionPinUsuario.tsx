@@ -21,12 +21,19 @@ interface Props {
   telefonoSugerido?: string | null;
   nombre?: string;
   nombreNegocio?: string;
+  /**
+   * Muestra el bloque plegado (solo el título + un resumen de una línea) y
+   * lo despliega al tocarlo. Se usa en la lista de "Clientes registrados"
+   * para que cada tarjeta se lea de un vistazo sin el formulario de PIN
+   * ocupando toda la altura.
+   */
+  colapsable?: boolean;
 }
 
 // Bloque para que el Operador Perú / admin gestione el acceso con PIN de
 // otra persona de su negocio: activarlo (PIN temporal) o regenerarlo si lo
 // olvidó, y enviarlo por un enlace wa.me.
-export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nombre, nombreNegocio }: Props) {
+export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nombre, nombreNegocio, colapsable }: Props) {
   const sugerido = separarTelefono(telefonoSugerido);
   const [estado, setEstado] = useState<EstadoPin | null>(null);
   const [codigo, setCodigo] = useState(sugerido.codigo);
@@ -34,6 +41,7 @@ export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nomb
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pinGenerado, setPinGenerado] = useState<{ pin: string; telefono: string } | null>(null);
+  const [abierto, setAbierto] = useState(!colapsable);
 
   useFocusEffect(
     useCallback(() => {
@@ -93,12 +101,29 @@ export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nomb
   };
 
   const tienePin = !!estado?.tiene_pin;
+  const resumenEstado = !estado
+    ? '…'
+    : tienePin
+      ? estado.pin_temporal
+        ? 'PIN temporal'
+        : 'Activado'
+      : 'Sin PIN';
 
   return (
     <View style={styles.box}>
-      <Text style={styles.titulo}>Acceso con PIN</Text>
+      {colapsable ? (
+        <Pressable style={styles.encabezado} onPress={() => setAbierto((v) => !v)}>
+          <Text style={styles.titulo}>Acceso con PIN</Text>
+          <View style={styles.encabezadoDerecha}>
+            <Text style={[styles.resumen, tienePin && styles.resumenOk]}>{resumenEstado}</Text>
+            <Text style={styles.chevron}>{abierto ? '▲' : '▼'}</Text>
+          </View>
+        </Pressable>
+      ) : (
+        <Text style={styles.titulo}>Acceso con PIN</Text>
+      )}
 
-      {tienePin ? (
+      {!abierto ? null : tienePin ? (
         <>
           <Text style={styles.texto}>
             Activado{estado?.telefono ? ` (+${estado.telefono})` : ''}
@@ -126,19 +151,24 @@ export function GestionPinUsuario({ usuarioId, provision, telefonoSugerido, nomb
         </>
       )}
 
-      {pinGenerado && (
+      {abierto && pinGenerado && (
         <Text style={styles.pinAviso}>
           PIN temporal: <Text style={styles.pinNum}>{pinGenerado.pin}</Text> (para +{pinGenerado.telefono}). Se muestra solo ahora; si no
           se abrió WhatsApp, cópialo y envíalo tú.
         </Text>
       )}
-      {error && <Text style={styles.error}>{error}</Text>}
+      {abierto && error && <Text style={styles.error}>{error}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   box: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, gap: 6, marginTop: 8 },
+  encabezado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  encabezadoDerecha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  resumen: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  resumenOk: { color: colors.success },
+  chevron: { color: colors.textMuted, fontSize: 11 },
   titulo: { color: colors.text, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   texto: { color: colors.textMuted, fontSize: 13, lineHeight: 17 },
   input: {
