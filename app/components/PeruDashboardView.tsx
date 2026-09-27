@@ -783,7 +783,7 @@ export function PeruDashboardView({
 
       {puedeGestionar && (
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
-          <Text style={styles.tasaLabel}>Tasa de adquisición (lo que pagas tú por cada bolívar)</Text>
+          <Text style={styles.tasaLabel}>Tasa de adquisición (bolívares que compras con cada sol)</Text>
           <Text style={styles.tasaValor}>{tasa?.tasa_adquisicion ? `VES ${tasa.tasa_adquisicion}` : 'Sin publicar'}</Text>
           <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
             <Text style={styles.tasaEditar}>Actualizar tasa →</Text>

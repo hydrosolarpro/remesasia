@@ -1,336 +1,94 @@
-﻿\# Remesas Perú - Venezuela: Fórmulas de Cálculo
+# Remesas Perú - Venezuela: Fórmulas de Cálculo
 
-\## Leyenda de Términos
+> Implementadas en `app/lib/tasaCalculo.ts` (Panel y Estadísticas) y en la función SQL
+> `calcular_ganancia_operacion` (cierre diario, migración 0103). Las dos deben ser siempre iguales.
 
-| Símbolo | Significado |
-
-\|---------|-------------|
-
-| \*\*Ms\*\* | Monto en soles que el cliente deposita en Perú |
-
-| \*\*Tv\*\* | Tasa de venta en Perú (bolívares por cada sol que cobra el remesero al cliente) |
-
-| \*\*Ta\*\* | Tasa de adquisición en Venezuela (bolívares por cada sol que paga el remesero para comprar bolívares) |
-
-| \*\*C₁\*\* | Comisión del comisionista en Perú (ej: 0.02 = 2%) |
-
-| \*\*C₂\*\* | Comisión del comisionista en Venezuela (ej: 0.02 = 2%) |
-
-| \*\*B\*\* | Bolívares que recibe el beneficiario final en Venezuela |
-
-| \*\*T\*\* | Total de bolívares que el remesero debe enviar a Venezuela (beneficiario + comisión Vzla) |
-
-| \*\*C₂(VES)\*\* | Comisión del comisionista en Venezuela, en bolívares |
-
-| \*\*C₂(PEN)\*\* | Comisión del comisionista en Venezuela, en soles (equivalente) |
-
-| \*\*C₁(PEN)\*\* | Comisión del comisionista en Perú, en soles |
-
-| \*\*G₍bruta₎\*\* | Ganancia bruta del remesero en soles (antes de comisiones) |
-
-| \*\*G₍neta₎\*\* | Ganancia neta del remesero en soles (después de comisiones) |
-
-| \*\*G₍comPerú₎\*\* | Ganancia del comisionista en Perú, en soles |
-
-| \*\*G₍comVzlaVES₎\*\* | Ganancia del comisionista en Venezuela, en bolívares |
-
-| \*\*G₍comVzlaPEN₎\*\* | Ganancia del comisionista en Venezuela, en soles (equivalente) |
-
-| \*\*%G₍bruta₎\*\* | Porcentaje de ganancia bruta del remesero |
-
-| \*\*%G₍neta₎\*\* | Porcentaje de ganancia neta del remesero |
-
-\---
-
-
-
-
-\## Fórmulas Principales (1 a 3)
-
-\### 1. Bolívares que recibe el beneficiario
-
-\[
-
-B = Ms \times Tv
-
-\]
-
-\### 2. Total a enviar a Venezuela (beneficiario + comisión del comisionista Vzla)
-
-\[
-
-T = \frac{B}{1 - C\_2}
-
-\]
-
-\### 3. Comisión del comisionista en Venezuela (en bolívares)
-
-\[
-
-C\_{2(VES)} = T \times C\_2
-
-\]
-
-\---
-
-\## Fórmulas Adicionales
-
-\### 4. Comisión del comisionista en Venezuela (en soles)
-
-\[
-
-C\_{2(PEN)} = \frac{C\_{2(VES)}}{Ta}
-
-\]
-
-\### 5. Comisión del comisionista en Perú (en soles)
-
-\[
-
-C\_{1(PEN)} = Ms \times C\_1
-
-\]
-
-\### 6. Ganancia bruta del remesero (en soles)
-
-\[
-
-G\_{(bruta)} = Ms \times \left( \frac{Ta}{Tv} - 1 \right)
-
-\]
-
-\### 7. Ganancia neta del remesero (en soles)
-
-\[
-
-G\_{(neta)} = G\_{(bruta)} - C\_{1(PEN)} - C\_{2(PEN)}
-
-\]
-
-\### 8. Porcentaje de ganancia bruta
-
-\[
-
-\%G\_{(bruta)} = \left( \frac{Ta}{Tv} - 1 \right) \times 100
-
-\]
-
-\### 9. Porcentaje de ganancia neta
-
-\[
-
-\%G\_{(neta)} = \frac{G\_{(neta)}}{Ms} \times 100
-
-\]
-
-\### 10. Ganancia del comisionista en Perú (en soles)
-
-\[
-
-G\_{(comPerú)} = Ms \times C\_1
-
-\]
-
-\### 11. Ganancia del comisionista en Venezuela (en bolívares)
-
-\[
-
-G\_{(comVzlaVES)} = \frac{Ms \times Tv}{1 - C\_2} \times C\_2
-
-\]
-
-\### 12. Ganancia del comisionista en Venezuela (en soles)
-
-\[
-
-G\_{(comVzlaPEN)} = \frac{Ms \times Tv \times C\_2}{(1 - C\_2) \times Ta}
-
-\]
-
-\# Remesas Perú - Venezuela: Fórmulas de Cálculo
-
-\## Leyenda de Términos y Unidades
+## Leyenda de Términos y Unidades
 
 | Símbolo | Significado | Unidad |
+|---|---|---|
+| **Ms** | Monto en soles que el cliente deposita en Perú | PEN |
+| **Tv** | Tasa de venta: bolívares que recibe el cliente por cada sol | VES/PEN |
+| **Ta** | Tasa de adquisición: bolívares que compra el remesero con cada sol | VES/PEN |
+| **C₁** | % de comisión del operador de Perú, **sobre la ganancia bruta** | Adimensional (0.20 = 20 %) |
+| **C₂** | % de comisión del operador de Venezuela, **sobre la ganancia bruta** | Adimensional (0.20 = 20 %) |
+| **B** | Bolívares que recibe el beneficiario | VES |
+| **T** | Total de bolívares que se envían a Venezuela (beneficiario + comisión Vzla) | VES |
+| **G₍bruta₎** | Ganancia bruta de la operación (antes de comisiones) | PEN |
+| **C₁(PEN)** | Comisión del operador de Perú | PEN |
+| **C₂(PEN)** | Comisión del operador de Venezuela | PEN |
+| **C₂(VES)** | Comisión del operador de Venezuela, pagada en bolívares | VES |
+| **G₍neta₎** | Ganancia neta del Operador principal (después de comisiones) | PEN |
 
-\|---------|-------------|--------|
+**Regla:** Ta debe ser mayor que Tv. Si Tv ≥ Ta la operación deja pérdida.
 
-| \*\*Ms\*\* | Monto en soles que el cliente deposita en Perú | \*\*PEN\*\* |
+---
 
-| \*\*Tv\*\* | Tasa de venta en Perú (bolívares por cada sol que cobra el remesero al cliente) | \*\*VES/PEN\*\* |
+## Fórmulas
 
-| \*\*Ta\*\* | Tasa de adquisición en Venezuela (bolívares por cada sol que paga el remesero para comprar bolívares) | \*\*VES/PEN\*\* |
+### 1. Bolívares que recibe el beneficiario
 
-| \*\*C₁\*\* | Comisión del comisionista en Perú | \*\*Adimensional\*\* (ej: 0.02 = 2%) |
+B = Ms × Tv  → PEN × VES/PEN = **VES**
 
-| \*\*C₂\*\* | Comisión del comisionista en Venezuela | \*\*Adimensional\*\* (ej: 0.02 = 2%) |
+### 2. Ganancia bruta
 
-| \*\*B\*\* | Bolívares que recibe el beneficiario final en Venezuela | \*\*VES\*\* |
+G₍bruta₎ = Ms × (1 − Tv / Ta)  → **PEN**
 
-| \*\*T\*\* | Total de bolívares que el remesero debe enviar a Venezuela | \*\*VES\*\* |
+Es lo cobrado (Ms) menos lo que cuesta comprar los bolívares del beneficiario (B ÷ Ta).
 
-| \*\*C₂(VES)\*\* | Comisión del comisionista en Venezuela | \*\*VES\*\* |
+### 3. Comisión del operador de Perú
 
-| \*\*C₂(PEN)\*\* | Comisión del comisionista en Venezuela (equivalente en soles) | \*\*PEN\*\* |
+C₁(PEN) = G₍bruta₎ × C₁  → **PEN**
 
-| \*\*C₁(PEN)\*\* | Comisión del comisionista en Perú | \*\*PEN\*\* |
+### 4. Comisión del operador de Venezuela
 
-| \*\*G₍bruta₎\*\* | Ganancia bruta del remesero (antes de comisiones) | \*\*PEN\*\* |
+C₂(PEN) = G₍bruta₎ × C₂  → **PEN**
 
-| \*\*G₍neta₎\*\* | Ganancia neta del remesero (después de comisiones) | \*\*PEN\*\* |
+C₂(VES) = C₂(PEN) × Ta  → **VES** (lo que se le paga en bolívares)
 
-| \*\*G₍comPerú₎\*\* | Ganancia del comisionista en Perú | \*\*PEN\*\* |
+### 5. Total a enviar a Venezuela
 
-| \*\*G₍comVzlaVES₎\*\* | Ganancia del comisionista en Venezuela | \*\*VES\*\* |
+T = B + C₂(VES)  → **VES**
 
-| \*\*G₍comVzlaPEN₎\*\* | Ganancia del comisionista en Venezuela (equivalente en soles) | \*\*PEN\*\* |
+### 6. Ganancia neta del Operador principal
 
-| \*\*%G₍bruta₎\*\* | Porcentaje de ganancia bruta del remesero | \*\*%\*\* |
+G₍neta₎ = G₍bruta₎ − C₁(PEN) − C₂(PEN) = G₍bruta₎ × (1 − C₁ − C₂)  → **PEN**
 
-| \*\*%G₍neta₎\*\* | Porcentaje de ganancia neta del remesero | \*\*%\*\* |
+### 7. Porcentajes
 
-\---
+%G₍bruta₎ = (1 − Tv / Ta) × 100
 
-\## Fórmulas Principales (1 a 3)
+%G₍neta₎ = G₍neta₎ / Ms × 100
 
-\### 1. Bolívares que recibe el beneficiario
+### Redondeo
 
-\[
+Cada monto se redondea a céntimos antes de restar, para que G₍neta₎ = G₍bruta₎ − C₁(PEN) − C₂(PEN) cuadre exacto.
 
-B = Ms \times Tv
+### Caso sin ganancia
 
-\]
+Si G₍bruta₎ ≤ 0 (Tv ≥ Ta) no hay nada que repartir: C₁ y C₂ quedan en 0 y la pérdida la asume el Operador principal.
 
-\- \*\*Unidades:\*\* PEN × (VES/PEN) = \*\*VES\*\*
+---
 
-\### 2. Total a enviar a Venezuela (beneficiario + comisión del comisionista Vzla)
+## Ejemplo
 
-\[
+Ms = S/ 180 · Tv = 259 · Ta = 270 · C₁ = 20 % · C₂ = 20 %
 
-T = \frac{B}{1 - C\_2}
+| Concepto | Cálculo | Resultado |
+|---|---|---|
+| B | 180 × 259 | Bs 46,620.00 |
+| G₍bruta₎ | 180 × (1 − 259/270) | S/ 7.33 |
+| C₁(PEN) | 7.33 × 0.20 | S/ 1.47 |
+| C₂(PEN) | 7.33 × 0.20 | S/ 1.47 |
+| C₂(VES) | 1.47 × 270 | Bs 396.90 |
+| T | 46,620 + 396.90 | Bs 47,016.90 |
+| G₍neta₎ | 7.33 − 1.47 − 1.47 | S/ 4.39 |
 
-\]
-
-\- \*\*Unidades:\*\* VES / 1 = \*\*VES\*\*
-
-\### 3. Comisión del comisionista en Venezuela (en bolívares)
-
-\[
-
-C\_{2(VES)} = T \times C\_2
-
-\]
-
-\- \*\*Unidades:\*\* VES × 1 = \*\*VES\*\*
-
-\---
-
-\## Fórmulas Adicionales
-
-\### 4. Comisión del comisionista en Venezuela (en soles)
-
-\[
-
-C\_{2(PEN)} = \frac{C\_{2(VES)}}{Ta}
-
-\]
-
-\- \*\*Unidades:\*\* VES / (VES/PEN) = \*\*PEN\*\*
-
-\### 5. Comisión del comisionista en Perú (en soles)
-
-\[
-
-C\_{1(PEN)} = Ms \times C\_1
-
-\]
-
-\- \*\*Unidades:\*\* PEN × 1 = \*\*PEN\*\*
-
-\### 6. Ganancia bruta del remesero (en soles)
-
-\[
-
-G\_{(bruta)} = Ms \times \left( \frac{Ta}{Tv} - 1 \right)
-
-\]
-
-\- \*\*Unidades:\*\* PEN × [(VES/PEN)/(VES/PEN) - 1] = \*\*PEN\*\*
-
-\### 7. Ganancia neta del remesero (en soles)
-
-\[
-
-G\_{(neta)} = G\_{(bruta)} - C\_{1(PEN)} - C\_{2(PEN)}
-
-\]
-
-\- \*\*Unidades:\*\* PEN - PEN - PEN = \*\*PEN\*\*
-
-\### 8. Porcentaje de ganancia bruta
-
-\[
-
-\%G\_{(bruta)} = \left( \frac{Ta}{Tv} - 1 \right) \times 100
-
-\]
-
-\- \*\*Unidades:\*\* Adimensional × 100 = \*\*%\*\*
-
-\### 9. Porcentaje de ganancia neta
-
-\[
-
-\%G\_{(neta)} = \frac{G\_{(neta)}}{Ms} \times 100
-
-\]
-
-\- \*\*Unidades:\*\* (PEN/PEN) × 100 = \*\*%\*\*
-
-\### 10. Ganancia del comisionista en Perú (en soles)
-
-\[
-
-G\_{(comPerú)} = Ms \times C\_1
-
-\]
-
-\- \*\*Unidades:\*\* PEN × 1 = \*\*PEN\*\*
-
-\### 11. Ganancia del comisionista en Venezuela (en bolívares)
-
-\[
-
-G\_{(comVzlaVES)} = \frac{Ms \times Tv}{1 - C\_2} \times C\_2
-
-\]
-
-\- \*\*Unidades:\*\* (PEN × VES/PEN) / 1 × 1 = \*\*VES\*\*
-
-\### 12. Ganancia del comisionista en Venezuela (en soles)
-
-\[
-
-G\_{(comVzlaPEN)} = \frac{Ms \times Tv \times C\_2}{(1 - C\_2) \times Ta}
-
-\]
-
-\- \*\*Unidades:\*\* (PEN × VES/PEN × 1) / (1 × VES/PEN) = \*\*PEN\*\*
-
-\---
-
-\## Verificación de Unidades (Regla de Oro)
+## Verificación de Unidades
 
 | Operación | Unidades |
-
-\|-----------|----------|
-
-| \*\*Soles (PEN)\*\* × \*\*Tasa (VES/PEN)\*\* | = \*\*VES\*\* |
-
-| \*\*Bolívares (VES)\*\* ÷ \*\*Tasa (VES/PEN)\*\* | = \*\*PEN\*\* |
-
-| \*\*Comisiones (C₁, C₂)\*\* | = \*\*Adimensional\*\* |
-
-| \*\*PEN\*\* - \*\*PEN\*\* | = \*\*PEN\*\* |
-
-| \*\*VES\*\* - \*\*VES\*\* | = \*\*VES\*\* |
+|---|---|
+| PEN × (VES/PEN) | VES |
+| VES ÷ (VES/PEN) | PEN |
+| Comisiones C₁, C₂ | Adimensional |
+| PEN − PEN | PEN |

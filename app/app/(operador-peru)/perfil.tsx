@@ -28,6 +28,7 @@ import { PinAccesoCard } from '../../components/PinAccesoCard';
 import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { Collapsible } from '../../components/Collapsible';
 import { ClientesMiembroList } from '../../components/ClientesMiembroList';
+import { ComisionInput } from '../../components/ComisionInput';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
@@ -249,12 +250,13 @@ export default function Perfil() {
 
   // % de comisión: solo lo introduce/edita el operador principal (ver
   // Calculos-tasas-dinero-comisiones.md, C1/C2). Se guarda como número
-  // (0-100), aceptando coma o punto decimal.
-  const editarComisionVe = async (id: string, valor: string) => {
-    const pct = Number(valor.replace(',', '.'));
-    if (!Number.isFinite(pct)) return;
+  // (0-100); la validación y el texto a medio escribir los maneja
+  // ComisionInput. Solo se actualiza la lista si la base lo guardó.
+  const editarComisionVe = async (id: string, pct: number): Promise<string | null> => {
+    const { error } = await supabase.from('operador_venezuela_perfil').update({ comision_pct: pct }).eq('id', id);
+    if (error) return 'No se pudo guardar la comisión. Inténtalo de nuevo.';
     setVeList((prev) => prev.map((v) => (v.id === id ? { ...v, comision_pct: pct } : v)));
-    await supabase.from('operador_venezuela_perfil').update({ comision_pct: pct }).eq('id', id);
+    return null;
   };
 
   const editarPe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
@@ -275,11 +277,11 @@ export default function Perfil() {
     if (negocioId) cargarEquipos(negocioId);
   };
 
-  const editarComisionPe = async (id: string, valor: string) => {
-    const pct = Number(valor.replace(',', '.'));
-    if (!Number.isFinite(pct)) return;
+  const editarComisionPe = async (id: string, pct: number): Promise<string | null> => {
+    const { error } = await supabase.from('operador_peru_miembro').update({ comision_pct: pct }).eq('id', id);
+    if (error) return 'No se pudo guardar la comisión. Inténtalo de nuevo.';
     setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, comision_pct: pct } : p)));
-    await supabase.from('operador_peru_miembro').update({ comision_pct: pct }).eq('id', id);
+    return null;
   };
 
   // Permiso para que ESTE miembro publique su propia Tasa del día (Tv) --
@@ -471,7 +473,7 @@ export default function Perfil() {
 
           {/* % de comisión: lo asigna el Operador principal, acá solo se ve. */}
           <View style={[styles.card, cardShadow]}>
-            <Text style={styles.cardTitulo}>% Comisión asignada</Text>
+            <Text style={styles.cardTitulo}>% Comisión asignada (sobre la ganancia bruta)</Text>
             <Text style={styles.miembroNombre}>{miembroRow?.comision_pct ?? 0}%</Text>
           </View>
         </>
@@ -705,14 +707,8 @@ export default function Perfil() {
                 autoCapitalize="none"
                 placeholderTextColor={colors.textMuted}
               />
-              <Text style={styles.label}>% Comisión</Text>
-              <TextInput
-                style={styles.input}
-                value={String(v.comision_pct ?? 0)}
-                onChangeText={(t) => editarComisionVe(v.id, t)}
-                keyboardType="decimal-pad"
-                placeholderTextColor={colors.textMuted}
-              />
+              <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
+              <ComisionInput style={styles.input} valor={v.comision_pct} onGuardar={(pct) => editarComisionVe(v.id, pct)} />
               {peList.filter((p) => p.operador_venezuela_id === v.id).length > 0 && (
                 <View style={styles.asignadosBloque}>
                   <Text style={styles.asignadosLabel}>Operadores de Perú asignados:</Text>
@@ -813,14 +809,8 @@ export default function Perfil() {
                   autoCapitalize="none"
                   placeholderTextColor={colors.textMuted}
                 />
-                <Text style={styles.label}>% Comisión</Text>
-                <TextInput
-                  style={styles.input}
-                  value={String(p.comision_pct ?? 0)}
-                  onChangeText={(t) => editarComisionPe(p.id, t)}
-                  keyboardType="decimal-pad"
-                  placeholderTextColor={colors.textMuted}
-                />
+                <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
+                <ComisionInput style={styles.input} valor={p.comision_pct} onGuardar={(pct) => editarComisionPe(p.id, pct)} />
                 <Text style={styles.asignadoVe}>{veAsignado ? `Asignado a: ${veAsignado.nombre}` : 'Sin Operador de Venezuela asignado'}</Text>
 
                 <Pressable

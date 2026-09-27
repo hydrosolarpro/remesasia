@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -118,6 +118,15 @@ export default function TasaDelDia() {
     if (ctx.negocioId) cargar(ctx.negocioId);
   };
 
+  // Las comisiones del equipo son un % de la ganancia bruta, así que solo
+  // hay pérdida si la tasa del día no es menor que la de adquisición.
+  const avisoPerdida = useMemo(() => {
+    const ta = Number(tasaAdquisicion.replace(',', '.'));
+    const tv = Number(penVes.replace(',', '.'));
+    if (!(ta > 0) || !(tv > 0) || tv < ta) return null;
+    return `⚠ Con estas tasas pierdes dinero en todas las operaciones: la tasa del día (${tv}) debe ser menor que tu tasa de adquisición (${ta}).`;
+  }, [tasaAdquisicion, penVes]);
+
   const publicarPropia = async () => {
     if (!usuario || !esMiembro || !puedeEditarTasaPropia) return;
     setMensajePropia(null);
@@ -199,7 +208,7 @@ export default function TasaDelDia() {
 
       {esPrincipal ? (
         <>
-          <Text style={styles.label}>Tasa de adquisición (Ta) — cuánto pagas tú por cada bolívar</Text>
+          <Text style={styles.label}>Tasa de adquisición (Ta) — cuántos bolívares compras tú con cada sol</Text>
           <TextInput
             style={styles.input}
             value={tasaAdquisicion}
@@ -219,6 +228,7 @@ export default function TasaDelDia() {
             placeholderTextColor={colors.textMuted}
           />
 
+          {avisoPerdida && <Text style={styles.avisoPerdida}>{avisoPerdida}</Text>}
           {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
 
           <Pressable style={styles.button} onPress={publicar} disabled={loading}>
@@ -243,6 +253,7 @@ const styles = StyleSheet.create({
   label: { color: colors.textMuted, fontSize: 15, marginTop: 8 },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, fontSize: 21 },
   mensaje: { color: colors.accent, fontSize: 15, marginTop: 8 },
+  avisoPerdida: { color: colors.danger, fontSize: 15, lineHeight: 20, marginTop: 8 },
   button: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
   buttonText: { color: colors.text, fontWeight: '700', fontSize: 18 },
   soloLectura: { color: colors.textMuted, fontSize: 16, lineHeight: 20, marginTop: 16 },

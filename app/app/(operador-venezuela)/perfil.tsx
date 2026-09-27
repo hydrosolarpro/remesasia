@@ -70,7 +70,7 @@ export default function Perfil() {
       {/* % de comisión: lo asigna el Operador principal, acá solo se ve. */}
       {veRow && (
         <View style={[styles.card, cardShadow]}>
-          <Text style={styles.cardTitulo}>% Comisión asignada</Text>
+          <Text style={styles.cardTitulo}>% Comisión asignada (sobre la ganancia bruta)</Text>
           <Text style={styles.miembroNombre}>{veRow.comision_pct ?? 0}%</Text>
         </View>
       )}
