@@ -10,6 +10,9 @@ interface AuthState {
   loading: boolean;
   refreshUsuario: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Se llenó si la última carga de sesión encontró una cuenta dada de baja (ver loadUsuario). Login.tsx lo muestra y lo limpia. */
+  avisoSesionCerrada: string | null;
+  limpiarAvisoSesionCerrada: () => void;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -18,12 +21,15 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   refreshUsuario: async () => {},
   signOut: async () => {},
+  avisoSesionCerrada: null,
+  limpiarAvisoSesionCerrada: () => {},
 });
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
+  const [avisoSesionCerrada, setAvisoSesionCerrada] = useState<string | null>(null);
 
   const loadUsuario = async (userId: string | undefined) => {
     if (!userId) {
@@ -31,6 +37,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return;
     }
     let { data } = await supabase.from('usuarios').select('*').eq('id', userId).single();
+
+    // Cuenta dada de baja (el propio cliente desde su Perfil, o eliminada
+    // por su operador -- ver supabase/functions/eliminar-cliente). Esa
+    // función marca `eliminado_at` y borra la cuenta de auth.users, pero
+    // NUNCA debe alcanzar para que alguien vuelva a entrar: si por lo que
+    // sea queda (o vuelve a aparecer) una sesión válida para este mismo
+    // registro -- el borrado de auth.users falló silenciosamente, o entró
+    // de nuevo con Google antes de que el borrado terminara --, esto la
+    // bloquea del lado de la app en cuanto se intenta cargar. Antes no se
+    // revisaba `eliminado_at` acá y esa cuenta podía seguir entrando.
+    if (data?.eliminado_at) {
+      await supabase.auth.signOut();
+      setSession(null);
+      setUsuario(null);
+      setAvisoSesionCerrada('Esta cuenta fue dada de baja. Si crees que es un error, contacta a tu operador.');
+      router.replace('/(auth)/login');
+      return;
+    }
 
     // El vínculo por correo con Operador Venezuela / equipo Operador Perú
     // normalmente ocurre solo una vez, al crear la cuenta (ver
@@ -79,7 +103,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, usuario, loading, refreshUsuario, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        usuario,
+        loading,
+        refreshUsuario,
+        signOut,
+        avisoSesionCerrada,
+        limpiarAvisoSesionCerrada: () => setAvisoSesionCerrada(null),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

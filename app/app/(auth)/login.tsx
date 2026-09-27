@@ -17,7 +17,7 @@ const DESTACADOS = [
 type Metodo = 'pin' | 'google';
 
 export default function Login() {
-  const { session, usuario, loading: authLoading } = useAuth();
+  const { session, usuario, loading: authLoading, avisoSesionCerrada, limpiarAvisoSesionCerrada } = useAuth();
   const [metodo, setMetodo] = useState<Metodo>('pin');
   const [codigoTel, setCodigoTel] = useState('51');
   const [numeroTel, setNumeroTel] = useState('');
@@ -89,6 +89,15 @@ export default function Login() {
       <Image source={require('../../assets/android-icon-foreground.png')} style={styles.logo} resizeMode="contain" />
       <Text style={styles.title}>Remesas PERÚ-VENEZUELA</Text>
       <Text style={styles.subtitle}>Y entérate al instante</Text>
+
+      {avisoSesionCerrada && (
+        <View style={styles.avisoBaja}>
+          <Text style={styles.avisoBajaTexto}>{avisoSesionCerrada}</Text>
+          <Pressable onPress={limpiarAvisoSesionCerrada} hitSlop={8}>
+            <Text style={styles.avisoBajaCerrar}>✕</Text>
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.destacados}>
         {DESTACADOS.map((texto) => (
@@ -208,6 +217,20 @@ const styles = StyleSheet.create({
   tabTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 14 },
   tabTextoActivo: { color: colors.text },
   error: { color: colors.danger, marginBottom: 8, fontSize: 15 },
+  avisoBaja: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: `${colors.danger}22`,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.md,
+    padding: 12,
+    marginTop: 12,
+    width: '100%',
+  },
+  avisoBajaTexto: { color: colors.text, fontSize: 14, lineHeight: 19, flex: 1 },
+  avisoBajaCerrar: { color: colors.textMuted, fontSize: 16, fontWeight: '800' },
   pinForm: { gap: 4 },
   label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 8 },
   input: {
