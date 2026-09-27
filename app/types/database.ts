@@ -50,6 +50,8 @@ export interface Usuario {
   referido_nombre: string | null;
   referido_apellido: string | null;
   referido_telefono: string | null;
+  /** Borrado lógico (ver supabase/functions/eliminar-cliente): cuándo se dio de baja -- null = cuenta activa. */
+  eliminado_at: string | null;
 }
 
 export type CanalNotificacion = 'telegram' | 'whatsapp' | 'ambos';

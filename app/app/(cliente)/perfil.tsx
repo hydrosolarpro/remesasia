@@ -423,6 +423,9 @@ export default function Perfil() {
           <Text style={styles.docResumenTexto}>
             {DOCUMENTO_TIPO_ETIQUETA[usuario!.documento_tipo!]} · {usuario!.documento_numero}
           </Text>
+          <Pressable onPress={() => setZoomDocumento(true)}>
+            <Text style={styles.docResumenVer}>🔍 Ver documento</Text>
+          </Pressable>
         </View>
       ) : (
         <Text style={styles.avisoDocumento}>
@@ -502,6 +505,8 @@ export default function Perfil() {
       <Pressable style={styles.bajaBtn} onPress={darseDeBaja} disabled={dandoDeBaja}>
         {dandoDeBaja ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.bajaBtnTexto}>Dar de baja mi cuenta</Text>}
       </Pressable>
+
+      <ZoomableImageModal visible={zoomDocumento} uri={usuario?.documento_imagen_url ?? null} onClose={() => setZoomDocumento(false)} />
     </ScrollView>
   );
 }
@@ -560,8 +565,19 @@ const styles = StyleSheet.create({
   },
   docUploadIcono: { fontSize: 28 },
   docUploadTexto: { color: colors.accent, fontWeight: '700', fontSize: 15, textAlign: 'center' },
-  docResumen: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, marginTop: -4 },
-  docResumenTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  docResumen: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    marginTop: -4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  docResumenTexto: { color: colors.text, fontWeight: '700', fontSize: 15, flexShrink: 1 },
+  docResumenVer: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   avisoDocumento: { color: colors.danger, fontSize: 14, fontWeight: '600', lineHeight: 18, marginTop: -4 },
   button: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center', marginTop: 8 },
   buttonText: { color: colors.text, fontWeight: '700', fontSize: 18 },

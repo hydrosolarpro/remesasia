@@ -13,6 +13,7 @@ import { DOCUMENTO_TIPO_ETIQUETA, documentoClienteCompleto } from '../../lib/per
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { ProvisionarClientePin } from '../../components/ProvisionarClientePin';
+import { Collapsible } from '../../components/Collapsible';
 import { Usuario, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -25,6 +26,7 @@ export default function ClientesRegistrados() {
   const [miembroId, setMiembroId] = useState<string | null>(null);
   const [esPrincipal, setEsPrincipal] = useState(true);
   const [clientes, setClientes] = useState<Usuario[]>([]);
+  const [clientesBaja, setClientesBaja] = useState<Usuario[]>([]);
   const [cargandoClientes, setCargandoClientes] = useState(true);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [exportandoExcel, setExportandoExcel] = useState(false);
@@ -57,30 +59,48 @@ export default function ClientesRegistrados() {
     });
   }, [usuario]);
 
+  // Filtros comunes a "activos" y "dados de baja": mismo negocio y, según
+  // la sesión, solo los clientes propios del principal o los de un miembro
+  // en particular (ver comentarios de cada rama más abajo).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const conFiltrosDeSesion = useCallback(
+    (q: any) => {
+      let query = q.eq('rol', 'cliente').eq('negocio_operador_peru_id', negocioId!);
+      if (esPrincipal) {
+        // Los clientes de un miembro de Perú ya no se listan acá -- viven en
+        // Perfil, dentro de la tarjeta de ese operador (ver
+        // ClientesMiembroList). Esta pantalla solo muestra los clientes que
+        // el principal invitó directamente.
+        query = query.is('invitado_por_operador_miembro_id', null);
+      } else if (miembroId) {
+        // Un miembro de Perú solo ve los clientes que él mismo invitó.
+        query = query.eq('invitado_por_operador_miembro_id', miembroId);
+      }
+      return query;
+    },
+    [negocioId, esPrincipal, miembroId]
+  );
+
   const cargarClientes = useCallback(() => {
     if (!negocioId) return;
     setCargandoClientes(true);
-    let query = supabase
-      .from('usuarios')
-      .select('*')
-      .eq('rol', 'cliente')
-      .eq('negocio_operador_peru_id', negocioId)
-      .is('eliminado_at', null);
-    if (esPrincipal) {
-      // Los clientes de un miembro de Perú ya no se listan acá -- viven en
-      // Perfil, dentro de la tarjeta de ese operador (ver
-      // ClientesMiembroList). Esta pantalla solo muestra los clientes que
-      // el principal invitó directamente.
-      query = query.is('invitado_por_operador_miembro_id', null);
-    } else if (miembroId) {
-      // Un miembro de Perú solo ve los clientes que él mismo invitó.
-      query = query.eq('invitado_por_operador_miembro_id', miembroId);
-    }
-    query.order('created_at', { ascending: false }).then(({ data }) => {
-      setClientes((data as Usuario[] | null) ?? []);
+    Promise.all([
+      conFiltrosDeSesion(supabase.from('usuarios').select('*'))
+        .is('eliminado_at', null)
+        .order('created_at', { ascending: false }),
+      // Clientes que se dieron de baja (ellos mismos desde su Perfil, o que
+      // el operador eliminó) -- ver supabase/functions/eliminar-cliente.
+      // Se muestran para que el operador conserve sus datos a la vista,
+      // ordenados del más reciente al más antiguo.
+      conFiltrosDeSesion(supabase.from('usuarios').select('*'))
+        .not('eliminado_at', 'is', null)
+        .order('eliminado_at', { ascending: false }),
+    ]).then(([{ data: activos }, { data: bajas }]) => {
+      setClientes((activos as Usuario[] | null) ?? []);
+      setClientesBaja((bajas as Usuario[] | null) ?? []);
       setCargandoClientes(false);
     });
-  }, [negocioId, esPrincipal, miembroId]);
+  }, [negocioId, conFiltrosDeSesion]);
 
   // Solo el principal puede derivar clientes a un miembro de su equipo.
   useEffect(() => {
@@ -365,11 +385,57 @@ export default function ClientesRegistrados() {
                   provision={{ tipo: 'cliente', refId: miembroId }}
                   telefonoSugerido={item.telefono}
                   nombre={item.nombre}
+                  colapsable
                 />
               </View>
             );
           })}
         </View>
+      )}
+
+      {clientesBaja.length > 0 && (
+        <Collapsible
+          titulo={`⚠ Clientes dados de baja (${clientesBaja.length})`}
+          subtitulo="Se dieron de baja ellos mismos, o fueron eliminados. Sus datos quedan aquí para que los tengas a la mano."
+          abiertoPorDefecto
+        >
+          {clientesBaja.map((item) => {
+            const atiende = miembros.find((m) => m.id === item.invitado_por_operador_miembro_id);
+            // "Reciente" = últimas 72h -- el aviso que pediste: que se note
+            // a simple vista cuando un cliente se dio de baja hace poco, no
+            // solo que quede archivado en la lista.
+            const esReciente = item.eliminado_at ? Date.now() - new Date(item.eliminado_at).getTime() < 72 * 60 * 60 * 1000 : false;
+            return (
+              <View key={item.id} style={[styles.cardBaja, esReciente && styles.cardBajaReciente]}>
+                {esReciente && <Text style={styles.bajaRecienteTag}>Reciente</Text>}
+                <Text style={styles.nombre}>{item.nombre}</Text>
+                <Text style={styles.dato}>
+                  {item.telefono ?? 'Sin teléfono'} · {item.pais ?? 'Sin país'}
+                </Text>
+                {documentoClienteCompleto(item) ? (
+                  <Pressable onPress={() => setZoomDocumentoUrl(item.documento_imagen_url)}>
+                    <Text style={styles.documentoDato}>
+                      {DOCUMENTO_TIPO_ETIQUETA[item.documento_tipo!]} {item.documento_numero} · 🔍 Ver foto
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.documentoFalta}>⚠ Documento de identidad pendiente</Text>
+                )}
+                {(item.referido_nombre || item.referido_telefono) && (
+                  <Text style={styles.dato}>
+                    Recomendado por: {[item.referido_nombre, item.referido_apellido].filter(Boolean).join(' ')}
+                    {item.referido_telefono ? ` · ${item.referido_telefono}` : ''}
+                  </Text>
+                )}
+                {esPrincipal && <Text style={styles.dato}>Atendía: {atiende ? atiende.nombre : 'Tú (principal)'}</Text>}
+                <Text style={styles.dato}>Registrado: {new Date(item.created_at).toLocaleString('es-PE')}</Text>
+                <Text style={styles.bajaFecha}>
+                  Dado de baja: {item.eliminado_at ? new Date(item.eliminado_at).toLocaleString('es-PE') : '—'}
+                </Text>
+              </View>
+            );
+          })}
+        </Collapsible>
       )}
 
       {/* Modal de derivación: solo lo usa el Operador principal. */}
@@ -440,6 +506,27 @@ const styles = StyleSheet.create({
   dato: { color: colors.textMuted, fontSize: 14 },
   documentoDato: { color: colors.accent, fontSize: 14, fontWeight: '700' },
   documentoFalta: { color: colors.danger, fontSize: 13, fontWeight: '600' },
+  cardBaja: {
+    backgroundColor: colors.cardAlt,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: 14,
+    gap: 2,
+  },
+  cardBajaReciente: { borderColor: colors.danger },
+  bajaRecienteTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.danger,
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 4,
+  },
+  bajaFecha: { color: colors.danger, fontSize: 13, fontWeight: '700', marginTop: 4 },
   vacio: { color: colors.textMuted, fontSize: 15, fontStyle: 'italic' },
   lista: { gap: 10 },
   clienteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },

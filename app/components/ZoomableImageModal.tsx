@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Modal, View, Pressable, Text, StyleSheet, PanResponder, Animated, Dimensions } from 'react-native';
+import { Modal, View, Pressable, Text, StyleSheet, PanResponder, Animated, Dimensions, Linking } from 'react-native';
 import { colors, radius } from '../constants/theme';
 
 const { width, height } = Dimensions.get('window');
@@ -69,32 +69,56 @@ export function ZoomableImageModal({ visible, uri, onClose }: { visible: boolean
 
   if (!uri) return null;
 
+  // Un Documento de Identidad puede ser un PDF (ver lib/perfilCliente.ts,
+  // MIME_DOCUMENTO_IDENTIDAD) -- <Image> no lo puede previsualizar, así que
+  // en ese caso se muestra una tarjeta con acceso directo a "Descargar"
+  // en vez de intentar dibujarlo como imagen (quedaría en blanco/roto).
+  const esPdf = uri.toLowerCase().endsWith('.pdf');
+
+  const descargar = () => Linking.openURL(uri);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={cerrar}>
       <View style={styles.fondo}>
         <Pressable style={styles.cerrarBtn} onPress={cerrar} hitSlop={12}>
           <Text style={styles.cerrarBtnTexto}>✕</Text>
         </Pressable>
-        <Text style={styles.ayuda}>Doble toque, o +/- para hacer zoom · arrastra para moverte</Text>
-        <View style={styles.contenedorImagen} {...panResponder.panHandlers}>
-          <Animated.Image
-            source={{ uri }}
-            style={[
-              styles.imagen,
-              { transform: [{ translateX }, { translateY }, { scale: nivelZoom }] },
-            ]}
-            resizeMode="contain"
-          />
-        </View>
-        <View style={styles.controles}>
-          <Pressable style={styles.zoomBtn} onPress={() => aplicarZoom(nivelZoomRef.current - ZOOM_PASO)} hitSlop={10}>
-            <Text style={styles.zoomBtnTexto}>−</Text>
-          </Pressable>
-          <Text style={styles.zoomTexto}>{Math.round(nivelZoom * 100)}%</Text>
-          <Pressable style={styles.zoomBtn} onPress={() => aplicarZoom(nivelZoomRef.current + ZOOM_PASO)} hitSlop={10}>
-            <Text style={styles.zoomBtnTexto}>+</Text>
-          </Pressable>
-        </View>
+        <Pressable style={styles.descargarBtn} onPress={descargar} hitSlop={12}>
+          <Text style={styles.descargarBtnTexto}>⬇ Descargar</Text>
+        </Pressable>
+
+        {esPdf ? (
+          <View style={styles.pdfCard}>
+            <Text style={styles.pdfIcono}>📄</Text>
+            <Text style={styles.pdfTexto}>Este documento es un PDF y no se puede previsualizar aquí.</Text>
+            <Pressable style={styles.pdfBtn} onPress={descargar}>
+              <Text style={styles.pdfBtnTexto}>Abrir / Descargar PDF</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.ayuda}>Doble toque, o +/- para hacer zoom · arrastra para moverte</Text>
+            <View style={styles.contenedorImagen} {...panResponder.panHandlers}>
+              <Animated.Image
+                source={{ uri }}
+                style={[
+                  styles.imagen,
+                  { transform: [{ translateX }, { translateY }, { scale: nivelZoom }] },
+                ]}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={styles.controles}>
+              <Pressable style={styles.zoomBtn} onPress={() => aplicarZoom(nivelZoomRef.current - ZOOM_PASO)} hitSlop={10}>
+                <Text style={styles.zoomBtnTexto}>−</Text>
+              </Pressable>
+              <Text style={styles.zoomTexto}>{Math.round(nivelZoom * 100)}%</Text>
+              <Pressable style={styles.zoomBtn} onPress={() => aplicarZoom(nivelZoomRef.current + ZOOM_PASO)} hitSlop={10}>
+                <Text style={styles.zoomBtnTexto}>+</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </View>
     </Modal>
   );
@@ -115,7 +139,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cerrarBtnTexto: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  ayuda: { position: 'absolute', top: 58, left: 20, right: 72, color: 'rgba(255,255,255,0.55)', fontSize: 12 },
+  descargarBtn: {
+    position: 'absolute',
+    top: 48,
+    right: 68,
+    zIndex: 10,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  descargarBtnTexto: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  ayuda: { position: 'absolute', top: 96, left: 20, right: 20, color: 'rgba(255,255,255,0.55)', fontSize: 12 },
+  pdfCard: {
+    width: '84%',
+    maxWidth: 360,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: radius.md,
+    padding: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
+  pdfIcono: { fontSize: 48 },
+  pdfTexto: { color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', lineHeight: 19 },
+  pdfBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 20, paddingVertical: 12, marginTop: 4 },
+  pdfBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
   contenedorImagen: { width, height: height * 0.78, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   imagen: { width, height: height * 0.78 },
   controles: {
