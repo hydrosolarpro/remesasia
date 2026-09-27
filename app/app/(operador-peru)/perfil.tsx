@@ -51,6 +51,10 @@ export default function Perfil() {
   // Filas completas (no solo el conteo) para desplegar la lista de clientes
   // de cada miembro dentro de su tarjeta -- ver ClientesMiembroList.
   const [clientesNegocio, setClientesNegocio] = useState<Usuario[]>([]);
+  // Clientes de cada miembro que se dieron de baja ellos mismos, o fueron
+  // eliminados -- se muestran OBLIGATORIAMENTE en la tarjeta de su propio
+  // Operador de Perú, dentro de ClientesMiembroList (ver más abajo).
+  const [clientesBajaNegocio, setClientesBajaNegocio] = useState<Usuario[]>([]);
 
   const [agregandoVe, setAgregandoVe] = useState(false);
   const [veNombre, setVeNombre] = useState('');
@@ -171,7 +175,7 @@ export default function Perfil() {
   }, [usuario]);
 
   const cargarEquipos = useCallback(async (negocioIdParam: string) => {
-    const [veResult, peResult, clientesResult] = await Promise.all([
+    const [veResult, peResult, clientesResult, clientesBajaResult] = await Promise.all([
       supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', negocioIdParam).order('created_at', { ascending: true }),
       supabase.from('operador_peru_miembro').select('*').eq('operador_peru_id', negocioIdParam).order('created_at', { ascending: true }),
       supabase
@@ -181,11 +185,22 @@ export default function Perfil() {
         .eq('negocio_operador_peru_id', negocioIdParam)
         .is('eliminado_at', null)
         .order('created_at', { ascending: false }),
+      // Clientes dados de baja de TODO el negocio -- se filtran por miembro
+      // más abajo, para mostrarlos en la tarjeta del Operador de Perú que
+      // le corresponda (ver ClientesMiembroList).
+      supabase
+        .from('usuarios')
+        .select('*')
+        .eq('rol', 'cliente')
+        .eq('negocio_operador_peru_id', negocioIdParam)
+        .not('eliminado_at', 'is', null)
+        .order('eliminado_at', { ascending: false }),
     ]);
     setVeList((veResult.data as OperadorVenezuelaPerfil[] | null) ?? []);
     setPeList((peResult.data as OperadorPeruMiembro[] | null) ?? []);
     const clientes = (clientesResult.data as Usuario[] | null) ?? [];
     setClientesNegocio(clientes);
+    setClientesBajaNegocio((clientesBajaResult.data as Usuario[] | null) ?? []);
     const conteo: Record<string, number> = {};
     clientes.forEach((c) => {
       if (c.invitado_por_operador_miembro_id) {
@@ -773,11 +788,21 @@ export default function Perfil() {
           {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
           {peList.map((p) => {
             const veAsignado = veList.find((v) => v.id === p.operador_venezuela_id);
+            const bajaDeEstePe = clientesBajaNegocio.filter((c) => c.invitado_por_operador_miembro_id === p.id);
+            // Reciente = últimas 72h -- mismo criterio que
+            // app/(operador-peru)/clientes.tsx y ClientesMiembroList, para
+            // que abra sola la tarjeta cuando hay algo nuevo que avisar.
+            const bajaReciente = bajaDeEstePe.some(
+              (c) => c.eliminado_at && Date.now() - new Date(c.eliminado_at).getTime() < 72 * 60 * 60 * 1000
+            );
             return (
               <Collapsible
                 key={p.id}
                 titulo={p.nombre}
-                subtitulo={`${p.email} · ${clientesPorMiembro[p.id] ?? 0} clientes`}
+                abiertoPorDefecto={bajaReciente}
+                subtitulo={`${p.email} · ${clientesPorMiembro[p.id] ?? 0} clientes${
+                  bajaDeEstePe.length > 0 ? ` · ⚠ ${bajaDeEstePe.length} de baja` : ''
+                }`}
                 extra={
                   <Pressable onPress={() => eliminarPe(p.id)} style={styles.miembroEliminarBtn}>
                     <Text style={styles.miembroEliminarTexto}>✕</Text>
@@ -843,10 +868,14 @@ export default function Perfil() {
                   nombre={p.nombre}
                 />
 
-                <Collapsible titulo={`Clientes (${clientesPorMiembro[p.id] ?? 0})`}>
+                <Collapsible
+                  titulo={`Clientes (${clientesPorMiembro[p.id] ?? 0})`}
+                  abiertoPorDefecto={bajaReciente}
+                >
                   <ClientesMiembroList
                     miembro={p}
                     clientes={clientesNegocio.filter((c) => c.invitado_por_operador_miembro_id === p.id)}
+                    clientesBaja={bajaDeEstePe}
                     miembros={peList}
                     onDerivado={() => negocioId && cargarEquipos(negocioId)}
                   />

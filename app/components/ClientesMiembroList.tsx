@@ -16,11 +16,14 @@ import { colors, radius } from '../constants/theme';
 export function ClientesMiembroList({
   miembro,
   clientes,
+  clientesBaja = [],
   miembros,
   onDerivado,
 }: {
   miembro: OperadorPeruMiembro;
   clientes: Usuario[];
+  /** Clientes de este miembro que se dieron de baja ellos mismos, o fueron eliminados (eliminado_at not null). */
+  clientesBaja?: Usuario[];
   /** Equipo completo del negocio, para elegir a quién derivar. */
   miembros: OperadorPeruMiembro[];
   onDerivado: () => void;
@@ -153,6 +156,48 @@ export function ClientesMiembroList({
         </>
       )}
 
+      {clientesBaja.length > 0 && (
+        <View style={styles.bajaBloque}>
+          <Text style={styles.bajaTitulo}>⚠ Dados de baja ({clientesBaja.length})</Text>
+          {clientesBaja.map((c) => {
+            // "Reciente" = últimas 72h -- mismo criterio que
+            // app/(operador-peru)/clientes.tsx, para que sea el mismo
+            // aviso sin importar en qué sesión se vea.
+            const esReciente = c.eliminado_at ? Date.now() - new Date(c.eliminado_at).getTime() < 72 * 60 * 60 * 1000 : false;
+            return (
+              <View key={c.id} style={[styles.clienteFila, esReciente && styles.clienteFilaReciente]}>
+                <View style={styles.clienteDatos}>
+                  {esReciente && <Text style={styles.bajaRecienteTag}>Reciente</Text>}
+                  <Text style={styles.clienteNombre}>{c.nombre}</Text>
+                  <Text style={styles.clienteDato}>
+                    {c.telefono ?? 'Sin teléfono'} · {c.pais ?? 'Sin país'}
+                  </Text>
+                  {documentoClienteCompleto(c) ? (
+                    <Pressable onPress={() => setZoomDocumentoUrl(c.documento_imagen_url)}>
+                      <Text style={styles.documentoDato}>
+                        {DOCUMENTO_TIPO_ETIQUETA[c.documento_tipo!]} {c.documento_numero} · 🔍 Ver foto
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.documentoFalta}>⚠ Documento pendiente</Text>
+                  )}
+                  {(c.referido_nombre || c.referido_telefono) && (
+                    <Text style={styles.clienteDato}>
+                      Recomendado por: {[c.referido_nombre, c.referido_apellido].filter(Boolean).join(' ')}
+                      {c.referido_telefono ? ` · ${c.referido_telefono}` : ''}
+                    </Text>
+                  )}
+                  <Text style={styles.clienteDato}>Registrado: {new Date(c.created_at).toLocaleString('es-PE')}</Text>
+                  <Text style={styles.bajaFecha}>
+                    Dado de baja: {c.eliminado_at ? new Date(c.eliminado_at).toLocaleString('es-PE') : '—'}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       <Modal visible={!!derivando} transparent animationType="fade" onRequestClose={() => setDerivando(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -222,6 +267,21 @@ const styles = StyleSheet.create({
   clienteDato: { color: colors.textMuted, fontSize: 13 },
   documentoDato: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   documentoFalta: { color: colors.danger, fontSize: 12, fontWeight: '600' },
+  bajaBloque: { gap: 8, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  bajaTitulo: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  clienteFilaReciente: { borderTopColor: colors.danger },
+  bajaRecienteTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.danger,
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    borderRadius: radius.pill,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    marginBottom: 2,
+  },
+  bajaFecha: { color: colors.danger, fontSize: 12, fontWeight: '700', marginTop: 2 },
   derivarBtn: { paddingHorizontal: 4 },
   derivarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
