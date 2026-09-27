@@ -119,13 +119,27 @@ export default function TasaDelDia() {
   };
 
   // Las comisiones del equipo son un % de la ganancia bruta, así que solo
-  // hay pérdida si la tasa del día no es menor que la de adquisición.
+  // hay pérdida si la tasa del día no es menor que la de adquisición. Este
+  // aviso BLOQUEA el botón de guardar (ver disabled={... || !!avisoPerdida}
+  // más abajo) -- no es solo informativo. El servidor (publicar_tasa_del_dia,
+  // ver migración 0104) rechaza la misma condición aunque alguien la
+  // publique sin pasar por este formulario.
   const avisoPerdida = useMemo(() => {
     const ta = Number(tasaAdquisicion.replace(',', '.'));
     const tv = Number(penVes.replace(',', '.'));
     if (!(ta > 0) || !(tv > 0) || tv < ta) return null;
-    return `⚠ Con estas tasas pierdes dinero en todas las operaciones: la tasa del día (${tv}) debe ser menor que tu tasa de adquisición (${ta}).`;
+    return `⚠ Con estas tasas pierdes dinero en todas las operaciones: la tasa del día (${tv}) debe ser menor que tu tasa de adquisición (${ta}). No se puede guardar así.`;
   }, [tasaAdquisicion, penVes]);
+
+  // Misma regla para la tasa propia del miembro: nunca puede ser mayor o
+  // igual que la Ta del principal (el miembro no fija Ta, siempre usa la
+  // del principal -- ver tasaAdquisicion en calcularGananciaOperacion).
+  const avisoPerdidaPropia = useMemo(() => {
+    const ta = tasaPrincipalRef?.tasa_adquisicion;
+    const tv = Number(tasaPropiaInput.replace(',', '.'));
+    if (!ta || !(tv > 0) || tv < ta) return null;
+    return `⚠ Con esta tasa pierdes dinero en tus operaciones: debe ser menor que la tasa de adquisición del negocio (${ta}). No se puede guardar así.`;
+  }, [tasaPrincipalRef, tasaPropiaInput]);
 
   const publicarPropia = async () => {
     if (!usuario || !esMiembro || !puedeEditarTasaPropia) return;
@@ -181,8 +195,9 @@ export default function TasaDelDia() {
             {tasaPropiaActual && (
               <Text style={styles.hint}>Tu tasa propia publicada hoy: Bs {tasaPropiaActual.tasa_pen_ves}</Text>
             )}
+            {avisoPerdidaPropia && <Text style={styles.avisoPerdida}>{avisoPerdidaPropia}</Text>}
             {mensajePropia && <Text style={styles.mensaje}>{mensajePropia}</Text>}
-            <Pressable style={styles.button} onPress={publicarPropia} disabled={loadingPropia}>
+            <Pressable style={[styles.button, avisoPerdidaPropia && styles.buttonDisabled]} onPress={publicarPropia} disabled={loadingPropia || !!avisoPerdidaPropia}>
               {loadingPropia ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar mi tasa</Text>}
             </Pressable>
           </>
@@ -231,7 +246,7 @@ export default function TasaDelDia() {
           {avisoPerdida && <Text style={styles.avisoPerdida}>{avisoPerdida}</Text>}
           {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
 
-          <Pressable style={styles.button} onPress={publicar} disabled={loading}>
+          <Pressable style={[styles.button, avisoPerdida && styles.buttonDisabled]} onPress={publicar} disabled={loading || !!avisoPerdida}>
             {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar tasas</Text>}
           </Pressable>
         </>
@@ -255,6 +270,7 @@ const styles = StyleSheet.create({
   mensaje: { color: colors.accent, fontSize: 15, marginTop: 8 },
   avisoPerdida: { color: colors.danger, fontSize: 15, lineHeight: 20, marginTop: 8 },
   button: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
+  buttonDisabled: { backgroundColor: colors.border },
   buttonText: { color: colors.text, fontWeight: '700', fontSize: 18 },
   soloLectura: { color: colors.textMuted, fontSize: 16, lineHeight: 20, marginTop: 16 },
 });
