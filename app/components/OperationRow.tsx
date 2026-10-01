@@ -324,6 +324,9 @@ export function OperationRow({
                 <Text style={styles.checkHora}>{FORMATTER_HORA_VE.format(new Date(op.check_deposito_ve_at))} (VE)</Text>
               )}
               {op.validador_ve_nombre && <Text style={styles.checkValidador}>Validó: {op.validador_ve_nombre}</Text>}
+              {!op.check_deposito_peru && !op.check_deposito_ve && (
+                <Text style={styles.checkHora}>Disponible cuando se valide el depósito en Perú</Text>
+              )}
             </View>
           </View>
 

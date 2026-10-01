@@ -13,7 +13,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 import { signInWithGoogle } from '../../lib/googleAuth';
-import { canjearInvitacion, guardarTokenPendiente } from '../../lib/invitaciones';
+import { canjearInvitacion, guardarTokenPendiente, limpiarTokenPendiente } from '../../lib/invitaciones';
 import { provisionarPinDesdeInvitacion, enlaceWaEnviarPin } from '../../lib/pinAuth';
 import { TelefonoInput, telefonoCompleto } from '../../components/TelefonoInput';
 import { BannerTitle } from '../../components/AppBanner';
@@ -44,6 +44,15 @@ export default function Invitacion() {
   const [pin2, setPin2] = useState('');
   const [pinEnviado, setPinEnviado] = useState<{ pin: string; telefono: string; reenvio: boolean } | null>(null);
 
+  // El token se guarda apenas se abre el enlace, ANTES de que termine de
+  // cargar la sesión: si quien lo abre tiene una sesión vieja de una cuenta
+  // dada de baja, loadUsuario (lib/auth.tsx) necesita encontrarlo para
+  // reactivarla con esta invitación en vez de cerrarle la sesión y mandarlo
+  // al login con el aviso de baja.
+  useEffect(() => {
+    if (token) guardarTokenPendiente(token).catch(() => {});
+  }, [token]);
+
   useEffect(() => {
     if (loading || !session || !token) return;
     (async () => {
@@ -71,6 +80,7 @@ export default function Invitacion() {
           setProcesando(false);
           return;
         }
+        await limpiarTokenPendiente();
         router.replace('/');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'No se pudo usar esta invitación.');

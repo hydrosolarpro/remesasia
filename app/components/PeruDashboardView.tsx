@@ -920,7 +920,7 @@ export function PeruDashboardView({
                 numero={numeracion.get(op.id)}
                 nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
                 puedeValidarPeru={!esVenezuela}
-                puedeValidarVe={esVenezuela || (esPrincipal && puedeValidarVeAunSinSerElMismo)}
+                puedeValidarVe={op.check_deposito_peru && (esVenezuela || (esPrincipal && puedeValidarVeAunSinSerElMismo))}
                 onValidarPeru={() => validarPeru(op)}
                 onValidarVe={(comprobantes) => validarVe(op, comprobantes)}
                 validandoPeru={validando?.id === op.id && validando.tipo === 'peru'}
