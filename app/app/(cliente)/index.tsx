@@ -23,6 +23,7 @@ import { formatearBs } from '../../lib/formato';
 import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
 import { RoleTag } from '../../components/RoleTag';
+import { VideoInicioRapidoCard } from '../../components/VideoInicioRapidoCard';
 import { MensajeModal } from '../../components/MensajeModal';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { GuiaPasoAPaso } from '../../components/GuiaPasoAPaso';
@@ -434,6 +435,8 @@ export default function InicioCliente() {
           Horario de atención: {perfil.horario_inicio} – {perfil.horario_fin}
         </Text>
       )}
+
+      <VideoInicioRapidoCard />
 
       <View style={styles.filaTasas}>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
