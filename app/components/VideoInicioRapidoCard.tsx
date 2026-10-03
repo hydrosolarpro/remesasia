@@ -3,20 +3,27 @@ import { View, Text, Pressable, Image, Modal, Platform, StyleSheet, Linking } fr
 import { VIDEO_INICIO_CLIENTE_URL, VIDEO_INICIO_CLIENTE_MINIATURA_URL } from '../lib/materiales';
 import { colors, radius } from '../constants/theme';
 
-// Video de inicio rápido para el Inicio del cliente: una miniatura del
+// Video tutorial de inicio (cliente y Operador de Perú miembro): una miniatura del
 // mismo tamaño que el logo del negocio (84x84, ver negocioLogo en
 // (cliente)/index.tsx) con la etiqueta "Video", pensada para ir en la
 // esquina superior derecha. Al tocarla se despliega un visor con el video
 // y un botón de pantalla completa. En web usa el <video> del navegador
 // (sin dependencias nuevas; preload="metadata" para no bajar los ~8 MB
 // hasta abrirlo); en el celular nativo abre el reproductor del sistema.
-export function VideoInicioRapidoCard() {
+export function VideoInicioRapidoCard({
+  videoUrl = VIDEO_INICIO_CLIENTE_URL,
+  miniaturaUrl = VIDEO_INICIO_CLIENTE_MINIATURA_URL,
+}: {
+  /** Por defecto, el video del cliente. Cada sesión pasa el suyo (ver lib/materiales.ts). */
+  videoUrl?: string;
+  miniaturaUrl?: string;
+} = {}) {
   const [abierto, setAbierto] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const abrir = () => {
     if (Platform.OS === 'web') setAbierto(true);
-    else Linking.openURL(VIDEO_INICIO_CLIENTE_URL);
+    else Linking.openURL(videoUrl);
   };
 
   const pantallaCompleta = () => {
@@ -31,7 +38,7 @@ export function VideoInicioRapidoCard() {
     <>
       <Pressable style={styles.miniatura} onPress={abrir} accessibilityLabel="Ver video tutorial">
         <View style={styles.imagenWrap}>
-          <Image source={{ uri: VIDEO_INICIO_CLIENTE_MINIATURA_URL }} style={styles.imagen} resizeMode="cover" />
+          <Image source={{ uri: miniaturaUrl }} style={styles.imagen} resizeMode="cover" />
           <View style={styles.playWrap}>
             <Text style={styles.play}>▶</Text>
           </View>
@@ -55,8 +62,8 @@ export function VideoInicioRapidoCard() {
           {abierto &&
             createElement('video', {
               ref: videoRef,
-              src: VIDEO_INICIO_CLIENTE_URL,
-              poster: VIDEO_INICIO_CLIENTE_MINIATURA_URL,
+              src: videoUrl,
+              poster: miniaturaUrl,
               controls: true,
               autoPlay: true,
               playsInline: true,

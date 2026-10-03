@@ -9,6 +9,8 @@ import { construirEnlaceWhatsAppGenerico, mensajeAvisoClientePeruValidado, mensa
 import { formatearBs } from '../lib/formato';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../lib/fechaLocal';
+import { VideoInicioRapidoCard } from './VideoInicioRapidoCard';
+import { VIDEO_OPERADOR_PERU_MIEMBRO_URL, VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL } from '../lib/materiales';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { LiveClock } from './LiveClock';
@@ -712,14 +714,22 @@ export function PeruDashboardView({
     <View style={styles.raiz}>
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol={esVenezuela ? 'operador_venezuela' : 'operador_peru'} etiqueta={etiquetaSesion(tipoSesion)} />
-      {!!perfil?.nombre_negocio && (
-        <View style={styles.negocioRow}>
-          {!!perfil.logo_url && <Image source={{ uri: perfil.logo_url }} style={styles.negocioLogo} resizeMode="cover" />}
-          <Text style={styles.negocioNombre} numberOfLines={1}>
-            {perfil.nombre_negocio}
-          </Text>
-        </View>
-      )}
+      <View style={styles.encabezadoNegocio}>
+        {!!perfil?.nombre_negocio ? (
+          <View style={styles.negocioRow}>
+            {!!perfil.logo_url && <Image source={{ uri: perfil.logo_url }} style={styles.negocioLogo} resizeMode="cover" />}
+            <Text style={styles.negocioNombre} numberOfLines={1}>
+              {perfil.nombre_negocio}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
+        {/* Video tutorial: solo para el Operador de Perú miembro. */}
+        {esMiembroPe && (
+          <VideoInicioRapidoCard videoUrl={VIDEO_OPERADOR_PERU_MIEMBRO_URL} miniaturaUrl={VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL} />
+        )}
+      </View>
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
       <LiveClock />
 
@@ -1142,7 +1152,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   fabGuiaTexto: { fontSize: 22 },
-  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  encabezadoNegocio: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  negocioRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   negocioLogo: { width: 84, height: 84, borderRadius: 24, backgroundColor: colors.cardAlt },
   negocioNombre: { color: colors.accent, fontSize: 16, fontWeight: '800', flexShrink: 1 },
   bienvenida: { color: colors.text, fontSize: 25, fontWeight: '800', marginBottom: -4 },
