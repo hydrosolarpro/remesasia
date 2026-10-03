@@ -419,14 +419,19 @@ export default function InicioCliente() {
     <>
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol="cliente" />
-      {!!perfil?.nombre_negocio && (
-        <View style={styles.negocioRow}>
-          {!!perfil.logo_url && <Image source={{ uri: perfil.logo_url }} style={styles.negocioLogo} resizeMode="cover" />}
-          <Text style={styles.negocioNombre} numberOfLines={1}>
-            {perfil.nombre_negocio}
-          </Text>
-        </View>
-      )}
+      <View style={styles.encabezadoNegocio}>
+        {!!perfil?.nombre_negocio ? (
+          <View style={styles.negocioRow}>
+            {!!perfil.logo_url && <Image source={{ uri: perfil.logo_url }} style={styles.negocioLogo} resizeMode="cover" />}
+            <Text style={styles.negocioNombre} numberOfLines={1}>
+              {perfil.nombre_negocio}
+            </Text>
+          </View>
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
+        <VideoInicioRapidoCard />
+      </View>
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {usuario?.nombre}</Text>
       <LiveClock />
       {!!perfil?.eslogan && <Text style={styles.eslogan}>&quot;{perfil.eslogan}&quot;</Text>}
@@ -435,8 +440,6 @@ export default function InicioCliente() {
           Horario de atención: {perfil.horario_inicio} – {perfil.horario_fin}
         </Text>
       )}
-
-      <VideoInicioRapidoCard />
 
       <View style={styles.filaTasas}>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
@@ -745,7 +748,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   fabGuiaTexto: { fontSize: 22 },
-  negocioRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  encabezadoNegocio: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  negocioRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   negocioLogo: { width: 84, height: 84, borderRadius: 24, backgroundColor: colors.cardAlt },
   negocioNombre: { color: colors.accent, fontSize: 16, fontWeight: '800', flexShrink: 1 },
   bienvenida: { color: colors.text, fontSize: 25, fontWeight: '800', marginBottom: -4 },
