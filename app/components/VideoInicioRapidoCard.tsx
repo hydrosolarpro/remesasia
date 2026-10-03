@@ -29,20 +29,20 @@ export function VideoInicioRapidoCard() {
 
   return (
     <>
-      <Pressable style={styles.miniatura} onPress={abrir} accessibilityLabel="Ver video de inicio rápido">
+      <Pressable style={styles.miniatura} onPress={abrir} accessibilityLabel="Ver video tutorial">
         <View style={styles.imagenWrap}>
           <Image source={{ uri: VIDEO_INICIO_CLIENTE_MINIATURA_URL }} style={styles.imagen} resizeMode="cover" />
           <View style={styles.playWrap}>
             <Text style={styles.play}>▶</Text>
           </View>
         </View>
-        <Text style={styles.etiqueta}>🎬 Video</Text>
+        <Text style={styles.etiqueta}>🎬 Video tutorial</Text>
       </Pressable>
 
       <Modal visible={abierto} transparent animationType="fade" onRequestClose={() => setAbierto(false)}>
         <View style={styles.fondo}>
           <View style={styles.cabecera}>
-            <Text style={styles.tituloModal}>Video de inicio rápido</Text>
+            <Text style={styles.tituloModal}>Video tutorial</Text>
             <View style={styles.acciones}>
               <Pressable style={styles.btnPantalla} onPress={pantallaCompleta} hitSlop={8}>
                 <Text style={styles.btnPantallaTexto}>⛶ Pantalla completa</Text>
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   imagen: { width: 84, height: 84 },
   playWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
   play: { color: '#fff', fontSize: 26 },
-  etiqueta: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  etiqueta: { color: colors.accent, fontSize: 12, fontWeight: '800', textAlign: 'center' },
   fondo: { flex: 1, backgroundColor: 'rgba(5,7,14,0.96)', justifyContent: 'center', alignItems: 'center', padding: 16, gap: 12 },
   cabecera: { width: '100%', maxWidth: 900, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   tituloModal: { color: '#fff', fontSize: 16, fontWeight: '800', flexShrink: 1 },
