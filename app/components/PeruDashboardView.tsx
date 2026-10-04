@@ -10,7 +10,12 @@ import { formatearBs } from '../lib/formato';
 import { generarYCompartirExcel } from '../lib/excelReporte';
 import { hoyLocal, fechaLocalDe, yaCerroHoy } from '../lib/fechaLocal';
 import { VideoInicioRapidoCard } from './VideoInicioRapidoCard';
-import { VIDEO_OPERADOR_PERU_MIEMBRO_URL, VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL } from '../lib/materiales';
+import {
+  VIDEO_OPERADOR_PERU_MIEMBRO_URL,
+  VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL,
+  VIDEO_OPERADOR_VENEZUELA_URL,
+  VIDEO_OPERADOR_VENEZUELA_MINIATURA_URL,
+} from '../lib/materiales';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { LiveClock } from './LiveClock';
@@ -725,9 +730,13 @@ export function PeruDashboardView({
         ) : (
           <View style={{ flex: 1 }} />
         )}
-        {/* Video tutorial: solo para el Operador de Perú miembro. */}
+        {/* Video tutorial: uno para el Operador de Perú miembro y otro para el
+            de Venezuela. El principal no tiene (aún) el suyo. */}
         {esMiembroPe && (
           <VideoInicioRapidoCard videoUrl={VIDEO_OPERADOR_PERU_MIEMBRO_URL} miniaturaUrl={VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL} />
+        )}
+        {esVenezuela && (
+          <VideoInicioRapidoCard videoUrl={VIDEO_OPERADOR_VENEZUELA_URL} miniaturaUrl={VIDEO_OPERADOR_VENEZUELA_MINIATURA_URL} />
         )}
       </View>
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
