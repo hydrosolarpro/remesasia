@@ -1,3 +1,4 @@
+import { useCorredor } from '../lib/corredor';
 import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Solicitud } from '../types/database';
@@ -7,6 +8,7 @@ import { colors, radius, cardShadow } from '../constants/theme';
 
 export function SolicitudCard({ solicitud, onPress }: { solicitud: Solicitud; onPress?: () => void }) {
   const [hover, setHover] = useState(false);
+  const { configDe } = useCorredor();
   return (
     <Pressable
       style={[styles.card, cardShadow, hover && styles.cardHover]}
@@ -20,7 +22,7 @@ export function SolicitudCard({ solicitud, onPress }: { solicitud: Solicitud; on
       </View>
       <Text style={styles.beneficiario}>{solicitud.beneficiario_nombre}</Text>
       <View style={styles.row}>
-        <Text style={styles.monto}>PEN {solicitud.monto_pen.toFixed(2)}</Text>
+        <Text style={styles.monto}>{configDe(solicitud.corredor).monedaCodigo} {solicitud.monto_pen.toFixed(2)}</Text>
         <Text style={styles.montoVes}>VES {formatearBs(solicitud.monto_ves)}</Text>
       </View>
     </Pressable>

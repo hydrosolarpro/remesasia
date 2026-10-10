@@ -1,3 +1,4 @@
+import { useCorredor } from '../lib/corredor';
 import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking, Alert } from 'react-native';
 import { router } from 'expo-router';
@@ -54,6 +55,7 @@ export function ClienteSolicitudRow({
   /** Teléfono del operador de Perú asignado, para el botón de WhatsApp. */
   operadorTelefono?: string | null;
 }) {
+  const { configDe } = useCorredor();
   const [abierto, setAbierto] = useState(false);
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
 
@@ -102,7 +104,7 @@ export function ClienteSolicitudRow({
           <Text style={styles.beneficiario} numberOfLines={1}>
             {solicitud.beneficiario_nombre}
           </Text>
-          <Text style={styles.monto}>PEN {solicitud.monto_pen.toFixed(2)}</Text>
+          <Text style={styles.monto}>{configDe(solicitud.corredor).monedaCodigo} {solicitud.monto_pen.toFixed(2)}</Text>
         </View>
         <Text style={styles.chevron}>{abierto ? '▲' : '▼'}</Text>
       </Pressable>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Linking, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { useCorredor } from '../lib/corredor';
 import { DateRangeFilter } from './DateRangeFilter';
 import { EstadisticaGraficos, EstadisticaGraficosHandle } from './EstadisticaGraficos';
 import { generarYCompartirPdf, prepararVentanaWeb } from '../lib/pdfReporte';
@@ -121,6 +122,12 @@ export function EstadisticasView({
   // operador (miembro de Perú u Operador Venezuela) -- para identificar en
   // el resumen a quién corresponde la comisión mostrada.
   const [nombrePropio, setNombrePropio] = useState<string | null>(null);
+  // Corredor elegido (o "Todos"): moneda de recepción y filtro de operaciones.
+  const { corredor, esConsolidado, configDe } = useCorredor();
+  const moneda = corredor.monedaCodigo || 'PEN';
+  const monedaDe = (o: { corredor?: string | null }) => configDe(o.corredor).monedaCodigo || 'PEN';
+  // En "Todos los corredores" los montos de recepción no se suman entre monedas distintas.
+  const fmtM = (n: number) => (esConsolidado ? 'ver por moneda' : `${moneda} ${n.toFixed(2)}`);
   // Nombre y logo del negocio (cargados por el Operador principal de Perú
   // en su perfil), para mostrarlos al inicio de los PDF exportados.
   const [perfilNegocio, setPerfilNegocio] = useState<{ nombre_negocio: string | null; logo_url: string | null } | null>(null);
@@ -209,6 +216,9 @@ export function EstadisticasView({
           .lt('check_deposito_ve_at', limiteLocalISO(rangoConsulta.hasta))
           .order('check_deposito_ve_at', { ascending: true });
 
+        // Solo el corredor elegido (en "Todos" se traen todos).
+        if (!esConsolidado) query = query.eq('corredor', corredor.id);
+
         // El miembro solo ve operaciones de SUS clientes; el Operador
         // Venezuela solo las de los miembros que le fueron asignados.
         if (tipoSesion === 'miembro' && miembroId) {
@@ -296,7 +306,7 @@ export function EstadisticasView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     buscar(calcularRango('dia', hoyLocal(), hoyLocal()));
-  }, [operadorPeruId]);
+  }, [operadorPeruId, corredor.id, esConsolidado]);
 
   // Desglose de operaciones y montos por cada persona que validó — tanto
   // del lado Perú (dueño o miembros de equipo) como del lado Venezuela.
@@ -385,29 +395,29 @@ export function EstadisticasView({
   const construirResumenHtml = () => `
     <div class="resumen">
       <div class="resumen-item"><div class="resumen-label">Operaciones</div><div class="resumen-valor">${totales.nOps}</div></div>
-      <div class="resumen-item"><div class="resumen-label">Monto</div><div class="resumen-valor">PEN ${totales.montoTotalPen.toFixed(2)}</div></div>
+      <div class="resumen-item"><div class="resumen-label">Monto</div><div class="resumen-valor">${moneda} ${totales.montoTotalPen.toFixed(2)}</div></div>
       <div class="resumen-item"><div class="resumen-label">Monto al beneficiario</div><div class="resumen-valor">VES ${formatearBs(totales.montoTotalVes)}</div></div>
       ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Transferencia a Venezuela</div><div class="resumen-valor">VES ${formatearBs(totales.transferenciaTotalVes)}</div></div>` : ''}
-      ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia bruta</div><div class="resumen-valor">PEN ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>` : ''}
-      ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia neta</div><div class="resumen-valor">PEN ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
+      ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia bruta</div><div class="resumen-valor">${moneda} ${totales.gananciaBrutaTotal.toFixed(2)}</div></div>` : ''}
+      ${esDuenio ? `<div class="resumen-item"><div class="resumen-label">Ganancia neta</div><div class="resumen-valor">${moneda} ${totales.gananciaNetaTotal.toFixed(2)}</div></div>` : ''}
       ${
         tipoSesion === 'venezuela'
-          ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela${nombrePropio ? ` — ${nombrePropio}` : ''}</div><div class="resumen-valor">VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>`
+          ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela${nombrePropio ? ` — ${nombrePropio}` : ''}</div><div class="resumen-valor">VES ${formatearBs(totales.comisionVeTotalVes)} · ${fmtM(totales.comisionVeTotalPen)}</div></div>`
           : ''
       }
       ${
         tipoSesion === 'miembro'
-          ? `<div class="resumen-item"><div class="resumen-label">Mi comisión${nombrePropio ? ` — ${nombrePropio}` : ''}</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>`
+          ? `<div class="resumen-item"><div class="resumen-label">Mi comisión${nombrePropio ? ` — ${nombrePropio}` : ''}</div><div class="resumen-valor">${moneda} ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>`
           : ''
       }
       ${
         esDuenio
-          ? `<div class="resumen-item"><div class="resumen-label">Comisión equipo Perú${nombresOperadoresPeru ? ` — ${nombresOperadoresPeru}` : ''}</div><div class="resumen-valor">PEN ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>`
+          ? `<div class="resumen-item"><div class="resumen-label">Comisión equipo Perú${nombresOperadoresPeru ? ` — ${nombresOperadoresPeru}` : ''}</div><div class="resumen-valor">${moneda} ${totales.comisionPeruTotalPen.toFixed(2)}</div></div>`
           : ''
       }
       ${
         esDuenio
-          ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela${nombresOperadoresVe ? ` — ${nombresOperadoresVe}` : ''}</div><div class="resumen-valor">VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}</div></div>`
+          ? `<div class="resumen-item"><div class="resumen-label">Comisión Venezuela${nombresOperadoresVe ? ` — ${nombresOperadoresVe}` : ''}</div><div class="resumen-valor">VES ${formatearBs(totales.comisionVeTotalVes)} · ${fmtM(totales.comisionVeTotalPen)}</div></div>`
           : ''
       }
     </div>
@@ -425,12 +435,12 @@ export function EstadisticasView({
           <td>${o.beneficiario_nombre}</td>
           <td>${o.operador_peru_atiende ?? '—'}</td>
           <td>${o.operador_ve_atiende ?? '—'}</td>
-          <td>PEN ${o.monto_pen.toFixed(2)}</td>
+          <td>${monedaDe(o)} ${o.monto_pen.toFixed(2)}</td>
           <td>VES ${formatearBs(o.monto_ves)}</td>
-          ${verComisionPeru ? `<td>PEN ${(o.ganancia?.comisionPeruPen ?? 0).toFixed(2)}</td>` : ''}
+          ${verComisionPeru ? `<td>${monedaDe(o)} ${(o.ganancia?.comisionPeruPen ?? 0).toFixed(2)}</td>` : ''}
           ${verComisionVenezuela ? `<td>VES ${formatearBs(o.ganancia?.comisionVenezuelaVes ?? 0)}</td>` : ''}
-          ${esDuenio ? `<td>PEN ${(o.ganancia?.gananciaBrutaPen ?? 0).toFixed(2)}</td>` : ''}
-          ${esDuenio ? `<td>PEN ${(o.ganancia?.gananciaNetaPen ?? 0).toFixed(2)}</td>` : ''}
+          ${esDuenio ? `<td>${monedaDe(o)} ${(o.ganancia?.gananciaBrutaPen ?? 0).toFixed(2)}</td>` : ''}
+          ${esDuenio ? `<td>${monedaDe(o)} ${(o.ganancia?.gananciaNetaPen ?? 0).toFixed(2)}</td>` : ''}
         </tr>`
       )
       .join('');
@@ -489,15 +499,15 @@ export function EstadisticasView({
         'N° cuenta': o.beneficiario_cuenta,
         'Operador de Perú que atiende': o.operador_peru_atiende ?? '',
         'Operador Venezuela': o.operador_ve_atiende ?? '',
-        'Monto (PEN)': o.monto_pen,
+        [`Monto (${moneda})`]: o.monto_pen,
         'Recibe (VES)': o.monto_ves,
         // Cada rol ve solo su propia comisión, nunca la del otro lado; la
         // ganancia bruta/neta es exclusiva del dueño.
-        ...(esDuenio || tipoSesion === 'miembro' ? { 'Comisión Perú (PEN)': o.ganancia?.comisionPeruPen ?? 0 } : {}),
+        ...(esDuenio || tipoSesion === 'miembro' ? { [`Comisión Perú (${moneda})`]: o.ganancia?.comisionPeruPen ?? 0 } : {}),
         ...(esDuenio || tipoSesion === 'venezuela' ? { 'Comisión Venezuela (VES)': o.ganancia?.comisionVenezuelaVes ?? 0 } : {}),
         ...(esDuenio ? { 'Transferencia a Venezuela (VES)': o.ganancia?.transferenciaTotalVes ?? 0 } : {}),
-        ...(esDuenio ? { 'Ganancia bruta (PEN)': o.ganancia?.gananciaBrutaPen ?? 0 } : {}),
-        ...(esDuenio ? { 'Ganancia neta (PEN)': o.ganancia?.gananciaNetaPen ?? 0 } : {}),
+        ...(esDuenio ? { [`Ganancia bruta (${moneda})`]: o.ganancia?.gananciaBrutaPen ?? 0 } : {}),
+        ...(esDuenio ? { [`Ganancia neta (${moneda})`]: o.ganancia?.gananciaNetaPen ?? 0 } : {}),
         'Validó en Perú': o.validador_peru_nombre ?? '',
         'Validó en Venezuela': o.validador_ve_nombre ?? '',
       }));
@@ -515,13 +525,13 @@ export function EstadisticasView({
         'N° cuenta': '',
         'Operador de Perú que atiende': '',
         'Operador Venezuela': '',
-        'Monto (PEN)': totales.montoTotalPen,
+        [`Monto (${moneda})`]: totales.montoTotalPen,
         'Recibe (VES)': totales.montoTotalVes,
-        ...(esDuenio || tipoSesion === 'miembro' ? { 'Comisión Perú (PEN)': totales.comisionPeruTotalPen } : {}),
+        ...(esDuenio || tipoSesion === 'miembro' ? { [`Comisión Perú (${moneda})`]: totales.comisionPeruTotalPen } : {}),
         ...(esDuenio || tipoSesion === 'venezuela' ? { 'Comisión Venezuela (VES)': totales.comisionVeTotalVes } : {}),
         ...(esDuenio ? { 'Transferencia a Venezuela (VES)': totales.transferenciaTotalVes } : {}),
-        ...(esDuenio ? { 'Ganancia bruta (PEN)': totales.gananciaBrutaTotal } : {}),
-        ...(esDuenio ? { 'Ganancia neta (PEN)': totales.gananciaNetaTotal } : {}),
+        ...(esDuenio ? { [`Ganancia bruta (${moneda})`]: totales.gananciaBrutaTotal } : {}),
+        ...(esDuenio ? { [`Ganancia neta (${moneda})`]: totales.gananciaNetaTotal } : {}),
         'Validó en Perú': '',
         'Validó en Venezuela': '',
       };
@@ -550,6 +560,29 @@ export function EstadisticasView({
 
       {!cargando && buscado && rango && (
         <>
+          {esConsolidado && (
+            <View style={[styles.resumen, cardShadow]}>
+              <Text style={styles.resumenPeriodo}>Todos los corredores — por moneda</Text>
+              {Array.from(
+                operacionesVisibles.reduce((m, o) => {
+                  const mon = monedaDe(o);
+                  const e = m.get(mon) ?? { n: 0, monto: 0, neta: 0 };
+                  e.n += 1;
+                  e.monto += o.monto_pen;
+                  e.neta += o.ganancia?.gananciaNetaPen ?? 0;
+                  m.set(mon, e);
+                  return m;
+                }, new Map<string, { n: number; monto: number; neta: number }>())
+              ).map(([mon, e]) => (
+                <ResumenItem
+                  key={mon}
+                  label={`${mon} · ${e.n} operación(es)`}
+                  valor={esDuenio ? `${mon} ${e.monto.toFixed(2)} · ganancia neta ${e.neta.toFixed(2)}` : `${mon} ${e.monto.toFixed(2)}`}
+                />
+              ))}
+            </View>
+          )}
+
           <View style={[styles.resumen, cardShadow]}>
             <Text style={styles.resumenPeriodo}>
               {rango.etiqueta}
@@ -557,25 +590,25 @@ export function EstadisticasView({
             </Text>
             <View style={styles.resumenFila}>
               <ResumenItem label="Operaciones" valor={String(totales.nOps)} />
-              <ResumenItem label="Monto" valor={`PEN ${totales.montoTotalPen.toFixed(2)}`} />
+              <ResumenItem label="Monto" valor={fmtM(totales.montoTotalPen)} />
               <ResumenItem label="Monto al beneficiario" valor={`VES ${formatearBs(totales.montoTotalVes)}`} />
               {esDuenio && <ResumenItem label="Transferencia a Venezuela" valor={`VES ${formatearBs(totales.transferenciaTotalVes)}`} />}
               {/* La ganancia bruta/neta del negocio es información del
                   dueño -- ni el miembro de Perú ni el Operador Venezuela
                   deben verla. */}
-              {esDuenio && <ResumenItem label="Ganancia bruta" valor={`PEN ${totales.gananciaBrutaTotal.toFixed(2)}`} />}
-              {esDuenio && <ResumenItem label="Ganancia neta" valor={`PEN ${totales.gananciaNetaTotal.toFixed(2)}`} destacado />}
+              {esDuenio && <ResumenItem label="Ganancia bruta" valor={fmtM(totales.gananciaBrutaTotal)} />}
+              {esDuenio && <ResumenItem label="Ganancia neta" valor={fmtM(totales.gananciaNetaTotal)} destacado />}
               {/* Totalización de comisión del período elegido (hoy por
                   defecto, o el filtro que el operador indique arriba) --
                   cada rol ve la suya; el Operador Venezuela la ve en VES
-                  además de PEN. Se identifica con nombre completo a quién
+                  además de {moneda}. Se identifica con nombre completo a quién
                   corresponde el pago (uno mismo, o -- para el dueño -- los
                   operadores que la ganaron en el período). */}
               {tipoSesion === 'venezuela' && (
                 <ResumenItem
                   label="Comisión Venezuela"
                   detalle={nombrePropio ?? undefined}
-                  valor={`VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
+                  valor={`VES ${formatearBs(totales.comisionVeTotalVes)} · ${fmtM(totales.comisionVeTotalPen)}`}
                   destacado
                 />
               )}
@@ -583,7 +616,7 @@ export function EstadisticasView({
                 <ResumenItem
                   label="Mi comisión"
                   detalle={nombrePropio ?? undefined}
-                  valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`}
+                  valor={fmtM(totales.comisionPeruTotalPen)}
                   destacado
                 />
               )}
@@ -592,12 +625,12 @@ export function EstadisticasView({
                   <ResumenItem
                     label="Comisión equipo Perú"
                     detalle={nombresOperadoresPeru || undefined}
-                    valor={`PEN ${totales.comisionPeruTotalPen.toFixed(2)}`}
+                    valor={fmtM(totales.comisionPeruTotalPen)}
                   />
                   <ResumenItem
                     label="Comisión Venezuela"
                     detalle={nombresOperadoresVe || undefined}
-                    valor={`VES ${formatearBs(totales.comisionVeTotalVes)} · PEN ${totales.comisionVeTotalPen.toFixed(2)}`}
+                    valor={`VES ${formatearBs(totales.comisionVeTotalVes)} · ${fmtM(totales.comisionVeTotalPen)}`}
                   />
                 </>
               )}
@@ -608,7 +641,7 @@ export function EstadisticasView({
             <EstadisticaGraficos
               ref={graficosRef}
               puntos={puntos}
-              tituloBase="Monto vs. período (PEN)"
+              tituloBase={`Monto vs. período (${moneda})`}
               contenidoExtraHtml={construirResumenHtml() + construirTablaHtml()}
               nombreNegocio={perfilNegocio?.nombre_negocio}
               logoUrl={perfilNegocio?.logo_url}
@@ -647,7 +680,7 @@ export function EstadisticasView({
                           <Text style={styles.detalleDato}>Tiempo de respuesta total: {formatearTiempoRespuesta(o.created_at, o.check_deposito_ve_at)}</Text>
                         )}
                         <Text style={styles.detalleDato}>
-                          PEN {o.monto_pen.toFixed(2)} · VES {formatearBs(o.monto_ves)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
+                          {monedaDe(o)} {o.monto_pen.toFixed(2)} · VES {formatearBs(o.monto_ves)} · {o.beneficiario_banco} · {o.beneficiario_cuenta}
                         </Text>
                         <View style={styles.operadorFila}>
                           <Text style={styles.detalleDato}>Operador de Perú: {o.operador_peru_atiende ?? '—'}</Text>
@@ -665,20 +698,20 @@ export function EstadisticasView({
                                 queda exclusiva del dueño. */}
                             {(esDuenio || tipoSesion === 'miembro') && (
                               <Text style={styles.detalleDato}>
-                                Comisión Perú ({o.operador_peru_atiende ?? '—'}): PEN {o.ganancia.comisionPeruPen.toFixed(2)}
+                                Comisión Perú ({o.operador_peru_atiende ?? '—'}): {monedaDe(o)} {o.ganancia.comisionPeruPen.toFixed(2)}
                               </Text>
                             )}
                             {(esDuenio || tipoSesion === 'venezuela') && (
                               <Text style={styles.detalleDato}>
-                                Comisión Venezuela ({o.operador_ve_atiende ?? '—'}): VES {formatearBs(o.ganancia.comisionVenezuelaVes)} · PEN{' '}
+                                Comisión Venezuela ({o.operador_ve_atiende ?? '—'}): VES {formatearBs(o.ganancia.comisionVenezuelaVes)} · {monedaDe(o)}{' '}
                                 {o.ganancia.comisionVenezuelaPen.toFixed(2)}
                               </Text>
                             )}
                             {esDuenio && (
                               <Text style={styles.detalleDato}>Transferencia a Venezuela: VES {formatearBs(o.ganancia.transferenciaTotalVes)}</Text>
                             )}
-                            {esDuenio && <Text style={styles.detalleDato}>Ganancia bruta: PEN {o.ganancia.gananciaBrutaPen.toFixed(2)}</Text>}
-                            {esDuenio && <Text style={styles.detalleDato}>Ganancia neta: PEN {o.ganancia.gananciaNetaPen.toFixed(2)}</Text>}
+                            {esDuenio && <Text style={styles.detalleDato}>Ganancia bruta: {monedaDe(o)} {o.ganancia.gananciaBrutaPen.toFixed(2)}</Text>}
+                            {esDuenio && <Text style={styles.detalleDato}>Ganancia neta: {monedaDe(o)} {o.ganancia.gananciaNetaPen.toFixed(2)}</Text>}
                           </>
                         )}
                         <Pressable
@@ -732,7 +765,7 @@ export function EstadisticasView({
                     {d.nombre}
                   </Text>
                   <Text style={styles.desgloseValor}>
-                    {d.nOps} op. · PEN {d.monto.toFixed(2)} · comisión PEN {d.comision.toFixed(2)}
+                    {d.nOps} op. · {moneda} {d.monto.toFixed(2)} · comisión {moneda} {d.comision.toFixed(2)}
                   </Text>
                 </View>
               ))}
@@ -743,7 +776,7 @@ export function EstadisticasView({
                     {d.nombre}
                   </Text>
                   <Text style={styles.desgloseValor}>
-                    {d.nOps} op. · PEN {d.monto.toFixed(2)} · comisión PEN {d.comision.toFixed(2)}
+                    {d.nOps} op. · {moneda} {d.monto.toFixed(2)} · comisión {moneda} {d.comision.toFixed(2)}
                   </Text>
                 </View>
               ))}

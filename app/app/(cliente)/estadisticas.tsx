@@ -1,3 +1,4 @@
+import { useCorredor } from '../../lib/corredor';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Platform } from 'react-native';
 import { router } from 'expo-router';
@@ -27,6 +28,8 @@ interface Punto {
 // específica, rango de fechas, mes, rango de meses, año o rango de años.
 export default function EstadisticasCliente() {
   const { usuario } = useAuth();
+  const { corredor } = useCorredor();
+  const moneda = corredor.monedaCodigo || 'PEN';
   const scrollRef = useRef<ScrollView>(null);
   const [cargando, setCargando] = useState(false);
   const [exportando, setExportando] = useState(false);
@@ -62,6 +65,7 @@ export default function EstadisticasCliente() {
       .select('*')
       .eq('cliente_id', usuario.id)
       .eq('check_deposito_ve', true)
+      .eq('corredor', corredor.id)
       .gte('created_at', nuevoRango.desde)
       .lt('created_at', nuevoRango.hasta)
       .order('created_at', { ascending: false });
@@ -80,7 +84,7 @@ export default function EstadisticasCliente() {
         'C.I.': d.beneficiario_ci ?? '',
         'Entidad bancaria': d.beneficiario_banco,
         'N° cuenta': d.beneficiario_cuenta,
-        'Monto (PEN)': d.monto_pen,
+        [`Monto (${moneda})`]: d.monto_pen,
         'Recibe (VES)': d.monto_ves,
         'USD (BCV)': d.monto_usd_bcv ?? '',
         'EUR (BCV)': d.monto_eur_bcv ?? '',
@@ -136,7 +140,7 @@ export default function EstadisticasCliente() {
             </View>
             <View style={styles.resumenItem}>
               <Text style={styles.resumenLabel}>Monto total</Text>
-              <Text style={styles.resumenValor}>PEN {montoTotal.toFixed(2)}</Text>
+              <Text style={styles.resumenValor}>{moneda} {montoTotal.toFixed(2)}</Text>
             </View>
           </View>
         </View>
@@ -145,7 +149,7 @@ export default function EstadisticasCliente() {
       {!cargando && puntos.length > 1 && (
         <EstadisticaGraficos
           puntos={puntos}
-          tituloBase="Monto solicitado vs. período (PEN)"
+          tituloBase={`Monto solicitado vs. período (${moneda})`}
           nombreNegocio={perfilNegocio?.nombre_negocio}
           logoUrl={perfilNegocio?.logo_url}
         />

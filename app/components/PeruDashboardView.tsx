@@ -63,7 +63,8 @@ export function PeruDashboardView({
   miembrosAsignadosIds?: string[] | null;
   puedeValidarVeAunSinSerElMismo?: boolean;
 }) {
-  const { corredor } = useCorredor();
+  const { corredor, esConsolidado, configDe } = useCorredor();
+  const moneda = corredor.monedaCodigo;
   const esPrincipal = tipoSesion === 'principal';
   const esMiembroPe = tipoSesion === 'miembro';
   const esVenezuela = tipoSesion === 'venezuela';
@@ -149,6 +150,9 @@ export function PeruDashboardView({
       .eq('negocio_operador_peru_id', operadorPeruId)
       .order('created_at', { ascending: false })
       .limit(200);
+
+    // Corredor elegido en el selector (en "Todos" se traen todos los corredores).
+    if (!esConsolidado) query = query.eq('corredor', corredor.id);
 
     // Alcance de cada sesión: miembro -> solo sus operaciones; VE -> solo
     // las de los miembros que le asignaron; principal -> todas las del negocio.
@@ -268,7 +272,7 @@ export function PeruDashboardView({
       setOperaciones([]);
     }
     setCargando(false);
-  }, [operadorPeruId, esMiembroPe, esVenezuela, miembroId, miembrosAsignadosIds, veId, corredor.id]);
+  }, [operadorPeruId, esMiembroPe, esVenezuela, miembroId, miembrosAsignadosIds, veId, corredor.id, esConsolidado]);
 
   useEffect(() => {
     cargar();
@@ -490,6 +494,22 @@ export function PeruDashboardView({
   // Calculos-tasas-dinero-comisiones.md). Se usa la tasa de venta y la tasa
   // de adquisición GUARDADAS EN CADA OPERACIÓN (no la tasa vigente ahora),
   // para que el cálculo sea correcto sin importar cuándo se consulte.
+  // Vista "Todos los corredores": los montos de recepción están en monedas
+  // distintas, así que NO se suman entre sí -- se agrupan por moneda.
+  const resumenPorMoneda = useMemo(() => {
+    const m = new Map<string, { moneda: string; n: number; monto: number; bruta: number; neta: number }>();
+    realizadas.forEach((op) => {
+      const mon = configDe(op.corredor).monedaCodigo || 'PEN';
+      const e = m.get(mon) ?? { moneda: mon, n: 0, monto: 0, bruta: 0, neta: 0 };
+      e.n += 1;
+      e.monto += op.monto_pen;
+      e.bruta += op.ganancia?.gananciaBrutaPen ?? 0;
+      e.neta += op.ganancia?.gananciaNetaPen ?? 0;
+      m.set(mon, e);
+    });
+    return Array.from(m.values());
+  }, [realizadas, configDe]);
+
   const gananciaHoy = useMemo(() => {
     let montoBeneficiarioVes = 0;
     let transferenciaTotalVes = 0;
@@ -888,7 +908,7 @@ export function PeruDashboardView({
 
       <View style={[styles.card, cardShadow, styles.tasaCard]}>
         <Text style={styles.tasaLabel}>
-          {esMiembroPe ? 'Tasa del día del Operador principal (Soles → Bolívares)' : 'Tasa del día (Soles → Bolívares)'}
+          {`${esMiembroPe ? 'Tasa del día del Operador principal' : 'Tasa del día'} (${moneda === 'PEN' ? 'Soles' : moneda} → Bolívares)`}
         </Text>
         <Text style={styles.tasaValor}>{tasa ? `VES ${tasa.tasa_pen_ves}` : 'Sin publicar'}</Text>
         {puedeGestionar && (
@@ -927,29 +947,51 @@ export function PeruDashboardView({
         </View>
       </View>
 
-      {puedeGestionar ? (
+      {esConsolidado ? (
+        <View style={[styles.card, cardShadow, styles.financieroCard]}>
+          <Text style={styles.seccionTitulo}>Todos los corredores — realizadas (hoy), por moneda</Text>
+          {resumenPorMoneda.length === 0 ? (
+            <Text style={styles.vacio}>Todavía no hay operaciones realizadas hoy.</Text>
+          ) : (
+            resumenPorMoneda.map((e) => (
+              <FinancieroItem
+                key={e.moneda}
+                label={`${e.moneda} · ${e.n} operación(es)`}
+                valor={
+                  puedeGestionar
+                    ? `${e.moneda} ${e.monto.toFixed(2)} · ganancia neta ${e.neta.toFixed(2)}`
+                    : `${e.moneda} ${e.monto.toFixed(2)}`
+                }
+              />
+            ))
+          )}
+          <Text style={styles.vacio}>
+            Cada moneda se muestra por separado. Elige un corredor arriba para ver su resumen completo.
+          </Text>
+        </View>
+      ) : puedeGestionar ? (
         <View style={[styles.card, cardShadow, styles.financieroCard]}>
           <Text style={styles.seccionTitulo}>Resumen financiero (hoy)</Text>
           <FinancieroItem label="Monto enviado al beneficiario" valor={`VES ${gananciaHoy.montoBeneficiarioVes.toFixed(2)}`} />
-          <FinancieroItem label="Comisión Operador Venezuela" valor={`VES ${gananciaHoy.comisionVeTotalVes.toFixed(2)} · PEN ${gananciaHoy.comisionVeTotalPen.toFixed(2)}`} />
+          <FinancieroItem label="Comisión Operador Venezuela" valor={`VES ${gananciaHoy.comisionVeTotalVes.toFixed(2)} · ${moneda} ${gananciaHoy.comisionVeTotalPen.toFixed(2)}`} />
           <FinancieroItem label="Transferencia enviada al Operador Venezuela" valor={`VES ${gananciaHoy.transferenciaTotalVes.toFixed(2)}`} />
-          <FinancieroItem label="Comisión equipo Perú" valor={`PEN ${gananciaHoy.comisionPeruTotalPen.toFixed(2)}`} />
-          <FinancieroItem label="Ganancia bruta" valor={`PEN ${gananciaHoy.gananciaBrutaTotal.toFixed(2)} (${gananciaHoy.porcentajeBruta.toFixed(1)}%)`} />
-          <FinancieroItem label="Ganancia neta" valor={`PEN ${gananciaHoy.gananciaNetaTotal.toFixed(2)} (${gananciaHoy.porcentajeNeta.toFixed(1)}%)`} destacado />
+          <FinancieroItem label="Comisión equipo Perú" valor={`${moneda} ${gananciaHoy.comisionPeruTotalPen.toFixed(2)}`} />
+          <FinancieroItem label="Ganancia bruta" valor={`${moneda} ${gananciaHoy.gananciaBrutaTotal.toFixed(2)} (${gananciaHoy.porcentajeBruta.toFixed(1)}%)`} />
+          <FinancieroItem label="Ganancia neta" valor={`${moneda} ${gananciaHoy.gananciaNetaTotal.toFixed(2)} (${gananciaHoy.porcentajeNeta.toFixed(1)}%)`} destacado />
         </View>
       ) : (
         <View style={[styles.card, cardShadow, styles.financieroCard]}>
           <Text style={styles.seccionTitulo}>Mi comisión (hoy)</Text>
           {/* Cada operador ve solo lo suyo, en su propia moneda: el de
-              Venezuela en VES, el de Perú miembro en PEN -- nunca la
+              Venezuela en VES, el de Perú miembro en moneda local -- nunca la
               comisión ni la ganancia bruta del otro lado. */}
           <FinancieroItem
             label="Monto total de mis operaciones"
-            valor={esVenezuela ? `VES ${formatearBs(totalesPorEstado.realizadas.montoVes)}` : `PEN ${totalesPorEstado.realizadas.montoPen.toFixed(2)}`}
+            valor={esVenezuela ? `VES ${formatearBs(totalesPorEstado.realizadas.montoVes)}` : `${moneda} ${totalesPorEstado.realizadas.montoPen.toFixed(2)}`}
           />
           <FinancieroItem
             label="Comisión ganada"
-            valor={esVenezuela ? `VES ${formatearBs(gananciaHoy.miComisionVes)}` : `PEN ${gananciaHoy.miComisionPen.toFixed(2)}`}
+            valor={esVenezuela ? `VES ${formatearBs(gananciaHoy.miComisionVes)}` : `${moneda} ${gananciaHoy.miComisionPen.toFixed(2)}`}
             destacado
           />
         </View>
@@ -1025,6 +1067,7 @@ export function PeruDashboardView({
                 derivadaDePrincipal={op.derivada_de_principal}
                 onDerivar={esPrincipal && !op.operador_peru_miembro_id ? () => abrirDerivacion(op) : undefined}
                 onDerivarVe={esPrincipal && !op.check_deposito_ve ? () => abrirDerivacionVe(op) : undefined}
+                moneda={configDe(op.corredor).monedaCodigo}
                 derivadaAVeNombre={op.derivada_ve_perfil_id ? vePerfiles.find((v) => v.id === op.derivada_ve_perfil_id)?.nombre ?? null : null}
                 verComisionPeru={puedeGestionar || esMiembroPe}
                 verComisionVenezuela={puedeGestionar || esVenezuela}
@@ -1138,7 +1181,7 @@ export function PeruDashboardView({
             <Text style={styles.modalTitulo}>Derivar solicitud</Text>
             <Text style={styles.modalTexto}>
               {derivandoOp
-                ? `¿A qué operador de Perú quieres derivar la solicitud de ${derivandoOp.cliente_nombre} (PEN ${derivandoOp.monto_pen.toFixed(2)})?`
+                ? `¿A qué operador de Perú quieres derivar la solicitud de ${derivandoOp.cliente_nombre} (${moneda} ${derivandoOp.monto_pen.toFixed(2)})?`
                 : ''}
             </Text>
             {miembros.length === 0 ? (
@@ -1180,7 +1223,7 @@ export function PeruDashboardView({
           <Text style={styles.modalTitulo}>Derivar a Venezuela</Text>
           <Text style={styles.modalTexto}>
             {derivandoVeOp
-              ? `¿A qué operador de Venezuela quieres derivar la solicitud de ${derivandoVeOp.cliente_nombre} (PEN ${derivandoVeOp.monto_pen.toFixed(2)})?`
+              ? `¿A qué operador de Venezuela quieres derivar la solicitud de ${derivandoVeOp.cliente_nombre} (${moneda} ${derivandoVeOp.monto_pen.toFixed(2)})?`
               : ''}
           </Text>
           {vePerfiles.length === 0 ? (
@@ -1249,11 +1292,12 @@ function EstadoResumenItem({
   montoVes: number;
   alerta?: boolean;
 }) {
+  const { corredor, esConsolidado } = useCorredor();
   return (
     <View style={[styles.estadoResumenItem, alerta && styles.estadoResumenItemAlerta]}>
       <Text style={styles.miniLabel}>{titulo}</Text>
       <Text style={styles.miniValor}>{n}</Text>
-      <Text style={styles.estadoResumenMonto}>PEN {montoPen.toFixed(2)}</Text>
+      <Text style={styles.estadoResumenMonto}>{esConsolidado ? 'varias monedas' : `${corredor.monedaCodigo} ${montoPen.toFixed(2)}`}</Text>
       <Text style={styles.estadoResumenMonto}>VES {montoVes.toFixed(2)}</Text>
     </View>
   );

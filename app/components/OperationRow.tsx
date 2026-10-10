@@ -101,6 +101,7 @@ export function OperationRow({
   atendidoPorTelefono,
   derivadaDePrincipal,
   onDerivar,
+  moneda = 'PEN',
   onDerivarVe,
   derivadaAVeNombre,
   verComisionPeru,
@@ -133,6 +134,8 @@ export function OperationRow({
   derivadaDePrincipal?: boolean;
   /** Botón "Derivar" (solo lo usa el Operador principal sobre sus propias operaciones). */
   onDerivar?: () => void;
+  /** Código de la moneda de recepción de esta operación (PEN, COP, CLP...). Por defecto PEN. */
+  moneda?: string;
   /** Botón "Derivar a Venezuela" (solo el Operador principal): lo elige de su equipo de VE. */
   onDerivarVe?: () => void;
   /** Nombre del Operador Venezuela al que se derivó (si hay). */
@@ -246,7 +249,7 @@ export function OperationRow({
           <Text style={styles.cliente} numberOfLines={1}>
             {op.cliente_nombre}
           </Text>
-          <Text style={styles.monto}>PEN {op.monto_pen.toFixed(2)}</Text>
+          <Text style={styles.monto}>{moneda} {op.monto_pen.toFixed(2)}</Text>
         </View>
         <View style={styles.headerChecks}>
           <MiniCheck label="PE" checked={op.check_deposito_peru} />
@@ -283,17 +286,17 @@ export function OperationRow({
           <CopyField label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]} />
           <CopyField label="Entidad bancaria" value={op.beneficiario_banco} />
           <CopyField label="N° cuenta" value={op.beneficiario_cuenta} />
-          <CopyField label="Monto depositado" value={`PEN ${op.monto_pen.toFixed(2)}`} />
+          <CopyField label="Monto depositado" value={`${moneda} ${op.monto_pen.toFixed(2)}`} />
           <CopyField label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
           <CopyField label="Recibe" value={`VES ${op.monto_ves.toFixed(2)}`} />
           {op.check_deposito_peru_at && op.check_deposito_ve_at && (
             <CopyField label="Tramo interno PE → VE" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
           )}
-          {op.ganancia && verComisionPeru && <CopyField label="Comisión Perú" value={`PEN ${op.ganancia.comisionPeruPen.toFixed(2)}`} />}
+          {op.ganancia && verComisionPeru && <CopyField label="Comisión Perú" value={`${moneda} ${op.ganancia.comisionPeruPen.toFixed(2)}`} />}
           {op.ganancia && verComisionVenezuela && (
             <CopyField
               label="Comisión Venezuela"
-              value={`VES ${op.ganancia.comisionVenezuelaVes.toFixed(2)} · PEN ${op.ganancia.comisionVenezuelaPen.toFixed(2)}`}
+              value={`VES ${op.ganancia.comisionVenezuelaVes.toFixed(2)} · ${moneda} ${op.ganancia.comisionVenezuelaPen.toFixed(2)}`}
             />
           )}
 

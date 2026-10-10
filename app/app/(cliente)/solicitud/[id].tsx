@@ -1,3 +1,4 @@
+import { useCorredor } from '../../../lib/corredor';
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -19,6 +20,7 @@ const ETIQUETA_TIPO_TRANSFERENCIA: Record<Solicitud['tipo_transferencia'], strin
  * aviso visible cuando se completa, y descarga del comprobante PDF.
  */
 export default function DetalleSolicitud() {
+  const { configDe } = useCorredor();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
   const [zoomIndex, setZoomIndex] = useState<number | null>(null);
@@ -79,7 +81,7 @@ export default function DetalleSolicitud() {
         <Row label="C.I." value={solicitud.beneficiario_ci ?? '—'} />
         <Row label="Banco" value={solicitud.beneficiario_banco} />
         <Row label="Cuenta / teléfono" value={solicitud.beneficiario_cuenta} />
-        <Row label="Envías" value={`PEN ${solicitud.monto_pen.toFixed(2)}`} />
+        <Row label="Envías" value={`${configDe(solicitud.corredor).monedaCodigo} ${solicitud.monto_pen.toFixed(2)}`} />
         <Row label="Recibe" value={`VES ${formatearBs(solicitud.monto_ves)}`} />
         <Row
           label="Método de pago"
