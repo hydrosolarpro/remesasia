@@ -14,6 +14,8 @@ import {
   VIDEO_OPERADOR_PERU_MIEMBRO_URL,
   VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL,
   VIDEO_OPERADOR_VENEZUELA_URL,
+  VIDEO_OPERADOR_PERU_PRINCIPAL_URL,
+  VIDEO_OPERADOR_PERU_PRINCIPAL_MINIATURA_URL,
   VIDEO_OPERADOR_VENEZUELA_MINIATURA_URL,
 } from '../lib/materiales';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
@@ -765,8 +767,11 @@ export function PeruDashboardView({
         ) : (
           <View style={{ flex: 1 }} />
         )}
-        {/* Video tutorial: uno para el Operador de Perú miembro y otro para el
-            de Venezuela. El principal no tiene (aún) el suyo. */}
+        {/* Video tutorial: uno por sesión (principal, miembro de Perú y
+            Venezuela). */}
+        {esPrincipal && (
+          <VideoInicioRapidoCard videoUrl={VIDEO_OPERADOR_PERU_PRINCIPAL_URL} miniaturaUrl={VIDEO_OPERADOR_PERU_PRINCIPAL_MINIATURA_URL} />
+        )}
         {esMiembroPe && (
           <VideoInicioRapidoCard videoUrl={VIDEO_OPERADOR_PERU_MIEMBRO_URL} miniaturaUrl={VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL} />
         )}

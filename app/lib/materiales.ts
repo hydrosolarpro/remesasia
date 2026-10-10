@@ -17,3 +17,7 @@ export const VIDEO_OPERADOR_PERU_MIEMBRO_MINIATURA_URL = `${BASE_URL}/videos/ini
 // Video para el Operador de Venezuela (app/public/videos/).
 export const VIDEO_OPERADOR_VENEZUELA_URL = `${BASE_URL}/videos/inicio-rapido-operador-venezuela.mp4`;
 export const VIDEO_OPERADOR_VENEZUELA_MINIATURA_URL = `${BASE_URL}/videos/inicio-rapido-operador-venezuela.jpg`;
+
+// Video para el Operador principal de Perú (app/public/videos/).
+export const VIDEO_OPERADOR_PERU_PRINCIPAL_URL = `${BASE_URL}/videos/inicio-rapido-operador-peru-principal.mp4`;
+export const VIDEO_OPERADOR_PERU_PRINCIPAL_MINIATURA_URL = `${BASE_URL}/videos/inicio-rapido-operador-peru-principal.jpg`;
