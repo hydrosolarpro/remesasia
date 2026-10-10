@@ -27,6 +27,7 @@ import { PlanesInfo } from '../../components/PlanesInfo';
 import { PinAccesoCard } from '../../components/PinAccesoCard';
 import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { Collapsible } from '../../components/Collapsible';
+import { CorredoresNegocio } from '../../components/CorredoresNegocio';
 import { ClientesMiembroList } from '../../components/ClientesMiembroList';
 import { ComisionInput } from '../../components/ComisionInput';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
@@ -678,6 +679,15 @@ export default function Perfil() {
       )}
 
       {esPrincipal && <PlanesInfo />}
+
+      {esPrincipal && (
+        <Collapsible
+          titulo="CORREDORES DEL NEGOCIO"
+          subtitulo="Países con los que trabajas: Perú, Colombia, Chile u otro → Venezuela."
+        >
+          <CorredoresNegocio />
+        </Collapsible>
+      )}
 
       {esPrincipal && (
         <Collapsible

@@ -27,6 +27,7 @@ import { useAuth } from '../lib/auth';
 import { GuiaPasoAPaso } from './GuiaPasoAPaso';
 import { FlujoProcesoDiagrama } from './FlujoProcesoDiagrama';
 import { Collapsible } from './Collapsible';
+import { SelectorCorredor } from './SelectorCorredor';
 import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -781,6 +782,7 @@ export function PeruDashboardView({
       </View>
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
       <LiveClock />
+      <SelectorCorredor permitirTodos />
 
       {/* Solo el Operador principal necesita ver el flujo completo del
           negocio (las 3 sesiones involucradas) -- queda siempre visible en

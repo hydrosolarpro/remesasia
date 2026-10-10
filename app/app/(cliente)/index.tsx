@@ -22,6 +22,7 @@ import { obtenerTasaBcv } from '../../lib/bcv';
 import { formatearBs } from '../../lib/formato';
 import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
+import { SelectorCorredor } from '../../components/SelectorCorredor';
 import { RoleTag } from '../../components/RoleTag';
 import { VideoInicioRapidoCard } from '../../components/VideoInicioRapidoCard';
 import { MensajeModal } from '../../components/MensajeModal';
@@ -434,6 +435,7 @@ export default function InicioCliente() {
       </View>
       <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {usuario?.nombre}</Text>
       <LiveClock />
+      <SelectorCorredor />
       {!!perfil?.eslogan && <Text style={styles.eslogan}>&quot;{perfil.eslogan}&quot;</Text>}
       {!!perfil?.horario_inicio && !!perfil?.horario_fin && (
         <Text style={styles.horario}>

@@ -4,6 +4,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '../lib/auth';
+import { CorredorProvider } from '../lib/corredor';
 import { colors, APP_MAX_WIDTH_WIDE } from '../constants/theme';
 import { BannerTitle, BannerFlags } from '../components/AppBanner';
 
@@ -56,6 +57,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
+        <CorredorProvider>
         <StatusBar style="light" />
         {/* Shell general: el ancho máximo que necesita cualquier sección
             (operador). auth/cliente lo angostan más adentro de su propio
@@ -90,6 +92,7 @@ export default function RootLayout() {
             </Stack>
           </View>
         </View>
+        </CorredorProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
