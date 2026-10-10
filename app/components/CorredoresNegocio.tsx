@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, Alert, Platform } from 'r
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { useCorredor, banderaCorredor, CorredorId } from '../lib/corredor';
+import { DatosPagoCorredor } from './DatosPagoCorredor';
 import { colors, radius } from '../constants/theme';
 
 // Administración de corredores del negocio (solo el Operador principal):
@@ -26,7 +27,7 @@ const VACIA: Fila = { activo: false, pais_nombre: '', moneda_codigo: '', moneda_
 
 export function CorredoresNegocio() {
   const { usuario } = useAuth();
-  const { recargar } = useCorredor();
+  const { recargar, corredores } = useCorredor();
   const [filas, setFilas] = useState<Record<string, Fila>>({});
   const [guardando, setGuardando] = useState<string | null>(null);
 
@@ -113,6 +114,15 @@ export function CorredoresNegocio() {
                 <Text style={styles.botonTexto}>{f.activo ? 'Activo' : 'Activar'}</Text>
               </Pressable>
             </View>
+
+            {f.activo && (
+              <DatosPagoCorredor
+                corredor={o.id}
+                sugerencia1={corredores.find((c) => c.id === o.id)?.billetera1 ?? ''}
+                sugerencia2={corredores.find((c) => c.id === o.id)?.billetera2 ?? ''}
+                etiquetaCuenta={corredores.find((c) => c.id === o.id)?.etiquetaCuenta ?? 'Nº de cuenta'}
+              />
+            )}
 
             {o.id === 'OT-VE' && f.activo && (
               <View style={styles.otro}>

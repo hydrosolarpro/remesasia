@@ -46,6 +46,18 @@ import { colors, radius, cardShadow } from '../../constants/theme';
 export default function InicioCliente() {
   const { usuario, refreshUsuario } = useAuth();
   const { corredor } = useCorredor();
+  // Perú muestra "Soles"/"S/"; los demás corredores, el código y símbolo de su moneda.
+  const monedaTxt = corredor.id === 'PE-VE' ? 'Soles' : corredor.monedaCodigo;
+  const simboloMoneda = corredor.id === 'PE-VE' ? 'S/' : corredor.monedaSimbolo;
+  // Datos de pago del corredor distinto de Perú (perfil_negocio_corredor).
+  const [pagoCorredor, setPagoCorredor] = useState<{
+    b1: string | null;
+    b2: string | null;
+    n1: string | null;
+    n2: string | null;
+    otroNombre: string | null;
+    otroTel: string | null;
+  } | null>(null);
   // Guía paso a paso: se muestra sola la primera vez que este cliente
   // entra (usuarios.guia_vista_at null) -- ver lib/guiaContenido.ts.
   const [mostrarGuia, setMostrarGuia] = useState(false);
@@ -131,7 +143,7 @@ export default function InicioCliente() {
         .limit(1)
         .maybeSingle(),
       supabase.from('perfil_negocio').select('*').eq('operador_peru_id', negocioId).maybeSingle(),
-      supabase.from('cuentas_bancarias_operador').select('*').eq('operador_peru_id', negocioId),
+      supabase.from('cuentas_bancarias_operador').select('*').eq('operador_peru_id', negocioId).eq('corredor', corredor.id),
       supabase
         .from('beneficiarios_cliente')
         .select('*, cuentas:beneficiario_cuentas_bancarias(*)')
@@ -168,6 +180,22 @@ export default function InicioCliente() {
       }
     }
 
+    if (corredor.id === 'PE-VE') {
+      setPagoCorredor(null);
+    } else {
+      const { data: pc } = await supabase
+        .from('perfil_negocio_corredor')
+        .select('billetera_1_nombre, billetera_2_nombre, billetera_1_telefono, billetera_2_telefono, otro_medio_nombre, otro_medio_telefono')
+        .eq('operador_peru_id', negocioId)
+        .eq('corredor', corredor.id)
+        .maybeSingle();
+      setPagoCorredor(
+        pc
+          ? { b1: pc.billetera_1_telefono, b2: pc.billetera_2_telefono, n1: pc.billetera_1_nombre, n2: pc.billetera_2_nombre, otroNombre: pc.otro_medio_nombre, otroTel: pc.otro_medio_telefono }
+          : { b1: null, b2: null, n1: null, n2: null, otroNombre: null, otroTel: null }
+      );
+    }
+
     setNombreOperador(operadorRow?.nombre ?? '');
     setTasa(tasaEfectiva);
     setPerfil(perfilData as PerfilNegocio | null);
@@ -193,6 +221,18 @@ export default function InicioCliente() {
     if (!tasa || !Number.isFinite(monto) || monto <= 0) return null;
     return calcularConversion(monto, tasa.tasa_pen_ves);
   }, [montoPen, tasa]);
+
+  // Datos de pago a mostrar: Perú usa perfil_negocio (como siempre); los
+  // demás corredores, perfil_negocio_corredor.
+  const esPe = corredor.id === 'PE-VE';
+  const pagoB1 = esPe ? perfil?.yape_telefono ?? null : pagoCorredor?.b1 ?? null;
+  const pagoB2 = esPe ? perfil?.plin_telefono ?? null : pagoCorredor?.b2 ?? null;
+  // Nombres de las plataformas: los escribe libremente el operador
+  // (perfil_negocio_corredor); si no puso uno, el sugerido del catálogo.
+  const nombreB1 = esPe ? 'Yape' : pagoCorredor?.n1?.trim() || corredor.billetera1 || 'Billetera 1';
+  const nombreB2 = esPe ? 'Plin' : pagoCorredor?.n2?.trim() || corredor.billetera2 || 'Billetera 2';
+  const pagoOtroNombre = esPe ? perfil?.otro_medio_nombre ?? null : pagoCorredor?.otroNombre ?? null;
+  const pagoOtroTel = esPe ? perfil?.otro_medio_telefono ?? null : pagoCorredor?.otroTel ?? null;
 
   const equivalenteUsd = conversion && bcv ? conversion.montoVes / bcv.usd_ves : null;
   const equivalenteEur = conversion && bcv ? conversion.montoVes / bcv.eur_ves : null;
@@ -317,6 +357,7 @@ export default function InicioCliente() {
         .insert({
           cliente_id: usuario.id,
           negocio_operador_peru_id: negocioId,
+          corredor: corredor.id,
           estado: 'EN_VERIFICACION',
           monto_pen: conversion.montoPen,
           tasa_pen_ves: conversion.tasaPenVes,
@@ -449,7 +490,7 @@ export default function InicioCliente() {
 
       <View style={styles.filaTasas}>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
-          <Text style={styles.tasaLabel}>Tasa del día (Soles → Bolívares)</Text>
+          <Text style={styles.tasaLabel}>Tasa del día ({monedaTxt} → Bolívares)</Text>
           <Text style={styles.tasaValor}>{tasa ? `VES ${tasa.tasa_pen_ves}` : '—'}</Text>
         </View>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
@@ -490,7 +531,7 @@ export default function InicioCliente() {
           placeholder="0.00"
           placeholderTextColor={colors.textMuted}
         />
-        <Text style={styles.montoLabel}>Soles a enviar</Text>
+        <Text style={styles.montoLabel}>{monedaTxt} a enviar</Text>
 
         {conversion && (
           <View style={styles.resultado}>
@@ -506,7 +547,7 @@ export default function InicioCliente() {
 
       <View style={[styles.card, cardShadow]}>
         <Text style={styles.seccionTitulo}>Convertidor de Divisas</Text>
-        <Text style={styles.nuevaSolicitudTexto}>¿Tienes Dólares o Euros? Conviértelos a Soles y se cargan solos arriba.</Text>
+        <Text style={styles.nuevaSolicitudTexto}>¿Tienes Dólares o Euros? Conviértelos a {monedaTxt} y se cargan solos arriba.</Text>
         <View style={styles.convChipsRow}>
           {(['usd', 'eur'] as const).map((m) => (
             <Pressable
@@ -531,7 +572,7 @@ export default function InicioCliente() {
         <Text style={styles.montoLabel}>Monto en {monedaConvertidor === 'usd' ? 'Dólares' : 'Euros'}</Text>
         {conversionDivisaPen !== null ? (
           <View style={styles.resultado}>
-            <Text style={styles.resultadoBs}>S/ {conversionDivisaPen.toFixed(2)}</Text>
+            <Text style={styles.resultadoBs}>{simboloMoneda} {conversionDivisaPen.toFixed(2)}</Text>
           </View>
         ) : (
           !bcv && <Text style={styles.montoLabel}>No se pudo cargar la tasa BCV en este momento.</Text>
@@ -616,16 +657,14 @@ export default function InicioCliente() {
           </View>
 
           <View style={[styles.card, cardShadow]}>
-            <Text style={styles.seccionTitulo}>Datos para pagar en Perú</Text>
+            <Text style={styles.seccionTitulo}>Datos para pagar en {corredor.paisRecepcion}</Text>
             <Text style={styles.pagarA}>{nombreOperador}</Text>
 
-            {(perfil?.yape_telefono || perfil?.plin_telefono || perfil?.otro_medio_telefono) && (
+            {(pagoB1 || pagoB2 || pagoOtroTel) && (
               <View style={styles.telefonosPago}>
-                {perfil?.yape_telefono && <CopyField label="Yape" value={perfil.yape_telefono} />}
-                {perfil?.plin_telefono && <CopyField label="Plin" value={perfil.plin_telefono} />}
-                {perfil?.otro_medio_telefono && (
-                  <CopyField label={perfil.otro_medio_nombre || 'Otro medio de pago'} value={perfil.otro_medio_telefono} />
-                )}
+                {pagoB1 && <CopyField label={nombreB1} value={pagoB1} />}
+                {pagoB2 && <CopyField label={nombreB2} value={pagoB2} />}
+                {pagoOtroTel && <CopyField label={pagoOtroNombre || 'Otro medio de pago'} value={pagoOtroTel} />}
               </View>
             )}
 
@@ -634,7 +673,7 @@ export default function InicioCliente() {
                 <Text style={styles.cuentaBancoEntidad}>{c.entidad}</Text>
                 {c.titular ? <CopyField label="Titular" value={c.titular} /> : null}
                 <CopyField label="N° de cuenta" value={c.numero_cuenta} />
-                {c.cci ? <CopyField label="CCI" value={c.cci} /> : null}
+                {c.cci ? <CopyField label={corredor.etiquetaCuenta || 'CCI'} value={c.cci} /> : null}
               </View>
             ))}
 
@@ -647,7 +686,7 @@ export default function InicioCliente() {
                   onPress={() => setMetodoPago(m)}
                 >
                   <Text style={[styles.metodoText, metodoPago === m && styles.metodoTextActive]}>
-                    {m === 'yape' ? 'Yape' : m === 'plin' ? 'Plin' : 'Transferencia bancaria'}
+                    {m === 'yape' ? nombreB1 : m === 'plin' ? nombreB2 : 'Transferencia bancaria'}
                   </Text>
                 </Pressable>
               ))}
