@@ -59,17 +59,6 @@ export default function PanelOperadorVenezuela() {
     );
   }
 
-  if (veId && miembrosAsignados.length === 0) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.aviso}>
-          Todavía no tienes operadores de Perú asignados. El Operador principal de Perú asignará a los operadores de Perú
-          que deberás atender en Venezuela.
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <AccesoNegocioGate operadorPeruId={operadorPeruId} rolParaAviso="operador_venezuela">
       <PeruDashboardView

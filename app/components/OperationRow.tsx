@@ -101,6 +101,8 @@ export function OperationRow({
   atendidoPorTelefono,
   derivadaDePrincipal,
   onDerivar,
+  onDerivarVe,
+  derivadaAVeNombre,
   verComisionPeru,
   verComisionVenezuela,
   style,
@@ -131,6 +133,10 @@ export function OperationRow({
   derivadaDePrincipal?: boolean;
   /** Botón "Derivar" (solo lo usa el Operador principal sobre sus propias operaciones). */
   onDerivar?: () => void;
+  /** Botón "Derivar a Venezuela" (solo el Operador principal): lo elige de su equipo de VE. */
+  onDerivarVe?: () => void;
+  /** Nombre del Operador Venezuela al que se derivó (si hay). */
+  derivadaAVeNombre?: string | null;
   /** Cada operador ve solo SU comisión -- el de Perú nunca ve la de Venezuela y viceversa; el principal ve ambas. */
   verComisionPeru: boolean;
   verComisionVenezuela: boolean;
@@ -381,6 +387,17 @@ export function OperationRow({
               <Text style={styles.derivarBtnTexto}>Derivar a un operador de Perú →</Text>
             </Pressable>
           )}
+
+          {derivadaAVeNombre ? (
+            <Text style={styles.derivadaVeTexto}>Derivada al operador de Venezuela: {derivadaAVeNombre}</Text>
+          ) : null}
+          {onDerivarVe && (
+            <Pressable style={styles.derivarBtn} onPress={onDerivarVe}>
+              <Text style={styles.derivarBtnTexto}>
+                {derivadaAVeNombre ? 'Cambiar operador de Venezuela →' : 'Derivar a un operador de Venezuela →'}
+              </Text>
+            </Pressable>
+          )}
         </View>
       )}
     </View>
@@ -482,6 +499,7 @@ const styles = StyleSheet.create({
   derivadaBadgeTexto: { color: colors.warning, fontSize: 14, fontWeight: '800' },
   derivarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 4 },
   derivarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  derivadaVeTexto: { color: colors.textMuted, fontSize: 14, marginTop: 4, textAlign: 'center' },
   revisionCard: {
     backgroundColor: `${colors.danger}18`,
     borderWidth: 1,

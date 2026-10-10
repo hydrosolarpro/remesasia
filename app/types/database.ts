@@ -128,6 +128,8 @@ export interface Solicitud {
   operador_peru_miembro_id: string | null;
   /** true cuando el Operador principal derivó esta operación a un miembro de Perú. */
   derivada_de_principal: boolean;
+  /** Operador Venezuela (operador_venezuela_perfil.id) al que el principal derivó la operación. */
+  derivada_ve_perfil_id: string | null;
   /** % de comisión (C1/C2) congelado al momento de check_deposito_ve = true; null en operaciones anteriores a este campo o aún no realizadas. */
   comision_peru_pct_aplicada: number | null;
   comision_venezuela_pct_aplicada: number | null;

@@ -117,6 +117,9 @@ export function PeruDashboardView({
   const [derivandoOp, setDerivandoOp] = useState<OperationRowData | null>(null);
   const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
   const [derivandoEnviando, setDerivandoEnviando] = useState(false);
+  // Derivación a un Operador Venezuela del equipo (solo el principal).
+  const [derivandoVeOp, setDerivandoVeOp] = useState<OperationRowData | null>(null);
+  const [derivandoVeId, setDerivandoVeId] = useState<string | null>(null);
 
   // El corte de "realizadas" hacia solo-estadísticas es a la hora de
   // cierre del horario de atención (no a medianoche) -- este tick fuerza
@@ -142,8 +145,14 @@ export function PeruDashboardView({
     // las de los miembros que le asignaron; principal -> todas las del negocio.
     if (esMiembroPe && miembroId) {
       query = query.eq('operador_peru_miembro_id', miembroId);
-    } else if (esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length > 0) {
-      query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
+    } else if (esVenezuela) {
+      // Las de los miembros que le asignaron + las que el principal le
+      // derivó directamente (derivada_ve_perfil_id).
+      const filtros = [`derivada_ve_perfil_id.eq.${veId}`];
+      if (miembrosAsignadosIds && miembrosAsignadosIds.length > 0) {
+        filtros.push(`operador_peru_miembro_id.in.(${miembrosAsignadosIds.join(',')})`);
+      }
+      query = query.or(filtros.join(','));
     }
 
     const [
@@ -164,7 +173,7 @@ export function PeruDashboardView({
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
-      esVenezuela && miembrosAsignadosIds && miembrosAsignadosIds.length === 0 ? Promise.resolve({ data: null }) : query,
+      query,
       supabase
         .from('operador_peru_miembro')
         .select('*')
@@ -201,7 +210,11 @@ export function PeruDashboardView({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (opsData as any[]).map((row) => {
           const miembroOp = row.operador_peru_miembro_id ? mapaMiembros.get(row.operador_peru_miembro_id) : null;
-          const veOp = miembroOp?.operador_venezuela_id ? mapaVe.get(miembroOp.operador_venezuela_id) : null;
+          const veOp = row.derivada_ve_perfil_id
+            ? mapaVe.get(row.derivada_ve_perfil_id)
+            : miembroOp?.operador_venezuela_id
+              ? mapaVe.get(miembroOp.operador_venezuela_id)
+              : null;
           const comisionPeruPct = (row.comision_peru_pct_aplicada ?? miembroOp?.comision_pct ?? 0) / 100;
           const comisionVePct = (row.comision_venezuela_pct_aplicada ?? veOp?.comision_pct ?? 0) / 100;
           const ganancia = calcularGananciaOperacion(row.monto_pen, row.tasa_pen_ves, row.tasa_real_compra, comisionPeruPct, comisionVePct);
@@ -223,7 +236,7 @@ export function PeruDashboardView({
       setOperaciones([]);
     }
     setCargando(false);
-  }, [operadorPeruId, esMiembroPe, esVenezuela, miembroId, miembrosAsignadosIds]);
+  }, [operadorPeruId, esMiembroPe, esVenezuela, miembroId, miembrosAsignadosIds, veId]);
 
   useEffect(() => {
     cargar();
@@ -470,7 +483,7 @@ export function PeruDashboardView({
       // Si el principal atiende el cliente directamente (sin miembro), no
       // hay un VE asignado y esa comisión queda en 0.
       const miembroOp = op.operador_peru_miembro_id ? miembros.find((m) => m.id === op.operador_peru_miembro_id) : null;
-      const veIdDeLaOp = miembroOp?.operador_venezuela_id ?? null;
+      const veIdDeLaOp = op.derivada_ve_perfil_id ?? miembroOp?.operador_venezuela_id ?? null;
 
       montoBeneficiarioVes += g.beneficiarioVes;
       transferenciaTotalVes += g.transferenciaTotalVes;
@@ -691,6 +704,28 @@ export function PeruDashboardView({
     setDerivandoEnviando(false);
     setDerivandoOp(null);
     setDerivandoMiembroId(null);
+    if (error) {
+      Alert.alert('No se pudo derivar', error.message);
+      return;
+    }
+    cargar();
+  };
+
+  const abrirDerivacionVe = (op: OperationRowData) => {
+    setDerivandoVeOp(op);
+    setDerivandoVeId(op.derivada_ve_perfil_id ?? null);
+  };
+
+  const confirmarDerivacionVe = async () => {
+    if (!derivandoVeOp || !derivandoVeId) return;
+    setDerivandoEnviando(true);
+    const { error } = await supabase.rpc('derivar_solicitud_a_ve', {
+      p_solicitud_id: derivandoVeOp.id,
+      p_ve_perfil_id: derivandoVeId,
+    });
+    setDerivandoEnviando(false);
+    setDerivandoVeOp(null);
+    setDerivandoVeId(null);
     if (error) {
       Alert.alert('No se pudo derivar', error.message);
       return;
@@ -948,6 +983,8 @@ export function PeruDashboardView({
                 atendidoPorTelefono={atendidoPorTelefono(op)}
                 derivadaDePrincipal={op.derivada_de_principal}
                 onDerivar={esPrincipal && !op.operador_peru_miembro_id ? () => abrirDerivacion(op) : undefined}
+                onDerivarVe={esPrincipal && !op.check_deposito_ve ? () => abrirDerivacionVe(op) : undefined}
+                derivadaAVeNombre={op.derivada_ve_perfil_id ? vePerfiles.find((v) => v.id === op.derivada_ve_perfil_id)?.nombre ?? null : null}
                 verComisionPeru={puedeGestionar || esMiembroPe}
                 verComisionVenezuela={puedeGestionar || esVenezuela}
               />
@@ -1095,6 +1132,47 @@ export function PeruDashboardView({
         </View>
       </Modal>
     </ScrollView>
+
+    <Modal visible={!!derivandoVeOp} transparent animationType="fade" onRequestClose={() => setDerivandoVeOp(null)}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitulo}>Derivar a Venezuela</Text>
+          <Text style={styles.modalTexto}>
+            {derivandoVeOp
+              ? `¿A qué operador de Venezuela quieres derivar la solicitud de ${derivandoVeOp.cliente_nombre} (PEN ${derivandoVeOp.monto_pen.toFixed(2)})?`
+              : ''}
+          </Text>
+          {vePerfiles.length === 0 ? (
+            <Text style={styles.vacio}>Todavía no tienes operadores de Venezuela registrados en tu equipo.</Text>
+          ) : (
+            vePerfiles.map((v) => {
+              const seleccionado = derivandoVeId === v.id;
+              return (
+                <Pressable key={v.id} style={[styles.miembroOpcion, seleccionado && styles.miembroOpcionActivo]} onPress={() => setDerivandoVeId(v.id)}>
+                  <View style={styles.miembroOpcionDatos}>
+                    <Text style={[styles.miembroOpcionNombre, seleccionado && { color: colors.text }]} numberOfLines={1}>{v.nombre}</Text>
+                    <Text style={styles.miembroOpcionDato} numberOfLines={1}>{v.email}</Text>
+                  </View>
+                  {seleccionado && <Text style={styles.miembroOpcionCheck}>✓</Text>}
+                </Pressable>
+              );
+            })
+          )}
+          <View style={styles.modalAcciones}>
+            <Pressable style={styles.modalCancelar} onPress={() => setDerivandoVeOp(null)}>
+              <Text style={styles.modalCancelarTexto}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalConfirmar, (!derivandoVeId || derivandoEnviando) && styles.modalConfirmarDeshabilitado]}
+              disabled={!derivandoVeId || derivandoEnviando}
+              onPress={confirmarDerivacionVe}
+            >
+              {derivandoEnviando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.modalConfirmarTexto}>Derivar</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
 
     {/* Botón flotante para volver a repasar la guía de esta sesión cuando
         quiera -- la guía automática solo aparece una vez, pero puede

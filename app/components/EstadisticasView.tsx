@@ -214,11 +214,10 @@ export function EstadisticasView({
         if (tipoSesion === 'miembro' && miembroId) {
           query = query.eq('operador_peru_miembro_id', miembroId);
         } else if (tipoSesion === 'venezuela') {
-          if (miembrosAsignadosIds.length === 0) {
-            query = query.in('operador_peru_miembro_id', ['00000000-0000-0000-0000-000000000000']);
-          } else {
-            query = query.in('operador_peru_miembro_id', miembrosAsignadosIds);
-          }
+          // Las de sus miembros asignados + las que el principal le derivó.
+          const filtros = [`derivada_ve_perfil_id.eq.${veId}`];
+          if (miembrosAsignadosIds.length > 0) filtros.push(`operador_peru_miembro_id.in.(${miembrosAsignadosIds.join(',')})`);
+          query = query.or(filtros.join(','));
         }
         return query;
       })(),
@@ -231,7 +230,8 @@ export function EstadisticasView({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ((ops as any[]) ?? []).map((row) => {
         const miembro = row.operador_peru_miembro_id ? miembros.get(row.operador_peru_miembro_id) : null;
-        const ve = miembro?.veId ? ves.get(miembro.veId) : null;
+        const veIdOp = row.derivada_ve_perfil_id ?? miembro?.veId ?? null;
+        const ve = veIdOp ? ves.get(veIdOp) : null;
         // Usa el % congelado en la operación (comision_*_pct_aplicada, ver
         // migración 0060) para que el historial no cambie si el principal
         // ajusta el % del operador después.
