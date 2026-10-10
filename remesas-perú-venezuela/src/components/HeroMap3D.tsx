@@ -593,6 +593,18 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
             Control total de operaciones transnacionales entre Perú y Venezuela en tiempo real. Digitaliza tu negocio de remesas con automatización, notificaciones instantáneas y perfil multi-operador.
           </p>
 
+          {/* Video flyer */}
+          <div className="w-full max-w-xl rounded-2xl overflow-hidden border border-slate-800 bg-black shadow-xl shadow-blue-500/10">
+            <video
+              src="/videos/video-flayer-remesas-ia.mp4"
+              poster="/videos/video-flayer-remesas-ia-poster.jpg"
+              className="w-full aspect-video bg-black"
+              controls
+              playsInline
+              preload="metadata"
+            />
+          </div>
+
           {/* Primary Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto pt-2">
             <button
