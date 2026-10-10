@@ -37,3 +37,8 @@ verify_jwt = false
 # vive en la RPC pin_verificar (ver supabase/functions/pin-login).
 [functions.pin-login]
 verify_jwt = false
+
+# DEMO inmediato desde la landing: el visitante todavía no tiene cuenta ni
+# JWT (ver supabase/functions/demo-operador).
+[functions.demo-operador]
+verify_jwt = false

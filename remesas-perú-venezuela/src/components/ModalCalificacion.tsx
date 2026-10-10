@@ -133,10 +133,21 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
     setCalificado(!!data.calificado);
     const enlace = data.invitacion_token ? construirEnlaceAcceso(data.invitacion_token) : null;
     setEnlaceAcceso(enlace);
+
+    // DEMO inmediato: se crea la cuenta de Operador Perú (plan DEMO 7 días,
+    // acceso concedido) y se entra directo a la plataforma, sin validación
+    // del admin. Si el correo ya tenía cuenta, cae al enlace con Google.
+    if (data.invitacion_token) {
+      const { data: demo } = await supabase.functions.invoke('demo-operador', {
+        body: { token: data.invitacion_token },
+      });
+      if (demo?.ok && demo.token_hash) {
+        window.location.assign(`${APP_BASE_URL}/demo-acceso?th=${encodeURIComponent(demo.token_hash)}`);
+        return;
+      }
+    }
+
     setPaso('resultado');
-    // Acceso directo: se lleva al visitante a la plataforma sin esperar
-    // validación del admin. El botón de la pantalla de resultado queda de
-    // respaldo por si el navegador bloquea la redirección.
     if (enlace) window.location.assign(enlace);
   };
 
