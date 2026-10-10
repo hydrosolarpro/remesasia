@@ -23,6 +23,7 @@ import { formatearBs } from '../../lib/formato';
 import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
 import { SelectorCorredor } from '../../components/SelectorCorredor';
+import { useCorredor } from '../../lib/corredor';
 import { RoleTag } from '../../components/RoleTag';
 import { VideoInicioRapidoCard } from '../../components/VideoInicioRapidoCard';
 import { MensajeModal } from '../../components/MensajeModal';
@@ -44,6 +45,7 @@ import { colors, radius, cardShadow } from '../../constants/theme';
 
 export default function InicioCliente() {
   const { usuario, refreshUsuario } = useAuth();
+  const { corredor } = useCorredor();
   // Guía paso a paso: se muestra sola la primera vez que este cliente
   // entra (usuarios.guia_vista_at null) -- ver lib/guiaContenido.ts.
   const [mostrarGuia, setMostrarGuia] = useState(false);
@@ -122,6 +124,7 @@ export default function InicioCliente() {
         .from('tasas')
         .select('*')
         .eq('publicada_por', negocioId)
+        .eq('corredor', corredor.id)
         .is('operador_peru_miembro_id', null)
         .order('fecha', { ascending: false })
         .order('created_at', { ascending: false })
@@ -154,6 +157,7 @@ export default function InicioCliente() {
           .from('tasas')
           .select('*')
           .eq('operador_peru_miembro_id', miembroIdCliente)
+          .eq('corredor', corredor.id)
           .order('fecha', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(1)
@@ -170,7 +174,7 @@ export default function InicioCliente() {
     setCuentasOperador((cuentasData as CuentaBancariaOperador[] | null) ?? []);
     setBeneficiariosGuardados((guardadasData as BeneficiarioConCuentas[] | null) ?? []);
     setCargando(false);
-  }, [usuario, negocioId]);
+  }, [usuario, negocioId, corredor.id]);
 
   useEffect(() => {
     cargar();

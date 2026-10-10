@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useCorredor } from '../../lib/corredor';
+import { SelectorCorredor } from '../../components/SelectorCorredor';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { Tasa } from '../../types/database';
 import { colors } from '../../constants/theme';
@@ -19,6 +21,10 @@ const HOY = () => new Date().toISOString().slice(0, 10);
  *  Venezuela solo ve, sin opción a editar nada. */
 export default function TasaDelDia() {
   const { usuario } = useAuth();
+  const { corredor } = useCorredor();
+  // Perú se llama "Soles"/"sol"; los demás corredores usan el código de su moneda.
+  const monedaTxt = corredor.id === 'PE-VE' ? 'Soles' : corredor.monedaCodigo;
+  const unidadTxt = corredor.id === 'PE-VE' ? 'sol' : corredor.monedaCodigo;
   const [tasaActual, setTasaActual] = useState<Tasa | null>(null);
   const [penVes, setPenVes] = useState('');
   const [tasaAdquisicion, setTasaAdquisicion] = useState('');
@@ -42,6 +48,8 @@ export default function TasaDelDia() {
       .select('*')
       .eq('fecha', HOY())
       .eq('publicada_por', negocioId)
+      .eq('corredor', corredor.id)
+      .is('operador_peru_miembro_id', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -49,6 +57,9 @@ export default function TasaDelDia() {
     if (data) {
       setPenVes(String(data.tasa_pen_ves));
       setTasaAdquisicion(data.tasa_adquisicion != null ? String(data.tasa_adquisicion) : '');
+    } else {
+      setPenVes('');
+      setTasaAdquisicion('');
     }
   };
 
@@ -59,6 +70,8 @@ export default function TasaDelDia() {
         .from('tasas')
         .select('*')
         .eq('publicada_por', negocioId)
+        .eq('corredor', corredor.id)
+        .is('operador_peru_miembro_id', null)
         .order('fecha', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(1)
@@ -68,6 +81,7 @@ export default function TasaDelDia() {
         .select('*')
         .eq('fecha', HOY())
         .eq('operador_peru_miembro_id', miembroId)
+        .eq('corredor', corredor.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -75,7 +89,7 @@ export default function TasaDelDia() {
     setPuedeEditarTasaPropia(!!miembroData?.puede_editar_tasa);
     setTasaPrincipalRef((tasaPrincipal as Tasa | null) ?? null);
     setTasaPropiaActual((tasaPropia as Tasa | null) ?? null);
-    if (tasaPropia) setTasaPropiaInput(String((tasaPropia as Tasa).tasa_pen_ves));
+    setTasaPropiaInput(tasaPropia ? String((tasaPropia as Tasa).tasa_pen_ves) : '');
   };
 
   useEffect(() => {
@@ -93,7 +107,7 @@ export default function TasaDelDia() {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuario?.id]);
+  }, [usuario?.id, corredor.id]);
 
   const publicar = async () => {
     if (!usuario || !esPrincipal) return;
@@ -107,6 +121,7 @@ export default function TasaDelDia() {
       p_fecha: HOY(),
       p_tasa_pen_ves: Number(penVes),
       p_tasa_adquisicion: Number(tasaAdquisicion),
+      p_corredor: corredor.id,
     });
     setLoading(false);
     if (error) {
@@ -152,6 +167,7 @@ export default function TasaDelDia() {
     const { error } = await supabase.rpc('publicar_tasa_miembro', {
       p_fecha: HOY(),
       p_tasa_pen_ves: Number(tasaPropiaInput),
+      p_corredor: corredor.id,
     });
     setLoadingPropia(false);
     if (error) {
@@ -175,6 +191,7 @@ export default function TasaDelDia() {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Tasa del día — {HOY()}</Text>
+        <SelectorCorredor />
 
         <Text style={styles.hint}>
           Tasa del Operador principal: {tasaPrincipalRef ? `venta S/1 = Bs ${tasaPrincipalRef.tasa_pen_ves}` : 'sin publicar'}. Se
@@ -183,7 +200,7 @@ export default function TasaDelDia() {
 
         {puedeEditarTasaPropia ? (
           <>
-            <Text style={styles.label}>Tu propia tasa de venta (Soles → Bolívares) — aplica solo a tus clientes</Text>
+            <Text style={styles.label}>Tu propia tasa de venta ({monedaTxt} → Bolívares) — aplica solo a tus clientes</Text>
             <TextInput
               style={styles.input}
               value={tasaPropiaInput}
@@ -214,6 +231,7 @@ export default function TasaDelDia() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Tasa del día — {HOY()}</Text>
+        <SelectorCorredor />
       {tasaActual && (
         <Text style={styles.hint}>
           Última publicada: venta S/1 = Bs {tasaActual.tasa_pen_ves}
@@ -223,7 +241,7 @@ export default function TasaDelDia() {
 
       {esPrincipal ? (
         <>
-          <Text style={styles.label}>Tasa de adquisición (Ta) — cuántos bolívares compras tú con cada sol</Text>
+          <Text style={styles.label}>Tasa de adquisición (Ta) — cuántos bolívares compras tú con cada {unidadTxt}</Text>
           <TextInput
             style={styles.input}
             value={tasaAdquisicion}
@@ -233,7 +251,7 @@ export default function TasaDelDia() {
             placeholderTextColor={colors.textMuted}
           />
 
-          <Text style={styles.label}>Tasa de venta al cliente (Tv) — Soles → Bolívares Soberanos</Text>
+          <Text style={styles.label}>Tasa de venta al cliente (Tv) — {monedaTxt} → Bolívares Soberanos</Text>
           <TextInput
             style={styles.input}
             value={penVes}

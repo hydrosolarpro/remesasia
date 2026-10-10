@@ -28,6 +28,7 @@ import { GuiaPasoAPaso } from './GuiaPasoAPaso';
 import { FlujoProcesoDiagrama } from './FlujoProcesoDiagrama';
 import { Collapsible } from './Collapsible';
 import { SelectorCorredor } from './SelectorCorredor';
+import { useCorredor } from '../lib/corredor';
 import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -62,6 +63,7 @@ export function PeruDashboardView({
   miembrosAsignadosIds?: string[] | null;
   puedeValidarVeAunSinSerElMismo?: boolean;
 }) {
+  const { corredor } = useCorredor();
   const esPrincipal = tipoSesion === 'principal';
   const esMiembroPe = tipoSesion === 'miembro';
   const esVenezuela = tipoSesion === 'venezuela';
@@ -172,6 +174,7 @@ export function PeruDashboardView({
         .from('tasas')
         .select('*')
         .eq('publicada_por', operadorPeruId)
+        .eq('corredor', corredor.id)
         .order('fecha', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(1)
@@ -187,7 +190,7 @@ export function PeruDashboardView({
       // Tasa propia del miembro (ver PeruDashboardView arriba): solo tiene
       // sentido consultarla para la sesión de un miembro de Perú.
       esMiembroPe && miembroId
-        ? supabase.from('tasas').select('*').eq('operador_peru_miembro_id', miembroId).order('fecha', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle()
+        ? supabase.from('tasas').select('*').eq('operador_peru_miembro_id', miembroId).eq('corredor', corredor.id).order('fecha', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
 
@@ -239,7 +242,7 @@ export function PeruDashboardView({
       setOperaciones([]);
     }
     setCargando(false);
-  }, [operadorPeruId, esMiembroPe, esVenezuela, miembroId, miembrosAsignadosIds, veId]);
+  }, [operadorPeruId, esMiembroPe, esVenezuela, miembroId, miembrosAsignadosIds, veId, corredor.id]);
 
   useEffect(() => {
     cargar();
