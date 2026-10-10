@@ -30,6 +30,8 @@ import { Collapsible } from '../../components/Collapsible';
 import { CorredoresNegocio } from '../../components/CorredoresNegocio';
 import { ClientesMiembroList } from '../../components/ClientesMiembroList';
 import { ComisionInput } from '../../components/ComisionInput';
+import { ComisionPorCorredor } from '../../components/ComisionPorCorredor';
+import { CorredoresDelOperador } from '../../components/CorredoresDelOperador';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
@@ -734,6 +736,8 @@ export default function Perfil() {
               />
               <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
               <ComisionInput style={styles.input} valor={v.comision_pct} onGuardar={(pct) => editarComisionVe(v.id, pct)} />
+              <ComisionPorCorredor tipo="venezuela" operadorId={v.id} base={v.comision_pct} />
+              <CorredoresDelOperador tipo="venezuela" operadorId={v.id} />
               {peList.filter((p) => p.operador_venezuela_id === v.id).length > 0 && (
                 <View style={styles.asignadosBloque}>
                   <Text style={styles.asignadosLabel}>Operadores de Perú asignados:</Text>
@@ -846,6 +850,8 @@ export default function Perfil() {
                 />
                 <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
                 <ComisionInput style={styles.input} valor={p.comision_pct} onGuardar={(pct) => editarComisionPe(p.id, pct)} />
+                <ComisionPorCorredor tipo="peru_miembro" operadorId={p.id} base={p.comision_pct} />
+                <CorredoresDelOperador tipo="peru_miembro" operadorId={p.id} />
                 <Text style={styles.asignadoVe}>{veAsignado ? `Asignado a: ${veAsignado.nombre}` : 'Sin Operador de Venezuela asignado'}</Text>
 
                 <Pressable

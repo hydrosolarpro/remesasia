@@ -130,6 +130,8 @@ export interface Solicitud {
   derivada_de_principal: boolean;
   /** Operador Venezuela (operador_venezuela_perfil.id) al que el principal derivó la operación. */
   derivada_ve_perfil_id: string | null;
+  /** Corredor de la operación ('PE-VE', 'CO-VE', 'CL-VE', 'OT-VE'). Las anteriores a los corredores son 'PE-VE'. */
+  corredor: string;
   /** % de comisión (C1/C2) congelado al momento de check_deposito_ve = true; null en operaciones anteriores a este campo o aún no realizadas. */
   comision_peru_pct_aplicada: number | null;
   comision_venezuela_pct_aplicada: number | null;

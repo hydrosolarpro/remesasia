@@ -223,6 +223,15 @@ export function EstadisticasView({
       })(),
     ]);
 
+    // % por corredor fijados por el principal (RLS: cada rol ve solo los suyos).
+    const { data: comisionesData } = await supabase.from('comisiones_corredor').select('tipo, operador_id, corredor, comision_pct');
+    const comisionesCorredor = new Map<string, number>(
+      ((comisionesData as { tipo: string; operador_id: string; corredor: string; comision_pct: number }[] | null) ?? []).map((c) => [
+        `${c.tipo}|${c.operador_id}|${c.corredor}`,
+        Number(c.comision_pct),
+      ])
+    );
+
     if (tipoSesion === 'miembro' && miembroId) setNombrePropio(miembros.get(miembroId)?.nombre ?? null);
     else if (tipoSesion === 'venezuela' && veId) setNombrePropio(ves.get(veId)?.nombre ?? null);
 
@@ -239,8 +248,12 @@ export function EstadisticasView({
           row.monto_pen,
           row.tasa_pen_ves,
           row.tasa_real_compra,
-          (row.comision_peru_pct_aplicada ?? miembro?.comisionPct ?? 0) / 100,
-          (row.comision_venezuela_pct_aplicada ?? ve?.comisionPct ?? 0) / 100
+          (row.comision_peru_pct_aplicada ??
+            (row.operador_peru_miembro_id ? comisionesCorredor.get(`peru_miembro|${row.operador_peru_miembro_id}|${row.corredor ?? 'PE-VE'}`) : undefined) ??
+            miembro?.comisionPct ?? 0) / 100,
+          (row.comision_venezuela_pct_aplicada ??
+            (veIdOp ? comisionesCorredor.get(`venezuela|${veIdOp}|${row.corredor ?? 'PE-VE'}`) : undefined) ??
+            ve?.comisionPct ?? 0) / 100
         );
         return {
           ...row,

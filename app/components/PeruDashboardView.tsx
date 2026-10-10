@@ -125,6 +125,10 @@ export function PeruDashboardView({
   // Derivación a un Operador Venezuela del equipo (solo el principal).
   const [derivandoVeOp, setDerivandoVeOp] = useState<OperationRowData | null>(null);
   const [derivandoVeId, setDerivandoVeId] = useState<string | null>(null);
+  // Equipo por corredor (equipo_corredor): `tipo|operadorId|corredor`. Un
+  // operador sin marcas trabaja solo Perú-Venezuela.
+  const [equipoCorredor, setEquipoCorredor] = useState<Set<string>>(new Set());
+  const [operadoresConMarcas, setOperadoresConMarcas] = useState<Set<string>>(new Set());
 
   // El corte de "realizadas" hacia solo-estadísticas es a la hora de
   // cierre del horario de atención (no a medianoche) -- este tick fuerza
@@ -194,6 +198,25 @@ export function PeruDashboardView({
         : Promise.resolve({ data: null }),
     ]);
 
+    const { data: equipoData } = await supabase.from('equipo_corredor').select('tipo, operador_id, corredor');
+    const eqSet = new Set<string>();
+    const conMarcas = new Set<string>();
+    ((equipoData as { tipo: string; operador_id: string; corredor: string }[] | null) ?? []).forEach((e) => {
+      eqSet.add(`${e.tipo}|${e.operador_id}|${e.corredor}`);
+      conMarcas.add(`${e.tipo}|${e.operador_id}`);
+    });
+    setEquipoCorredor(eqSet);
+    setOperadoresConMarcas(conMarcas);
+
+    // % de comisión por corredor fijados por el principal (RLS: cada rol ve solo los suyos).
+    const { data: comisionesData } = await supabase.from('comisiones_corredor').select('tipo, operador_id, corredor, comision_pct');
+    const mapaComisiones = new Map<string, number>(
+      ((comisionesData as { tipo: string; operador_id: string; corredor: string; comision_pct: number }[] | null) ?? []).map((c) => [
+        `${c.tipo}|${c.operador_id}|${c.corredor}`,
+        Number(c.comision_pct),
+      ])
+    );
+
     setPerfil(perfilData as PerfilNegocio | null);
     setTasa(tasaData as Tasa | null);
     setTasaPropia((tasaPropiaData as Tasa | null) ?? null);
@@ -221,8 +244,11 @@ export function PeruDashboardView({
             : miembroOp?.operador_venezuela_id
               ? mapaVe.get(miembroOp.operador_venezuela_id)
               : null;
-          const comisionPeruPct = (row.comision_peru_pct_aplicada ?? miembroOp?.comision_pct ?? 0) / 100;
-          const comisionVePct = (row.comision_venezuela_pct_aplicada ?? veOp?.comision_pct ?? 0) / 100;
+          const baseCorredor = row.corredor ?? 'PE-VE';
+          const pctPeruCorredor = miembroOp ? mapaComisiones.get(`peru_miembro|${miembroOp.id}|${baseCorredor}`) : undefined;
+          const pctVeCorredor = veOp ? mapaComisiones.get(`venezuela|${veOp.id}|${baseCorredor}`) : undefined;
+          const comisionPeruPct = (row.comision_peru_pct_aplicada ?? pctPeruCorredor ?? miembroOp?.comision_pct ?? 0) / 100;
+          const comisionVePct = (row.comision_venezuela_pct_aplicada ?? pctVeCorredor ?? veOp?.comision_pct ?? 0) / 100;
           const ganancia = calcularGananciaOperacion(row.monto_pen, row.tasa_pen_ves, row.tasa_real_compra, comisionPeruPct, comisionVePct);
           return {
             ...row,
@@ -717,6 +743,11 @@ export function PeruDashboardView({
     cargar();
   };
 
+  const trabajaEnCorredor = (tipo: 'peru_miembro' | 'venezuela', operadorId: string, corredorId: string) =>
+    operadoresConMarcas.has(`${tipo}|${operadorId}`)
+      ? equipoCorredor.has(`${tipo}|${operadorId}|${corredorId}`)
+      : corredorId === 'PE-VE';
+
   const abrirDerivacionVe = (op: OperationRowData) => {
     setDerivandoVeOp(op);
     setDerivandoVeId(op.derivada_ve_perfil_id ?? null);
@@ -1113,7 +1144,7 @@ export function PeruDashboardView({
             {miembros.length === 0 ? (
               <Text style={styles.vacio}>Todavía no tienes operadores de Perú en tu equipo para derivar.</Text>
             ) : (
-              miembros.map((m) => {
+              miembros.filter((m) => !derivandoOp || trabajaEnCorredor('peru_miembro', m.id, derivandoOp.corredor ?? 'PE-VE')).map((m) => {
                 const seleccionado = derivandoMiembroId === m.id;
                 return (
                   <Pressable key={m.id} style={[styles.miembroOpcion, seleccionado && styles.miembroOpcionActivo]} onPress={() => setDerivandoMiembroId(m.id)}>
@@ -1155,7 +1186,7 @@ export function PeruDashboardView({
           {vePerfiles.length === 0 ? (
             <Text style={styles.vacio}>Todavía no tienes operadores de Venezuela registrados en tu equipo.</Text>
           ) : (
-            vePerfiles.map((v) => {
+            vePerfiles.filter((v) => !derivandoVeOp || trabajaEnCorredor('venezuela', v.id, derivandoVeOp.corredor ?? 'PE-VE')).map((v) => {
               const seleccionado = derivandoVeId === v.id;
               return (
                 <Pressable key={v.id} style={[styles.miembroOpcion, seleccionado && styles.miembroOpcionActivo]} onPress={() => setDerivandoVeId(v.id)}>

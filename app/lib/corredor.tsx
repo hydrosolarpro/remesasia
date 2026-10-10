@@ -147,7 +147,17 @@ export function CorredorProvider({ children }: PropsWithChildren) {
       .map(aConfig)
       .filter((c): c is ConfigCorredor => !!c)
       .sort((a, b) => (a.id === 'PE-VE' ? -1 : b.id === 'PE-VE' ? 1 : a.id.localeCompare(b.id)));
-    setCorredores(lista.length > 0 ? lista : [CORREDOR_PE_VE]);
+    let visibles = lista.length > 0 ? lista : [CORREDOR_PE_VE];
+    // Miembro de Perú / operador de Venezuela: solo los corredores que el
+    // principal le asignó (equipo_corredor; sin marcas = solo Perú-Venezuela).
+    if (usuario.rol === 'operador_peru_miembro' || usuario.rol === 'operador_venezuela') {
+      const { data: eq } = await supabase.from('equipo_corredor').select('corredor');
+      const ids = new Set<string>(((eq as { corredor: string }[] | null) ?? []).map((r) => r.corredor));
+      if (ids.size === 0) ids.add('PE-VE');
+      const filtrados = visibles.filter((c) => ids.has(c.id));
+      visibles = filtrados.length > 0 ? filtrados : [CORREDOR_PE_VE];
+    }
+    setCorredores(visibles);
   }, [usuario?.id]);
 
   useEffect(() => {
