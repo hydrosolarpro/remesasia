@@ -27,7 +27,7 @@ const NUMERO_VENTAS = '51960442025';
 const APP_BASE_URL = (import.meta.env.VITE_APP_BASE_URL ?? 'https://remesasia.vercel.app').trim();
 
 function construirEnlaceAcceso(token: string) {
-  return `${APP_BASE_URL}/invitacion/${token}`;
+  return `${APP_BASE_URL}/invitacion/${token}?metodo=google`;
 }
 
 function OpcionesRadio<T extends string>({
@@ -131,8 +131,13 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
       return;
     }
     setCalificado(!!data.calificado);
-    setEnlaceAcceso(data.invitacion_token ? construirEnlaceAcceso(data.invitacion_token) : null);
+    const enlace = data.invitacion_token ? construirEnlaceAcceso(data.invitacion_token) : null;
+    setEnlaceAcceso(enlace);
     setPaso('resultado');
+    // Acceso directo: se lleva al visitante a la plataforma sin esperar
+    // validación del admin. El botón de la pantalla de resultado queda de
+    // respaldo por si el navegador bloquea la redirección.
+    if (enlace) window.location.assign(enlace);
   };
 
   const mensajeWhatsApp = encodeURIComponent(

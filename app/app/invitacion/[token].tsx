@@ -28,13 +28,15 @@ type Metodo = 'pin' | 'google';
 // Sin sesión, el cliente elige cómo entrar: teléfono + PIN (recibe su PIN
 // por WhatsApp y luego entra con su número) o "Continuar con Google".
 export default function Invitacion() {
-  const { token } = useLocalSearchParams<{ token: string }>();
+  const { token, metodo: metodoParam } = useLocalSearchParams<{ token: string; metodo?: string }>();
   const { session, loading, signOut } = useAuth();
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
 
-  const [metodo, setMetodo] = useState<Metodo>('pin');
+  // La landing manda ?metodo=google: la invitación de Operador Perú solo
+  // sirve con Google (el alta por PIN es para clientes).
+  const [metodo, setMetodo] = useState<Metodo>(metodoParam === 'google' ? 'google' : 'pin');
   const [nombre, setNombre] = useState('');
   const [correo, setCorreo] = useState('');
   const [correo2, setCorreo2] = useState('');
