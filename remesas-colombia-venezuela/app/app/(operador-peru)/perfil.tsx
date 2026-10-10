@@ -1,0 +1,1160 @@
+import { useEffect, useState, useCallback } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, Modal, Linking, Alert, Platform } from 'react-native';
+import { router } from 'expo-router';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../lib/auth';
+import { registrarPushToken } from '../../lib/notifications';
+import {
+  diasRestantesDemo,
+  fechaFinDemo,
+  diasRestantesPlanPagado,
+  fechaFinPlanPagado,
+  debeAvisarRenovacion,
+  obtenerLimitesEquipo,
+  obtenerLimitesPlan,
+  siguientesPlanes,
+  planDesdeMonto,
+  planLabel,
+  ORDEN_PLANES,
+  precioPlanMedida,
+  tramoPlanMedida,
+  NOMBRE_PLAN,
+  PRECIO_MEDIDA_POR_CLIENTE,
+} from '../../lib/plan';
+import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
+import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
+import { PlanesInfo } from '../../components/PlanesInfo';
+import { PinAccesoCard } from '../../components/PinAccesoCard';
+import { GestionPinUsuario } from '../../components/GestionPinUsuario';
+import { Collapsible } from '../../components/Collapsible';
+import { ClientesMiembroList } from '../../components/ClientesMiembroList';
+import { ComisionInput } from '../../components/ComisionInput';
+import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
+import { resolverContextoOperador } from '../../lib/sesionOperador';
+import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { InstalarAppCard } from '../../components/InstalarAppCard';
+import { colors, radius, cardShadow } from '../../constants/theme';
+
+const FORMATTER_FECHA = new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+export default function Perfil() {
+  const { usuario } = useAuth();
+  const [negocioId, setNegocioId] = useState<string | null>(null);
+  const [esPrincipal, setEsPrincipal] = useState(false);
+  const [miembroId, setMiembroId] = useState<string | null>(null);
+  const [principal, setPrincipal] = useState<Usuario | null>(null);
+
+  // Equipos (solo los carga el Operador principal)
+  const [veList, setVeList] = useState<OperadorVenezuelaPerfil[]>([]);
+  const [peList, setPeList] = useState<OperadorPeruMiembro[]>([]);
+  const [clientesPorMiembro, setClientesPorMiembro] = useState<Record<string, number>>({});
+  // Filas completas (no solo el conteo) para desplegar la lista de clientes
+  // de cada miembro dentro de su tarjeta -- ver ClientesMiembroList.
+  const [clientesNegocio, setClientesNegocio] = useState<Usuario[]>([]);
+  // Clientes de cada miembro que se dieron de baja ellos mismos, o fueron
+  // eliminados -- se muestran OBLIGATORIAMENTE en la tarjeta de su propio
+  // Operador de Colombia, dentro de ClientesMiembroList (ver más abajo).
+  const [clientesBajaNegocio, setClientesBajaNegocio] = useState<Usuario[]>([]);
+
+  const [agregandoVe, setAgregandoVe] = useState(false);
+  const [veNombre, setVeNombre] = useState('');
+  const [veTelefono, setVeTelefono] = useState('');
+  const [veEmail, setVeEmail] = useState('');
+  const [guardandoVe, setGuardandoVe] = useState(false);
+  const [errorVe, setErrorVe] = useState<string | null>(null);
+
+  const [agregandoPe, setAgregandoPe] = useState(false);
+  const [peNombre, setPeNombre] = useState('');
+  const [peTelefono, setPeTelefono] = useState('');
+  const [peEmail, setPeEmail] = useState('');
+  const [guardandoPe, setGuardandoPe] = useState(false);
+  const [errorPe, setErrorPe] = useState<string | null>(null);
+
+  // Asignación de miembros de Colombia a cada Operador de Venezuela
+  const [asignandoVe, setAsignandoVe] = useState<OperadorVenezuelaPerfil | null>(null);
+
+  // Miembro de Colombia: su % de comisión (asignado por el principal, solo lectura acá)
+  const [miembroRow, setMiembroRow] = useState<OperadorPeruMiembro | null>(null);
+  // VE asignado al miembro (se muestra solo lectura)
+  const [miVe, setMiVe] = useState<OperadorVenezuelaPerfil | null>(null);
+
+  const [solicitandoPlan, setSolicitandoPlan] = useState<string | null>(null);
+  // Plan a la medida: N° de clientes que el operador quiere registrar. El
+  // monto (= N × $ 1) y las características (tramo estándar equivalente)
+  // se calculan solos -- ver lib/plan.ts.
+  const [clientesMedida, setClientesMedida] = useState('');
+  const { planInicio, cambioPendiente } = useEstadoPlanNegocio(negocioId);
+  // Plan que el Operador principal eligió y ya envió a pagar (pendiente de
+  // que el administrador lo verifique) -- se muestra aparte de "TU PLAN"
+  // (el plan vigente) para que quede claro cuál es el plan que eligió
+  // mientras el administrador todavía no lo confirma.
+  const [pagoPeriodoActual, setPagoPeriodoActual] = useState<{
+    periodo: string;
+    monto: number;
+    monto_por_definir: boolean;
+    plan_a_medida: boolean;
+    limite_clientes: number | null;
+    comprobante_url: string | null;
+    estado: string;
+    motivo_rechazo: string | null;
+  } | null>(null);
+  // Monto mensual que el administrador fijó para el plan UNLIMITED (no
+  // tiene tarifa fija -- ver FormularioSolicitudPlan/panel-control.tsx).
+  // Se toma del último pago verificado, igual que precioPlanOperador() del
+  // lado del admin, para que el operador vea el mismo monto acordado.
+  const [montoUnlimitedActual, setMontoUnlimitedActual] = useState<number | null>(null);
+  // El hook useEstadoPlanNegocio (cambioPendiente) excluye a propósito las
+  // filas 'rechazado' -- para poder avisarle al operador que su pago de
+  // UNLIMITED fue rechazado (y que vuelva a subirlo) hace falta esta
+  // consulta aparte, que sí las incluye.
+  const [cambioUnlimitedFila, setCambioUnlimitedFila] = useState<{
+    id: string;
+    monto: number;
+    monto_por_definir: boolean;
+    limite_clientes: number | null;
+    comprobante_url: string | null;
+    estado: string;
+    motivo_rechazo: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (usuario) registrarPushToken(usuario.id);
+  }, [usuario]);
+
+  const cargarContexto = useCallback(async () => {
+    if (!usuario) return;
+    const ctx = await resolverContextoOperador(usuario);
+    if (!ctx.negocioId) return;
+    setNegocioId(ctx.negocioId);
+    setEsPrincipal(ctx.tipo === 'principal');
+    setMiembroId(ctx.miembroId);
+
+    // Datos del Operador principal de Colombia (siempre visibles, sin editar)
+    const { data: principalData } = await supabase.from('usuarios').select('*').eq('id', ctx.negocioId).maybeSingle();
+    setPrincipal(principalData as Usuario | null);
+
+    if (ctx.tipo === 'principal') {
+      cargarEquipos(ctx.negocioId);
+      const periodo = new Date().toISOString().slice(0, 7);
+      const { data: pago } = await supabase
+        .from('pagos_suscripcion')
+        .select('periodo, monto, monto_por_definir, plan_a_medida, limite_clientes, comprobante_url, estado, motivo_rechazo')
+        .eq('operador_peru_id', usuario.id)
+        .eq('periodo', periodo)
+        .maybeSingle();
+      setPagoPeriodoActual(pago as typeof pagoPeriodoActual);
+
+      // Última solicitud de UNLIMITED por cambios_plan_pendientes (incluye
+      // 'rechazado', a diferencia de cambioPendiente del hook) -- para
+      // poder avisar el rechazo y ofrecer reenviar el comprobante.
+      const { data: cambioUnlimited } = await supabase
+        .from('cambios_plan_pendientes')
+        .select('id, monto, monto_por_definir, limite_clientes, comprobante_url, estado, motivo_rechazo')
+        .eq('operador_peru_id', usuario.id)
+        .eq('plan_solicitado', 'unlimited')
+        .is('activado_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setCambioUnlimitedFila(cambioUnlimited as typeof cambioUnlimitedFila);
+
+      if (usuario.plan === 'unlimited' || usuario.plan === 'medida') {
+        const { data: ultimoPago } = await supabase
+          .from('pagos_suscripcion')
+          .select('monto')
+          .eq('operador_peru_id', usuario.id)
+          .eq('estado', 'verificado')
+          .order('periodo', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setMontoUnlimitedActual(ultimoPago?.monto ?? null);
+      }
+    } else if (ctx.tipo === 'miembro' && ctx.miembroId) {
+      cargarMiembro(ctx.miembroId, ctx.negocioId);
+    }
+  }, [usuario]);
+
+  const cargarEquipos = useCallback(async (negocioIdParam: string) => {
+    const [veResult, peResult, clientesResult, clientesBajaResult] = await Promise.all([
+      supabase.from('operador_venezuela_perfil').select('*').eq('operador_peru_id', negocioIdParam).order('created_at', { ascending: true }),
+      supabase.from('operador_peru_miembro').select('*').eq('operador_peru_id', negocioIdParam).order('created_at', { ascending: true }),
+      supabase
+        .from('usuarios')
+        .select('*')
+        .eq('rol', 'cliente')
+        .eq('negocio_operador_peru_id', negocioIdParam)
+        .is('eliminado_at', null)
+        .order('created_at', { ascending: false }),
+      // Clientes dados de baja de TODO el negocio -- se filtran por miembro
+      // más abajo, para mostrarlos en la tarjeta del Operador de Colombia que
+      // le corresponda (ver ClientesMiembroList).
+      supabase
+        .from('usuarios')
+        .select('*')
+        .eq('rol', 'cliente')
+        .eq('negocio_operador_peru_id', negocioIdParam)
+        .not('eliminado_at', 'is', null)
+        .order('eliminado_at', { ascending: false }),
+    ]);
+    setVeList((veResult.data as OperadorVenezuelaPerfil[] | null) ?? []);
+    setPeList((peResult.data as OperadorPeruMiembro[] | null) ?? []);
+    const clientes = (clientesResult.data as Usuario[] | null) ?? [];
+    setClientesNegocio(clientes);
+    setClientesBajaNegocio((clientesBajaResult.data as Usuario[] | null) ?? []);
+    const conteo: Record<string, number> = {};
+    clientes.forEach((c) => {
+      if (c.invitado_por_operador_miembro_id) {
+        conteo[c.invitado_por_operador_miembro_id] = (conteo[c.invitado_por_operador_miembro_id] ?? 0) + 1;
+      }
+    });
+    setClientesPorMiembro(conteo);
+  }, []);
+
+  const cargarMiembro = useCallback(async (miembroIdParam: string, negocioIdParam: string) => {
+    const { data: m } = await supabase.from('operador_peru_miembro').select('*').eq('id', miembroIdParam).maybeSingle();
+    if (m) {
+      setMiembroRow(m as OperadorPeruMiembro);
+      if (m.operador_venezuela_id) {
+        const { data: ve } = await supabase
+          .from('operador_venezuela_perfil')
+          .select('*')
+          .eq('id', m.operador_venezuela_id)
+          .maybeSingle();
+        setMiVe((ve as OperadorVenezuelaPerfil | null) ?? null);
+      } else {
+        setMiVe(null);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarContexto();
+  }, [cargarContexto]);
+
+  // Si el operador ya está en un plan a la medida, precarga el campo con
+  // su N° de clientes pactado (para renovar / ajustar sobre ese número).
+  useEffect(() => {
+    if (usuario?.plan === 'medida' && usuario.limite_clientes_unlimited && clientesMedida === '') {
+      setClientesMedida(String(usuario.limite_clientes_unlimited));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.plan, usuario?.limite_clientes_unlimited]);
+
+  // El vínculo a la sesión real se hace por correo (ver
+  // vincular_cuenta_pendiente): si esta fila ya estaba vinculada
+  // (usuario_id) y se le cambia el correo, hay que desvincularla también,
+  // o la fila queda mostrando un correo distinto al de la cuenta que
+  // realmente tiene la sesión (el bug de "operadores invertidos").
+  const editarVe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
+    const filaActual = veList.find((v) => v.id === id);
+    const valorNormalizado = campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null;
+    const desvincular = campo === 'email' && !!filaActual?.usuario_id && valorNormalizado !== filaActual.email;
+    setVeList((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) } : v))
+    );
+    await supabase
+      .from('operador_venezuela_perfil')
+      .update({ [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) })
+      .eq('id', id);
+  };
+
+  const eliminarVe = async (id: string) => {
+    await supabase.from('operador_venezuela_perfil').delete().eq('id', id);
+    if (negocioId) cargarEquipos(negocioId);
+  };
+
+  // % de comisión: solo lo introduce/edita el operador principal (ver
+  // Calculos-tasas-dinero-comisiones.md, C1/C2). Se guarda como número
+  // (0-100); la validación y el texto a medio escribir los maneja
+  // ComisionInput. Solo se actualiza la lista si la base lo guardó.
+  const editarComisionVe = async (id: string, pct: number): Promise<string | null> => {
+    const { error } = await supabase.from('operador_venezuela_perfil').update({ comision_pct: pct }).eq('id', id);
+    if (error) return 'No se pudo guardar la comisión. Inténtalo de nuevo.';
+    setVeList((prev) => prev.map((v) => (v.id === id ? { ...v, comision_pct: pct } : v)));
+    return null;
+  };
+
+  const editarPe = async (id: string, campo: 'nombre' | 'telefono' | 'email', valor: string) => {
+    const filaActual = peList.find((p) => p.id === id);
+    const valorNormalizado = campo === 'email' ? valor.trim().toLowerCase() : valor.trim() || null;
+    const desvincular = campo === 'email' && !!filaActual?.usuario_id && valorNormalizado !== filaActual.email;
+    setPeList((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) } : p))
+    );
+    await supabase
+      .from('operador_peru_miembro')
+      .update({ [campo]: valorNormalizado, ...(desvincular ? { usuario_id: null } : {}) })
+      .eq('id', id);
+  };
+
+  const eliminarPe = async (id: string) => {
+    await supabase.from('operador_peru_miembro').delete().eq('id', id);
+    if (negocioId) cargarEquipos(negocioId);
+  };
+
+  const editarComisionPe = async (id: string, pct: number): Promise<string | null> => {
+    const { error } = await supabase.from('operador_peru_miembro').update({ comision_pct: pct }).eq('id', id);
+    if (error) return 'No se pudo guardar la comisión. Inténtalo de nuevo.';
+    setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, comision_pct: pct } : p)));
+    return null;
+  };
+
+  // Permiso para que ESTE miembro publique su propia Tasa del día (Tv) --
+  // solo aplica a los clientes que él mismo invitó (ver PeruDashboardView y
+  // (cliente)/index.tsx, que resuelven la tasa según a quién pertenece el
+  // cliente).
+  const editarPuedeEditarTasa = async (id: string, valor: boolean) => {
+    setPeList((prev) => prev.map((p) => (p.id === id ? { ...p, puede_editar_tasa: valor } : p)));
+    await supabase.from('operador_peru_miembro').update({ puede_editar_tasa: valor }).eq('id', id);
+  };
+
+  const agregarVe = async () => {
+    if (!negocioId || !usuario) return;
+    setErrorVe(null);
+    const limites = obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited);
+    if (veList.length >= limites.venezuela) {
+      setErrorVe(`Alcanzaste el límite de ${limites.venezuela} operadores en Venezuela de tu plan ${usuario.plan.toUpperCase()}.`);
+      return;
+    }
+    if (!veNombre.trim() || !veEmail.trim()) {
+      setErrorVe('Completa el nombre y el correo.');
+      return;
+    }
+    setGuardandoVe(true);
+    const { error } = await supabase.from('operador_venezuela_perfil').insert({
+      operador_peru_id: negocioId,
+      nombre: veNombre.trim(),
+      telefono: veTelefono.trim() || null,
+      email: veEmail.trim().toLowerCase(),
+    });
+    setGuardandoVe(false);
+    if (error) {
+      setErrorVe(error.message);
+      return;
+    }
+    setVeNombre('');
+    setVeTelefono('');
+    setVeEmail('');
+    setAgregandoVe(false);
+    cargarEquipos(negocioId);
+  };
+
+  const agregarPe = async () => {
+    if (!negocioId || !usuario) return;
+    setErrorPe(null);
+    const limites = obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited);
+    if (peList.length >= limites.peru) {
+      setErrorPe(`Alcanzaste el límite de ${limites.peru} miembro(s) de equipo en Colombia de tu plan ${usuario.plan.toUpperCase()}.`);
+      return;
+    }
+    if (!peNombre.trim() || !peEmail.trim()) {
+      setErrorPe('Completa el nombre y el correo.');
+      return;
+    }
+    setGuardandoPe(true);
+    const { error } = await supabase.from('operador_peru_miembro').insert({
+      operador_peru_id: negocioId,
+      nombre: peNombre.trim(),
+      telefono: peTelefono.trim() || null,
+      email: peEmail.trim().toLowerCase(),
+    });
+    setGuardandoPe(false);
+    if (error) {
+      setErrorPe(error.message);
+      return;
+    }
+    setPeNombre('');
+    setPeTelefono('');
+    setPeEmail('');
+    setAgregandoPe(false);
+    cargarEquipos(negocioId);
+  };
+
+  // Mensaje de bienvenida por WhatsApp para un operador recién agregado
+  // (VE o miembro de Colombia): le confirma su rol y el correo Gmail exacto con
+  // el que debe iniciar sesión, ya que la vinculación a su sesión es por
+  // ese correo (ver handle_new_user / vincular_cuenta_pendiente).
+  const enviarBienvenidaWhatsApp = (nombre: string, telefono: string | null, email: string | null, rolTexto: string) => {
+    const mensaje = `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Colombia'} te registró como ${rolTexto} en Remesas COLOMBIA-VENEZUELA. Ingresa a https://remesasia.vercel.app/ y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
+    const enlace = construirEnlaceWhatsAppGenerico(telefono, mensaje);
+    if (!enlace) {
+      const aviso = 'Agrega un teléfono válido para poder enviar el mensaje de bienvenida por WhatsApp.';
+      if (Platform.OS === 'web') window.alert(aviso);
+      else Alert.alert('Sin teléfono', aviso);
+      return;
+    }
+    Linking.openURL(enlace);
+  };
+
+  // Asignar/desasignar un miembro de Colombia a un Operador de Venezuela
+  const alternarAsignacion = async (miembroIdAsig: string, activar: boolean) => {
+    if (!asignandoVe) return;
+    setPeList((prev) => prev.map((p) => (p.id === miembroIdAsig ? { ...p, operador_venezuela_id: activar ? asignandoVe.id : null } : p)));
+    await supabase
+      .from('operador_peru_miembro')
+      .update({ operador_venezuela_id: activar ? asignandoVe.id : null })
+      .eq('id', miembroIdAsig);
+  };
+
+  if (!usuario || !negocioId) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  // Estado de la solicitud de UNLIMITED del operador, sea por
+  // `pagos_suscripcion` (sin plan pagado vigente todavía) o por
+  // `cambios_plan_pendientes` (ya tenía un plan pagado y pidió cambiar).
+  // "Por pagar" cubre dos casos con el mismo CTA "Pagar ahora": el admin
+  // ya fijó el monto y todavía no hay comprobante, o el admin RECHAZÓ el
+  // comprobante anterior (el depósito no llegó) y hay que volver a
+  // subirlo -- en ambos casos se reusa el mismo formulario de pago.
+  // Un pago a la medida (monto = N × $ 1) puede coincidir por casualidad
+  // con el rango de UNLIMITED de planDesdeMonto -- se excluye explícitamente
+  // por su marca plan_a_medida para que no caiga en el CTA de UNLIMITED.
+  const pagoEsUnlimited =
+    pagoPeriodoActual &&
+    !pagoPeriodoActual.monto_por_definir &&
+    !pagoPeriodoActual.plan_a_medida &&
+    planDesdeMonto(pagoPeriodoActual.monto) === 'unlimited';
+  const unlimitedInfo = (() => {
+    if (pagoEsUnlimited && pagoPeriodoActual) {
+      if (pagoPeriodoActual.estado === 'rechazado') {
+        return { porPagar: pagoPeriodoActual.monto, rechazado: true, motivo: pagoPeriodoActual.motivo_rechazo, limite: pagoPeriodoActual.limite_clientes };
+      }
+      if (pagoPeriodoActual.estado === 'pendiente' && !pagoPeriodoActual.comprobante_url) {
+        return { porPagar: pagoPeriodoActual.monto, rechazado: false, motivo: null, limite: pagoPeriodoActual.limite_clientes };
+      }
+    }
+    if (cambioUnlimitedFila && !cambioUnlimitedFila.monto_por_definir) {
+      if (cambioUnlimitedFila.estado === 'rechazado') {
+        return { porPagar: cambioUnlimitedFila.monto, rechazado: true, motivo: cambioUnlimitedFila.motivo_rechazo, limite: cambioUnlimitedFila.limite_clientes };
+      }
+      if (cambioUnlimitedFila.estado === 'pendiente' && !cambioUnlimitedFila.comprobante_url) {
+        return { porPagar: cambioUnlimitedFila.monto, rechazado: false, motivo: null, limite: cambioUnlimitedFila.limite_clientes };
+      }
+    }
+    return null;
+  })();
+  // Solo para suprimir el aviso genérico de "cambio en camino" cuando ya
+  // se muestra el CTA dedicado de UNLIMITED de abajo (evita el mensaje
+  // duplicado).
+  const cambioUnlimitedPorPagar = cambioPendiente?.planSolicitado === 'unlimited' && unlimitedInfo !== null;
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {esPrincipal ? (
+        <>
+          <Text style={styles.rolTitulo}>OPERADOR PRINCIPAL DE COLOMBIA</Text>
+          <Text style={styles.nombre}>{usuario.nombre}</Text>
+          <Text style={styles.email}>{usuario.email}</Text>
+          <Text style={styles.telefono}>{usuario.telefono ?? 'Sin teléfono'}</Text>
+        </>
+      ) : (
+        <>
+          <Text style={styles.rolTitulo}>OPERADOR DE COLOMBIA MIEMBRO</Text>
+
+          {/* Datos del Operador principal de Colombia: solo lectura, siempre primero */}
+          {principal && (
+            <View style={[styles.card, cardShadow]}>
+              <Text style={styles.cardTitulo}>OPERADOR PRINCIPAL DE COLOMBIA</Text>
+              <Text style={styles.miembroNombre}>{principal.nombre}</Text>
+              <Text style={styles.miembroDato}>{principal.email}</Text>
+              <Text style={styles.miembroDato}>{principal.telefono ?? 'Sin teléfono'}</Text>
+            </View>
+          )}
+
+          {/* Operador de Venezuela asignado a este miembro: solo lectura. */}
+          {miVe && (
+            <View style={[styles.card, cardShadow]}>
+              <Text style={styles.cardTitulo}>OPERADOR DE VENEZUELA ASIGNADO</Text>
+              <Text style={styles.miembroNombre}>{miVe.nombre}</Text>
+              <Text style={styles.miembroDato}>{miVe.email}</Text>
+              <Text style={styles.miembroDato}>{miVe.telefono ?? 'Sin teléfono'}</Text>
+              {(() => {
+                const enlace = construirEnlaceWhatsAppGenerico(miVe.telefono, `Hola ${miVe.nombre}, te escribo por Remesas COLOMBIA-VENEZUELA.`);
+                return (
+                  enlace && (
+                    <Pressable style={styles.whatsappBtn} onPress={() => Linking.openURL(enlace)}>
+                      <Text style={styles.whatsappBtnTexto}>💬 Contactar por WhatsApp</Text>
+                    </Pressable>
+                  )
+                );
+              })()}
+            </View>
+          )}
+
+          {/* % de comisión: lo asigna el Operador principal, acá solo se ve. */}
+          <View style={[styles.card, cardShadow]}>
+            <Text style={styles.cardTitulo}>% Comisión asignada (sobre la ganancia bruta)</Text>
+            <Text style={styles.miembroNombre}>{miembroRow?.comision_pct ?? 0}%</Text>
+          </View>
+        </>
+      )}
+
+      {esPrincipal && usuario && (
+        <View style={[styles.card, cardShadow, styles.planCardGrande]}>
+          <Text style={styles.cardTitulo}>TU PLAN</Text>
+          <Text style={styles.planNombreGrande}>{planLabel(usuario.plan, montoUnlimitedActual ?? undefined)}</Text>
+          {(usuario.plan === 'unlimited' || usuario.plan === 'medida') && usuario.limite_clientes_unlimited && (
+            <Text style={styles.cardTexto}>
+              {usuario.plan === 'medida'
+                ? `Plan a la medida: hasta ${usuario.limite_clientes_unlimited} clientes ($ ${usuario.limite_clientes_unlimited} / mes).`
+                : `Cupo acordado: hasta ${usuario.limite_clientes_unlimited} clientes.`}
+            </Text>
+          )}
+          <Text style={styles.cardTexto}>
+            {usuario.plan === 'demo'
+              ? `Quedan ${diasRestantesDemo(usuario.demo_inicio)} días${
+                  usuario.demo_inicio ? ` — vence el ${FORMATTER_FECHA.format(fechaFinDemo(usuario.demo_inicio))}` : ''
+                }.`
+              : planInicio
+                ? `Quedan ${diasRestantesPlanPagado(planInicio)} días — vence el ${FORMATTER_FECHA.format(fechaFinPlanPagado(planInicio))}.`
+                : 'Esperando la verificación de tu primer pago.'}
+          </Text>
+
+          {unlimitedInfo && (
+            <View style={styles.avisoRenovacionBox}>
+              <Text style={styles.avisoRenovacionTitulo}>
+                {unlimitedInfo.rechazado ? '⚠️ Tu pago de UNLIMITED fue rechazado' : `Tu plan UNLIMITED: $ ${unlimitedInfo.porPagar.toFixed(2)}/mes`}
+              </Text>
+              <Text style={styles.avisoRenovacionTexto}>
+                {unlimitedInfo.rechazado
+                  ? `El administrador no confirmó tu depósito de $ ${unlimitedInfo.porPagar.toFixed(2)}${unlimitedInfo.motivo ? `: ${unlimitedInfo.motivo}` : ' -- revisa el monto y la cuenta.'} Vuelve a subir tu comprobante.`
+                  : `El administrador ya fijó tu tarifa acordada${unlimitedInfo.limite ? ` (hasta ${unlimitedInfo.limite} clientes)` : ''}. Completa el pago para activarlo.`}
+              </Text>
+              <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan('unlimited')}>
+                <Text style={styles.metaSolicitarBtnTexto}>{unlimitedInfo.rechazado ? 'Volver a subir comprobante →' : 'Pagar ahora →'}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!unlimitedInfo && pagoPeriodoActual?.estado === 'pendiente' && (
+            <View style={styles.solicitudPendienteBox}>
+              <Text style={styles.solicitudPendienteTexto}>
+                {pagoPeriodoActual.monto_por_definir
+                  ? 'Consultaste el plan UNLIMITED — en breve el administrador te confirmará el monto acordado por WhatsApp.'
+                  : pagoPeriodoActual.plan_a_medida
+                    ? `Elegiste el plan A LA MEDIDA ($ ${pagoPeriodoActual.monto.toFixed(2)}/mes${pagoPeriodoActual.limite_clientes ? ` · hasta ${pagoPeriodoActual.limite_clientes} clientes` : ''}) — pendiente de verificación del administrador.`
+                    : `Elegiste el plan ${planLabel(planDesdeMonto(pagoPeriodoActual.monto))} ($ ${pagoPeriodoActual.monto.toFixed(2)}) — pendiente de verificación del administrador.`}
+              </Text>
+            </View>
+          )}
+
+          {/* Renovación o cambio de plan ya pagado, esperando activarse solo
+              cuando termine el ciclo actual (ver cambios_plan_pendientes).
+              Si es UNLIMITED con tarifa ya fijada, el aviso de arriba
+              ("Pagar ahora") ya lo cubre -- evita el mensaje duplicado. */}
+          {cambioPendiente && !cambioUnlimitedPorPagar && (
+            <View style={styles.solicitudPendienteBox}>
+              <Text style={styles.solicitudPendienteTexto}>
+                Ya tienes un cambio a {planLabel(cambioPendiente.planSolicitado)} en camino —{' '}
+                {cambioPendiente.estado === 'verificado'
+                  ? `se activa el ${planInicio ? FORMATTER_FECHA.format(fechaFinPlanPagado(planInicio)) : '—'}, sin interrupciones.`
+                  : 'pendiente de verificación del administrador.'}
+              </Text>
+            </View>
+          )}
+
+          {/* Aviso de renovación: aparece los últimos DIAS_AVISO_RENOVACION
+              días del ciclo, y solo si no hay ya un cambio en camino.
+              "Cambiar de plan" más abajo ya lista TODOS los planes
+              disponibles, así que acá solo queda el atajo de renovar el
+              mismo. */}
+          {usuario.plan !== 'demo' && !cambioPendiente && debeAvisarRenovacion(planInicio) && (
+            <View style={styles.avisoRenovacionBox}>
+              <Text style={styles.avisoRenovacionTitulo}>
+                Tu plan vence en {diasRestantesPlanPagado(planInicio)} día{diasRestantesPlanPagado(planInicio) === 1 ? '' : 's'}
+              </Text>
+              <Text style={styles.avisoRenovacionTexto}>Renueva o cambia de plan para seguir sin interrupciones.</Text>
+              <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(usuario.plan)}>
+                <Text style={styles.metaSolicitarBtnTexto}>Renovar el mismo plan →</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Cualquier operador puede solicitar cualquier plan por encima
+              del que tiene, en cualquier momento -- no solo el siguiente
+              nivel ni solo cerca del vencimiento. */}
+          {siguientesPlanes(usuario.plan, ORDEN_PLANES.length).length > 0 && (
+            <View style={styles.metaBloque}>
+              <Text style={styles.metaTitulo}>Cambiar de plan</Text>
+              {siguientesPlanes(usuario.plan, ORDEN_PLANES.length).map((planSiguiente) => {
+                const limites = obtenerLimitesPlan(planSiguiente);
+                return (
+                  <View key={planSiguiente} style={styles.metaFila}>
+                    <View style={styles.metaFilaDatos}>
+                      <Text style={styles.metaFilaNombre}>{planLabel(planSiguiente)}</Text>
+                      <Text style={styles.metaFilaDato}>
+                        {limites.clientes === Infinity ? 'Clientes a acordar' : `${limites.clientes} clientes`} ·{' '}
+                        {limites.peru === Infinity ? 'operadores PE a acordar' : `${limites.peru} operador(es) Colombia`} ·{' '}
+                        {limites.venezuela === Infinity ? 'operadores VE a acordar' : `${limites.venezuela} en Venezuela`}
+                      </Text>
+                    </View>
+                    <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(planSiguiente)}>
+                      <Text style={styles.metaSolicitarBtnTexto}>Solicitar →</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* PLAN A LA MEDIDA: el operador escribe cuántos clientes va a
+              registrar y la suscripción se calcula sola -- N × $ 1 / mes,
+              con las características del tramo estándar equivalente. Más de
+              1000 clientes se deriva al plan UNLIMITED. Pasa por el mismo
+              formulario de pago y la misma validación manual del admin. */}
+          <View style={styles.metaBloque}>
+            <Text style={styles.metaTitulo}>Plan a la medida</Text>
+            <Text style={styles.metaFilaDato}>
+              Paga solo por los clientes que manejas: $ {PRECIO_MEDIDA_POR_CLIENTE} por cliente / mes. Considera siempre un
+              poco más de clientes según tu crecimiento mensual.
+            </Text>
+            <Text style={styles.label}>¿Cuántos clientes vas a registrar?</Text>
+            <TextInput
+              style={styles.input}
+              value={clientesMedida}
+              onChangeText={(t) => setClientesMedida(t.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              placeholder="Ej: 150"
+              placeholderTextColor={colors.textMuted}
+            />
+            {(() => {
+              const nMedida = Math.round(Number(clientesMedida) || 0);
+              if (nMedida < 1) return null;
+              const tramo = tramoPlanMedida(nMedida);
+              if (tramo === null) {
+                return (
+                  <Text style={styles.metaFilaDato}>
+                    Más de 1000 clientes: solicita el plan UNLIMITED y acuerda la tarifa con el administrador.
+                  </Text>
+                );
+              }
+              const limitesMedida = obtenerLimitesPlan('medida', nMedida);
+              return (
+                <>
+                  <View style={styles.metaFila}>
+                    <View style={styles.metaFilaDatos}>
+                      <Text style={styles.metaFilaNombre}>$ {precioPlanMedida(nMedida).toFixed(2)} / mes</Text>
+                      <Text style={styles.metaFilaDato}>
+                        {nMedida} clientes · {limitesMedida.peru} operador(es) Colombia · {limitesMedida.venezuela} en Venezuela ·
+                        incluye las características del plan {NOMBRE_PLAN[tramo]}
+                      </Text>
+                    </View>
+                    <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan('medida')}>
+                      <Text style={styles.metaSolicitarBtnTexto}>Solicitar →</Text>
+                    </Pressable>
+                  </View>
+                </>
+              );
+            })()}
+          </View>
+
+          {solicitandoPlan && (
+            <View style={styles.metaFormulario}>
+              <View style={styles.metaFormularioHeader}>
+                <Text style={styles.metaTitulo}>Solicitar {planLabel(solicitandoPlan)}</Text>
+                <Pressable onPress={() => setSolicitandoPlan(null)}>
+                  <Text style={styles.miembroEliminarTexto}>✕</Text>
+                </Pressable>
+              </View>
+              <FormularioSolicitudPlan
+                key={solicitandoPlan}
+                plan={solicitandoPlan}
+                modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
+                montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? (unlimitedInfo?.porPagar ?? undefined) : undefined}
+                clientesAMedida={solicitandoPlan === 'medida' ? Math.round(Number(clientesMedida) || 0) : undefined}
+                onEnviado={() => {
+                  setSolicitandoPlan(null);
+                  cargarContexto();
+                }}
+              />
+            </View>
+          )}
+        </View>
+      )}
+
+      {esPrincipal && <PlanesInfo />}
+
+      {esPrincipal && (
+        <Collapsible
+          abiertoPorDefecto
+          titulo={`OPERADORES EN VENEZUELA - EQUIPO (${veList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela})`}
+          subtitulo="Asigna a cada Operador de Venezuela los operadores de Colombia que deberá atender."
+        >
+          {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
+          {veList.map((v) => (
+            <Collapsible
+              key={v.id}
+              titulo={v.nombre}
+              subtitulo={v.email ?? 'Sin correo'}
+              extra={
+                <Pressable onPress={() => eliminarVe(v.id)} style={styles.miembroEliminarBtn}>
+                  <Text style={styles.miembroEliminarTexto}>✕</Text>
+                </Pressable>
+              }
+            >
+              <Text style={styles.label}>Nombre</Text>
+              <TextInput
+                style={styles.input}
+                value={v.nombre}
+                onChangeText={(t) => editarVe(v.id, 'nombre', t)}
+                placeholderTextColor={colors.textMuted}
+              />
+              <Text style={styles.label}>Teléfono</Text>
+              <TextInput
+                style={styles.input}
+                value={v.telefono ?? ''}
+                onChangeText={(t) => editarVe(v.id, 'telefono', t)}
+                keyboardType="phone-pad"
+                placeholder="Teléfono"
+                placeholderTextColor={colors.textMuted}
+              />
+              <Text style={styles.label}>Correo</Text>
+              <TextInput
+                style={styles.input}
+                value={v.email ?? ''}
+                onChangeText={(t) => editarVe(v.id, 'email', t)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor={colors.textMuted}
+              />
+              <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
+              <ComisionInput style={styles.input} valor={v.comision_pct} onGuardar={(pct) => editarComisionVe(v.id, pct)} />
+              {peList.filter((p) => p.operador_venezuela_id === v.id).length > 0 && (
+                <View style={styles.asignadosBloque}>
+                  <Text style={styles.asignadosLabel}>Operadores de Colombia asignados:</Text>
+                  {peList
+                    .filter((p) => p.operador_venezuela_id === v.id)
+                    .map((p) => (
+                      <Text key={p.id} style={styles.asignadosItem}>
+                        • {p.nombre}
+                      </Text>
+                    ))}
+                </View>
+              )}
+              <View style={styles.filaBotonesFinales}>
+                <Pressable style={styles.asignarBtn} onPress={() => setAsignandoVe(v)}>
+                  <Text style={styles.asignarBtnTexto}>Asignar operadores de Colombia →</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.whatsappBtn}
+                  onPress={() => enviarBienvenidaWhatsApp(v.nombre, v.telefono, v.email, 'Operador de Venezuela')}
+                >
+                  <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
+                </Pressable>
+              </View>
+              {esPrincipal && (
+                <GestionPinUsuario
+                  usuarioId={v.usuario_id ?? null}
+                  provision={{ tipo: 'operador_venezuela', refId: v.id }}
+                  telefonoSugerido={v.telefono}
+                  nombre={v.nombre}
+                />
+              )}
+            </Collapsible>
+          ))}
+
+          {veList.length >= obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela ? (
+            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela} operadores en Venezuela de tu plan.</Text>
+          ) : (
+            <NuevoOperadorForm
+              abierto={agregandoVe}
+              onAbrir={() => setAgregandoVe(true)}
+              onCancelar={() => setAgregandoVe(false)}
+              nombre={veNombre}
+              onNombre={setVeNombre}
+              telefono={veTelefono}
+              onTelefono={setVeTelefono}
+              telefonoPlaceholder="+58 999 999 999"
+              email={veEmail}
+              onEmail={setVeEmail}
+              guardando={guardandoVe}
+              error={errorVe}
+              onGuardar={agregarVe}
+            />
+          )}
+        </Collapsible>
+      )}
+
+      {esPrincipal && (
+        <Collapsible
+          abiertoPorDefecto
+          titulo={`OPERADORES EN COLOMBIA - EQUIPO (${peList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru})`}
+        >
+          {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
+          {peList.map((p) => {
+            const veAsignado = veList.find((v) => v.id === p.operador_venezuela_id);
+            const bajaDeEstePe = clientesBajaNegocio.filter((c) => c.invitado_por_operador_miembro_id === p.id);
+            // Reciente = últimas 72h -- mismo criterio que
+            // app/(operador-peru)/clientes.tsx y ClientesMiembroList, para
+            // que abra sola la tarjeta cuando hay algo nuevo que avisar.
+            const bajaReciente = bajaDeEstePe.some(
+              (c) => c.eliminado_at && Date.now() - new Date(c.eliminado_at).getTime() < 72 * 60 * 60 * 1000
+            );
+            return (
+              <Collapsible
+                key={p.id}
+                titulo={p.nombre}
+                abiertoPorDefecto={bajaReciente}
+                subtitulo={`${p.email} · ${clientesPorMiembro[p.id] ?? 0} clientes${
+                  bajaDeEstePe.length > 0 ? ` · ⚠ ${bajaDeEstePe.length} de baja` : ''
+                }`}
+                extra={
+                  <Pressable onPress={() => eliminarPe(p.id)} style={styles.miembroEliminarBtn}>
+                    <Text style={styles.miembroEliminarTexto}>✕</Text>
+                  </Pressable>
+                }
+              >
+                <Text style={styles.label}>Nombre</Text>
+                <TextInput
+                  style={styles.input}
+                  value={p.nombre}
+                  onChangeText={(t) => editarPe(p.id, 'nombre', t)}
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.label}>Teléfono</Text>
+                <TextInput
+                  style={styles.input}
+                  value={p.telefono ?? ''}
+                  onChangeText={(t) => editarPe(p.id, 'telefono', t)}
+                  keyboardType="phone-pad"
+                  placeholder="Teléfono"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.label}>Correo</Text>
+                <TextInput
+                  style={styles.input}
+                  value={p.email ?? ''}
+                  onChangeText={(t) => editarPe(p.id, 'email', t)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
+                <ComisionInput style={styles.input} valor={p.comision_pct} onGuardar={(pct) => editarComisionPe(p.id, pct)} />
+                <Text style={styles.asignadoVe}>{veAsignado ? `Asignado a: ${veAsignado.nombre}` : 'Sin Operador de Venezuela asignado'}</Text>
+
+                <Pressable
+                  style={styles.permisoTasaRow}
+                  onPress={() => editarPuedeEditarTasa(p.id, !p.puede_editar_tasa)}
+                >
+                  <View style={styles.permisoTasaTextos}>
+                    <Text style={styles.permisoTasaLabel}>Dejar libre su propia Tasa del día</Text>
+                    <Text style={styles.permisoTasaTexto}>
+                      Si lo activas, {p.nombre.split(' ')[0]} podrá publicar su propia Tasa del día (Soles → Bolívares), aplicada
+                      solo a sus clientes.
+                    </Text>
+                  </View>
+                  <Text style={[styles.permisoTasaCheck, p.puede_editar_tasa && styles.permisoTasaCheckActivo]}>
+                    {p.puede_editar_tasa ? '✓ Habilitado' : 'Deshabilitado'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.whatsappBtn}
+                  onPress={() => enviarBienvenidaWhatsApp(p.nombre, p.telefono, p.email, 'Operador de Colombia')}
+                >
+                  <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
+                </Pressable>
+
+                <GestionPinUsuario
+                  usuarioId={p.usuario_id ?? null}
+                  provision={{ tipo: 'operador_peru_miembro', refId: p.id }}
+                  telefonoSugerido={p.telefono}
+                  nombre={p.nombre}
+                />
+
+                <Collapsible
+                  titulo={`Clientes (${clientesPorMiembro[p.id] ?? 0})`}
+                  abiertoPorDefecto={bajaReciente}
+                >
+                  <ClientesMiembroList
+                    miembro={p}
+                    clientes={clientesNegocio.filter((c) => c.invitado_por_operador_miembro_id === p.id)}
+                    clientesBaja={bajaDeEstePe}
+                    miembros={peList}
+                    onDerivado={() => negocioId && cargarEquipos(negocioId)}
+                  />
+                </Collapsible>
+              </Collapsible>
+            );
+          })}
+
+          {peList.length >= obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru ? (
+            <Text style={styles.limiteTexto}>Alcanzaste el límite de {obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru} miembro(s) de equipo en Colombia de tu plan.</Text>
+          ) : (
+            <NuevoOperadorForm
+              abierto={agregandoPe}
+              onAbrir={() => setAgregandoPe(true)}
+              onCancelar={() => setAgregandoPe(false)}
+              nombre={peNombre}
+              onNombre={setPeNombre}
+              telefono={peTelefono}
+              onTelefono={setPeTelefono}
+              telefonoPlaceholder="+57 300 000 0000"
+              email={peEmail}
+              onEmail={setPeEmail}
+              guardando={guardandoPe}
+              error={errorPe}
+              onGuardar={agregarPe}
+            />
+          )}
+        </Collapsible>
+      )}
+
+      {esPrincipal && (
+        <Pressable style={styles.buttonOutline} onPress={() => router.push('/(operador-peru)/onboarding')}>
+          <Text style={styles.buttonOutlineText}>Editar datos del negocio</Text>
+        </Pressable>
+      )}
+
+      <PinAccesoCard />
+
+      <InstalarAppCard puedeEnviar />
+
+      {/* Modal de asignación: elige qué operadores de Colombia atiende cada VE */}
+      <Modal visible={!!asignandoVe} transparent animationType="fade" onRequestClose={() => setAsignandoVe(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitulo}>Asignar operadores de Colombia</Text>
+            <Text style={styles.modalTexto}>
+              {asignandoVe ? `Marca los operadores de Colombia que atenderá ${asignandoVe.nombre} en Venezuela.` : ''}
+            </Text>
+            {peList.length === 0 ? (
+              <Text style={styles.cardTexto}>Primero agrega operadores de Colombia a tu equipo.</Text>
+            ) : (
+              peList.map((p) => {
+                const asignado = p.operador_venezuela_id === asignandoVe?.id;
+                return (
+                  <Pressable
+                    key={p.id}
+                    style={[styles.miembroOpcion, asignado && styles.miembroOpcionActivo]}
+                    onPress={() => alternarAsignacion(p.id, !asignado)}
+                  >
+                    <View style={styles.miembroOpcionDatos}>
+                      <Text style={styles.miembroOpcionNombre}>{p.nombre}</Text>
+                      <Text style={styles.miembroOpcionDato}>
+                        {clientesPorMiembro[p.id] ?? 0} clientes
+                        {p.operador_venezuela_id && p.operador_venezuela_id !== asignandoVe?.id ? ' · asignado a otro VE' : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.miembroOpcionCheck, asignado && styles.miembroOpcionCheckActivo]}>{asignado ? '✓' : '○'}</Text>
+                  </Pressable>
+                );
+              })
+            )}
+            <Pressable style={styles.modalCerrar} onPress={() => setAsignandoVe(null)}>
+              <Text style={styles.modalCerrarTexto}>Cerrar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
+  );
+}
+
+function NuevoOperadorForm({
+  abierto,
+  onAbrir,
+  onCancelar,
+  nombre,
+  onNombre,
+  telefono,
+  onTelefono,
+  telefonoPlaceholder,
+  email,
+  onEmail,
+  guardando,
+  error,
+  onGuardar,
+}: {
+  abierto: boolean;
+  onAbrir: () => void;
+  onCancelar: () => void;
+  nombre: string;
+  onNombre: (v: string) => void;
+  telefono: string;
+  onTelefono: (v: string) => void;
+  telefonoPlaceholder: string;
+  email: string;
+  onEmail: (v: string) => void;
+  guardando: boolean;
+  error: string | null;
+  onGuardar: () => void;
+}) {
+  if (!abierto) {
+    return (
+      <Pressable style={styles.agregarBtn} onPress={onAbrir}>
+        <Text style={styles.agregarBtnTexto}>+ Agregar operador</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.nuevoBloque}>
+      <Text style={styles.label}>Nombre completo</Text>
+      <TextInput style={styles.input} value={nombre} onChangeText={onNombre} placeholderTextColor={colors.textMuted} />
+      <Text style={styles.label}>Teléfono (para el mensaje de bienvenida por WhatsApp)</Text>
+      <TextInput
+        style={styles.input}
+        value={telefono}
+        onChangeText={onTelefono}
+        keyboardType="phone-pad"
+        placeholder={telefonoPlaceholder}
+        placeholderTextColor={colors.textMuted}
+      />
+      <Text style={styles.label}>Correo Gmail (con ese correo debe iniciar sesión)</Text>
+      <TextInput
+        style={styles.input}
+        value={email}
+        onChangeText={onEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        placeholder="nombre@gmail.com"
+        placeholderTextColor={colors.textMuted}
+      />
+      {error && <Text style={styles.error}>{error}</Text>}
+      <View style={styles.nuevoAccionesRow}>
+        <Pressable style={styles.guardarNuevoBtn} onPress={onGuardar} disabled={guardando}>
+          {guardando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.guardarNuevoBtnTexto}>Guardar</Text>}
+        </Pressable>
+        <Pressable style={styles.cancelarNuevoBtn} onPress={onCancelar} disabled={guardando}>
+          <Text style={styles.cancelarNuevoBtnTexto}>Cancelar</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  center: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center' },
+  container: { flexGrow: 1, backgroundColor: colors.bg, padding: 24, gap: 12 },
+  rolTitulo: { color: colors.accent, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  nombre: { color: colors.text, fontSize: 25, fontWeight: '800' },
+  email: { color: colors.textMuted, fontSize: 16, marginTop: -8 },
+  telefono: { color: colors.textMuted, fontSize: 16, marginBottom: 4 },
+  planCardGrande: { gap: 10 },
+  planNombreGrande: { color: colors.text, fontSize: 32, fontWeight: '900' },
+  solicitudPendienteBox: {
+    backgroundColor: `${colors.warning}22`,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.sm,
+    padding: 10,
+  },
+  solicitudPendienteTexto: { color: colors.text, fontSize: 14, lineHeight: 18, fontWeight: '600' },
+  avisoRenovacionBox: {
+    backgroundColor: `${colors.danger}18`,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 8,
+  },
+  avisoRenovacionTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  avisoRenovacionTexto: { color: colors.textMuted, fontSize: 14, lineHeight: 18 },
+  metaBloque: { marginTop: 8, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
+  metaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  metaFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 10,
+  },
+  metaFilaDatos: { flex: 1, gap: 2 },
+  metaFilaNombre: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  metaFilaDato: { color: colors.textMuted, fontSize: 14 },
+  metaSolicitarBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
+  metaSolicitarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  metaFormulario: { marginTop: 12, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
+  metaFormularioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
+  cardTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  cardTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
+  boton: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center' },
+  botonTexto: { color: colors.text, fontWeight: '700' },
+  label: { color: colors.textMuted, fontSize: 14, fontWeight: '600', marginTop: 8 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    color: colors.text,
+    fontSize: 17,
+    marginTop: 5,
+    backgroundColor: colors.cardAlt,
+  },
+  error: { color: colors.danger, fontSize: 15, marginTop: 6 },
+  guardarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center', marginTop: 12 },
+  guardarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  miembroFila: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4, gap: 2 },
+  miembroHeaderRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  miembroInputNombre: { flex: 1, minWidth: 0, marginTop: 0 },
+  miembroEliminarBtn: { padding: 8 },
+  miembroEliminarTexto: { color: colors.danger, fontWeight: '800', fontSize: 16 },
+  miembroNombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  miembroDato: { color: colors.textMuted, fontSize: 14 },
+  asignadosBloque: { marginTop: 6, gap: 2 },
+  asignadosLabel: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
+  asignadosItem: { color: colors.accent, fontSize: 14, fontWeight: '600' },
+  asignarBtn: { alignSelf: 'flex-start', marginTop: 8 },
+  asignarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
+  filaBotonesFinales: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
+  whatsappBtn: { alignSelf: 'flex-start', marginTop: 8 },
+  whatsappBtnTexto: { color: colors.success, fontWeight: '700', fontSize: 15 },
+  asignadoVe: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic', marginTop: 2 },
+  permisoTasaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 10,
+  },
+  permisoTasaTextos: { flex: 1, gap: 2 },
+  permisoTasaLabel: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  permisoTasaTexto: { color: colors.textMuted, fontSize: 13, lineHeight: 16 },
+  permisoTasaCheck: { color: colors.textMuted, fontWeight: '800', fontSize: 13 },
+  permisoTasaCheckActivo: { color: colors.success },
+  agregarBtn: { marginTop: 10, alignSelf: 'flex-start' },
+  agregarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
+  limiteTexto: { color: colors.warning, fontSize: 14, fontWeight: '600', marginTop: 10 },
+  nuevoBloque: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, gap: 4 },
+  nuevoAccionesRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  guardarNuevoBtn: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  guardarNuevoBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  cancelarNuevoBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center' },
+  cancelarNuevoBtnTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 15 },
+  buttonOutline: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
+  buttonOutlineText: { color: colors.accent, fontWeight: '700' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: 20, gap: 10, width: '100%', maxWidth: 420 },
+  modalTitulo: { color: colors.text, fontSize: 21, fontWeight: '900' },
+  modalTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 19 },
+  miembroOpcion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    gap: 8,
+  },
+  miembroOpcionActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
+  miembroOpcionDatos: { flex: 1, gap: 2 },
+  miembroOpcionNombre: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  miembroOpcionDato: { color: colors.textMuted, fontSize: 13 },
+  miembroOpcionCheck: { color: colors.textMuted, fontSize: 21, fontWeight: '900' },
+  miembroOpcionCheckActivo: { color: colors.success },
+  modalCerrar: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
+  modalCerrarTexto: { color: colors.textMuted, fontWeight: '700' },
+});

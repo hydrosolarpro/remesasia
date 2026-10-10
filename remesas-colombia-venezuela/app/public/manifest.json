@@ -1,0 +1,13 @@
+{
+  "name": "Remesas PERU-VENEZUELA",
+  "short_name": "Remesas IA",
+  "description": "Envío de dinero entre Perú y Venezuela.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "browser",
+  "background_color": "#0A0E1B",
+  "theme_color": "#0A0E1B",
+  "icons": [
+    { "src": "/app-icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
+  ]
+}
