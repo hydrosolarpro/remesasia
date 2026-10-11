@@ -32,6 +32,8 @@ import { ClientesMiembroList } from '../../components/ClientesMiembroList';
 import { ComisionInput } from '../../components/ComisionInput';
 import { ComisionPorCorredor } from '../../components/ComisionPorCorredor';
 import { CorredoresDelOperador } from '../../components/CorredoresDelOperador';
+import { SelectorCorredor } from '../../components/SelectorCorredor';
+import { useCorredor } from '../../lib/corredor';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
@@ -42,6 +44,18 @@ const FORMATTER_FECHA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month
 
 export default function Perfil() {
   const { usuario } = useAuth();
+  // Equipos por corredor: con más de un corredor activo, los equipos se arman y se
+  // ven POR CORREDOR (el elegido en el selector); "Todos" muestra todo el equipo.
+  const { corredor, esConsolidado, multiCorredor } = useCorredor();
+  const equipoPorCorredor = multiCorredor && !esConsolidado;
+  const [marcasEquipo, setMarcasEquipo] = useState<Set<string>>(new Set());
+  const [operadoresConMarcas, setOperadoresConMarcas] = useState<Set<string>>(new Set());
+  const enCorredor = (tipo: 'peru_miembro' | 'venezuela', id: string) =>
+    !equipoPorCorredor
+      ? true
+      : operadoresConMarcas.has(`${tipo}|${id}`)
+        ? marcasEquipo.has(`${tipo}|${id}|${corredor.id}`)
+        : corredor.id === 'PE-VE';
   const [negocioId, setNegocioId] = useState<string | null>(null);
   const [esPrincipal, setEsPrincipal] = useState(false);
   const [miembroId, setMiembroId] = useState<string | null>(null);
@@ -201,6 +215,18 @@ export default function Perfil() {
     ]);
     setVeList((veResult.data as OperadorVenezuelaPerfil[] | null) ?? []);
     setPeList((peResult.data as OperadorPeruMiembro[] | null) ?? []);
+    const { data: marcasData } = await supabase
+      .from('equipo_corredor')
+      .select('tipo, operador_id, corredor')
+      .eq('negocio_id', negocioIdParam);
+    const marcas = new Set<string>();
+    const conMarcas = new Set<string>();
+    ((marcasData as { tipo: string; operador_id: string; corredor: string }[] | null) ?? []).forEach((m) => {
+      marcas.add(`${m.tipo}|${m.operador_id}|${m.corredor}`);
+      conMarcas.add(`${m.tipo}|${m.operador_id}`);
+    });
+    setMarcasEquipo(marcas);
+    setOperadoresConMarcas(conMarcas);
     const clientes = (clientesResult.data as Usuario[] | null) ?? [];
     setClientesNegocio(clientes);
     setClientesBajaNegocio((clientesBajaResult.data as Usuario[] | null) ?? []);
@@ -324,16 +350,26 @@ export default function Perfil() {
       return;
     }
     setGuardandoVe(true);
-    const { error } = await supabase.from('operador_venezuela_perfil').insert({
-      operador_peru_id: negocioId,
-      nombre: veNombre.trim(),
-      telefono: veTelefono.trim() || null,
-      email: veEmail.trim().toLowerCase(),
-    });
+    const { data: nuevoVe, error } = await supabase
+      .from('operador_venezuela_perfil')
+      .insert({
+        operador_peru_id: negocioId,
+        nombre: veNombre.trim(),
+        telefono: veTelefono.trim() || null,
+        email: veEmail.trim().toLowerCase(),
+      })
+      .select('id')
+      .single();
     setGuardandoVe(false);
-    if (error) {
-      setErrorVe(error.message);
+    if (error || !nuevoVe) {
+      setErrorVe(error?.message ?? 'No se pudo agregar al operador.');
       return;
+    }
+    // Equipo por corredor: el nuevo operador queda asignado al corredor elegido.
+    if (equipoPorCorredor) {
+      await supabase
+        .from('equipo_corredor')
+        .insert({ negocio_id: negocioId, tipo: 'venezuela', operador_id: nuevoVe.id, corredor: corredor.id });
     }
     setVeNombre('');
     setVeTelefono('');
@@ -355,16 +391,25 @@ export default function Perfil() {
       return;
     }
     setGuardandoPe(true);
-    const { error } = await supabase.from('operador_peru_miembro').insert({
-      operador_peru_id: negocioId,
-      nombre: peNombre.trim(),
-      telefono: peTelefono.trim() || null,
-      email: peEmail.trim().toLowerCase(),
-    });
+    const { data: nuevoPe, error } = await supabase
+      .from('operador_peru_miembro')
+      .insert({
+        operador_peru_id: negocioId,
+        nombre: peNombre.trim(),
+        telefono: peTelefono.trim() || null,
+        email: peEmail.trim().toLowerCase(),
+      })
+      .select('id')
+      .single();
     setGuardandoPe(false);
-    if (error) {
-      setErrorPe(error.message);
+    if (error || !nuevoPe) {
+      setErrorPe(error?.message ?? 'No se pudo agregar al operador.');
       return;
+    }
+    if (equipoPorCorredor) {
+      await supabase
+        .from('equipo_corredor')
+        .insert({ negocio_id: negocioId, tipo: 'peru_miembro', operador_id: nuevoPe.id, corredor: corredor.id });
     }
     setPeNombre('');
     setPeTelefono('');
@@ -691,14 +736,27 @@ export default function Perfil() {
         </Collapsible>
       )}
 
+      {esPrincipal && multiCorredor && (
+        <View style={styles.equipoCorredorBox}>
+          <Text style={styles.equipoCorredorTitulo}>Equipo por corredor</Text>
+          <Text style={styles.cardTexto}>
+            Elige un corredor para ver y armar su equipo de operadores (país de recepción y Venezuela). Cada operador nuevo
+            queda asignado al corredor elegido; con "Todos" ves todo el equipo.
+          </Text>
+          <SelectorCorredor permitirTodos />
+        </View>
+      )}
+
       {esPrincipal && (
         <Collapsible
           abiertoPorDefecto
-          titulo={`OPERADORES EN VENEZUELA - EQUIPO (${veList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela})`}
+          titulo={`OPERADORES EN VENEZUELA - EQUIPO${equipoPorCorredor ? ` · ${corredor.paisRecepcion}-${corredor.paisEntrega}` : ''} (${veList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).venezuela})`}
           subtitulo="Asigna a cada Operador de Venezuela los operadores de Perú que deberá atender."
         >
-          {veList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ninguno registrado.</Text>}
-          {veList.map((v) => (
+          {veList.filter((v) => enCorredor('venezuela', v.id)).length === 0 && (
+            <Text style={styles.cardTexto}>Todavía no hay ninguno registrado{equipoPorCorredor ? ' en este corredor' : ''}.</Text>
+          )}
+          {veList.filter((v) => enCorredor('venezuela', v.id)).map((v) => (
             <Collapsible
               key={v.id}
               titulo={v.nombre}
@@ -737,7 +795,7 @@ export default function Perfil() {
               <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
               <ComisionInput style={styles.input} valor={v.comision_pct} onGuardar={(pct) => editarComisionVe(v.id, pct)} />
               <ComisionPorCorredor tipo="venezuela" operadorId={v.id} base={v.comision_pct} />
-              <CorredoresDelOperador tipo="venezuela" operadorId={v.id} />
+              <CorredoresDelOperador tipo="venezuela" operadorId={v.id} onCambio={() => negocioId && cargarEquipos(negocioId)} />
               {peList.filter((p) => p.operador_venezuela_id === v.id).length > 0 && (
                 <View style={styles.asignadosBloque}>
                   <Text style={styles.asignadosLabel}>Operadores de Perú asignados:</Text>
@@ -797,10 +855,12 @@ export default function Perfil() {
       {esPrincipal && (
         <Collapsible
           abiertoPorDefecto
-          titulo={`OPERADORES EN PERÚ - EQUIPO (${peList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru})`}
+          titulo={`OPERADORES EN ${(corredor.paisRecepcion ?? 'Perú').toUpperCase()} - EQUIPO (${peList.length}/${obtenerLimitesEquipo(usuario.plan, usuario.limite_clientes_unlimited).peru})`}
         >
-          {peList.length === 0 && <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado.</Text>}
-          {peList.map((p) => {
+          {peList.filter((p) => enCorredor('peru_miembro', p.id)).length === 0 && (
+            <Text style={styles.cardTexto}>Todavía no hay ningún miembro agregado{equipoPorCorredor ? ' en este corredor' : ''}.</Text>
+          )}
+          {peList.filter((p) => enCorredor('peru_miembro', p.id)).map((p) => {
             const veAsignado = veList.find((v) => v.id === p.operador_venezuela_id);
             const bajaDeEstePe = clientesBajaNegocio.filter((c) => c.invitado_por_operador_miembro_id === p.id);
             // Reciente = últimas 72h -- mismo criterio que
@@ -851,7 +911,7 @@ export default function Perfil() {
                 <Text style={styles.label}>% Comisión (sobre la ganancia bruta de cada operación)</Text>
                 <ComisionInput style={styles.input} valor={p.comision_pct} onGuardar={(pct) => editarComisionPe(p.id, pct)} />
                 <ComisionPorCorredor tipo="peru_miembro" operadorId={p.id} base={p.comision_pct} />
-                <CorredoresDelOperador tipo="peru_miembro" operadorId={p.id} />
+                <CorredoresDelOperador tipo="peru_miembro" operadorId={p.id} onCambio={() => negocioId && cargarEquipos(negocioId)} />
                 <Text style={styles.asignadoVe}>{veAsignado ? `Asignado a: ${veAsignado.nombre}` : 'Sin Operador de Venezuela asignado'}</Text>
 
                 <Pressable
@@ -1093,6 +1153,8 @@ const styles = StyleSheet.create({
   metaFormularioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 8 },
   cardTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  equipoCorredorBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 12, gap: 6 },
+  equipoCorredorTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   cardTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
   boton: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 14, alignItems: 'center' },
   botonTexto: { color: colors.text, fontWeight: '700' },

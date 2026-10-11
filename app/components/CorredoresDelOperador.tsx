@@ -14,9 +14,12 @@ import { colors, radius } from '../constants/theme';
 export function CorredoresDelOperador({
   tipo,
   operadorId,
+  onCambio,
 }: {
   tipo: 'peru_miembro' | 'venezuela';
   operadorId: string;
+  /** Se llama tras guardar un cambio (para refrescar las listas de equipo por corredor). */
+  onCambio?: () => void;
 }) {
   const { usuario } = useAuth();
   const { corredores } = useCorredor();
@@ -76,6 +79,7 @@ export function CorredoresDelOperador({
       return;
     }
     cargar();
+    onCambio?.();
   };
 
   return (
