@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoModal }) => {
           </a>
 
           {/* Banderas de los corredores */}
-          <div className="hidden md:flex items-center gap-1.5 h-9 rounded-lg border border-slate-800 shadow-md bg-slate-900 px-2.5">
+          <div className="hidden xl:flex items-center gap-1.5 h-9 rounded-lg border border-slate-800 shadow-md bg-slate-900 px-2.5">
             <FlagPeru className="h-5 w-7" />
             <FlagColombia className="h-5 w-7" />
             <FlagChile className="h-5 w-7" />
