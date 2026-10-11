@@ -196,7 +196,7 @@ export default function OnboardingNegocio() {
 
       <Section titulo="Negocio">
         <Label texto="Nombre del negocio" />
-        <TextInput style={styles.input} value={nombreNegocio} onChangeText={setNombreNegocio} placeholder="Remesas Perú-Venezuela" placeholderTextColor={colors.textMuted} />
+        <TextInput style={styles.input} value={nombreNegocio} onChangeText={setNombreNegocio} placeholder="Remesas IA" placeholderTextColor={colors.textMuted} />
 
         <Label texto="Logo" />
         <LogoPicker uri={logoUrl} subiendo={subiendoImagen === 'logo'} onPress={() => subirImagen('logo')} />

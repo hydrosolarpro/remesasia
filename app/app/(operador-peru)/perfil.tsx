@@ -378,7 +378,7 @@ export default function Perfil() {
   // el que debe iniciar sesión, ya que la vinculación a su sesión es por
   // ese correo (ver handle_new_user / vincular_cuenta_pendiente).
   const enviarBienvenidaWhatsApp = (nombre: string, telefono: string | null, email: string | null, rolTexto: string) => {
-    const mensaje = `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Perú'} te registró como ${rolTexto} en Remesas PERU-VENEZUELA. Ingresa a https://remesasia.vercel.app/ y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
+    const mensaje = `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Perú'} te registró como ${rolTexto} en Remesas IA. Ingresa a https://remesasia.vercel.app/ y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
     const enlace = construirEnlaceWhatsAppGenerico(telefono, mensaje);
     if (!enlace) {
       const aviso = 'Agrega un teléfono válido para poder enviar el mensaje de bienvenida por WhatsApp.';
@@ -477,7 +477,7 @@ export default function Perfil() {
               <Text style={styles.miembroDato}>{miVe.email}</Text>
               <Text style={styles.miembroDato}>{miVe.telefono ?? 'Sin teléfono'}</Text>
               {(() => {
-                const enlace = construirEnlaceWhatsAppGenerico(miVe.telefono, `Hola ${miVe.nombre}, te escribo por Remesas PERU-VENEZUELA.`);
+                const enlace = construirEnlaceWhatsAppGenerico(miVe.telefono, `Hola ${miVe.nombre}, te escribo por Remesas IA.`);
                 return (
                   enlace && (
                     <Pressable style={styles.whatsappBtn} onPress={() => Linking.openURL(enlace)}>

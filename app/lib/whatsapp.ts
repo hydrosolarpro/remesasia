@@ -67,15 +67,20 @@ export function construirEnlaceWhatsAppAdmin(mensaje: string): string {
 // (tanto el de Perú -> cliente, como el de Venezuela -> beneficiario): el
 // mismo texto para ambos casos, a pedido explícito del negocio.
 export function mensajeConfirmacionDeposito(nombreNegocio: string, entidadBancaria: string, montoVesFormateado: string): string {
-  return `Gracias por su confianza en Remesas PERU-VENEZUELA - ${nombreNegocio}, se ha transferido a su cuenta ${entidadBancaria} la cantidad de VES ${montoVesFormateado}, por favor revisar y verificar el depósito en cuenta. Muchas Gracias !!!!.`;
+  return `Gracias por su confianza en Remesas IA - ${nombreNegocio}, se ha transferido a su cuenta ${entidadBancaria} la cantidad de VES ${montoVesFormateado}, por favor revisar y verificar el depósito en cuenta. Muchas Gracias !!!!.`;
 }
 
 // Aviso al CLIENTE (Perú) apenas el operador valida que su pago llegó en
 // Perú -- mismo texto que el aviso automático de Telegram (notificarCliente
 // en supabase/functions/telegram-notificar-deposito), para que el cliente
 // reciba el mismo mensaje sin importar el canal.
-export function mensajeAvisoClientePeruValidado(nombreCliente: string, nombreNegocio: string, montoPenFormateado: string): string {
-  return `✅ Gracias ${nombreCliente} por tu confianza en ${nombreNegocio}. Tu depósito de S/ ${montoPenFormateado} fue validado. En breve se realizará la transferencia a la cuenta en Venezuela que ha solicitado. Revisa tus "Solicitudes" en el aplicativo Remesas PERU-VENEZUELA.`;
+export function mensajeAvisoClientePeruValidado(
+  nombreCliente: string,
+  nombreNegocio: string,
+  montoPenFormateado: string,
+  simboloMoneda = 'S/'
+): string {
+  return `✅ Gracias ${nombreCliente} por tu confianza en ${nombreNegocio}. Tu depósito de ${simboloMoneda} ${montoPenFormateado} fue validado. En breve se realizará la transferencia a la cuenta en Venezuela que ha solicitado. Revisa tus "Solicitudes" en el aplicativo Remesas IA.`;
 }
 
 // Aviso al CLIENTE (Perú) apenas el operador de Venezuela carga el

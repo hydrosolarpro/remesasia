@@ -86,7 +86,7 @@ export default function Perfil() {
   }, [usuario?.negocio_operador_peru_id, usuario?.invitado_por_operador_miembro_id]);
 
   const enlaceWhatsAppOperador = operador
-    ? construirEnlaceWhatsAppGenerico(operador.telefono, 'Hola, necesito ayuda con una solicitud en Remesas PERU-VENEZUELA.')
+    ? construirEnlaceWhatsAppGenerico(operador.telefono, 'Hola, necesito ayuda con una solicitud en Remesas IA.')
     : null;
 
   // El Image de RN no puede previsualizar un PDF -- se detecta por la

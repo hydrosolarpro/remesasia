@@ -79,7 +79,7 @@ export const BANCO_IMAGENES: BancoImagen[] = [
   { slug: 'familia-remesa-3', titulo: 'Familia y remesa 3', ancho: 1280, alto: 698 },
   { slug: 'remittance-app-peru-ve', titulo: 'App de remesas Perú-Venezuela', ancho: 1280, alto: 714 },
   { slug: 'remittance-office-family', titulo: 'La remesa conecta oficina y familia', ancho: 1280, alto: 714 },
-  { slug: 'remesas-peru-venezuela-ilustracion', titulo: 'Remesas Perú-Venezuela (ilustración)', ancho: 1280, alto: 1280 },
+  { slug: 'remesas-peru-venezuela-ilustracion', titulo: 'Remesas IA (ilustración)', ancho: 1280, alto: 1280 },
   { slug: 'hand-smartphone-showing', titulo: 'Mano con celular mostrando la app', ancho: 1280, alto: 714 },
   { slug: 'person-smartphone-transfer', titulo: 'Persona transfiriendo desde el celular', ancho: 1280, alto: 714 },
   { slug: 'finger-pressing-send', titulo: 'Dedo presionando Enviar en el celular', ancho: 1280, alto: 714 },

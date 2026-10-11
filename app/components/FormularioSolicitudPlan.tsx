@@ -70,7 +70,7 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
         }
       }
 
-      const mensaje = `Hola! Soy ${usuario.nombre} (${usuario.email}). Quiero consultar la tarifa del plan UNLIMITED para mi negocio en Remesas PERÚ-VENEZUELA -- necesito atender hasta ${cupo} clientes.`;
+      const mensaje = `Hola! Soy ${usuario.nombre} (${usuario.email}). Quiero consultar la tarifa del plan UNLIMITED para mi negocio en Remesas IA -- necesito atender hasta ${cupo} clientes.`;
       Linking.openURL(construirEnlaceWhatsAppAdmin(mensaje));
       await refreshUsuario();
       setEnviado(true);
@@ -382,7 +382,7 @@ function FormularioSolicitudPlanFijo({
       </View>
 
       <View style={[styles.card, cardShadow, styles.terminosBox]}>
-        <Text style={styles.terminosTitulo}>Términos y condiciones de uso de la plataforma Remesas PERÚ-VENEZUELA</Text>
+        <Text style={styles.terminosTitulo}>Términos y condiciones de uso de la plataforma Remesas IA</Text>
         <Text style={styles.terminosTexto}>
           Importante: antes de enviar tu solicitud de plan {planLabel(plan)} debes leer los Términos y Condiciones de Uso. Al
           marcar la aceptación declaras que los leíste, comprendiste y aceptas íntegramente. No se puede enviar la solicitud sin

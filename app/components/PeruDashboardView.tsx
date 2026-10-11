@@ -32,7 +32,7 @@ import { useCorredor } from '../lib/corredor';
 import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
 import { colors, radius, cardShadow } from '../constants/theme';
 
-// Panel de operaciones de Remesas Perú-Venezuela. Lo usan las tres
+// Panel de operaciones de Remesas IA. Lo usan las tres
 // sesiones de operador, cada una con su alcance:
 //
 //   * 'principal'  (Operador principal de Perú): TODAS las operaciones del
@@ -626,10 +626,10 @@ export function PeruDashboardView({
       return;
     }
     if (quiereWhatsApp) {
-      const nombreNegocio = perfil?.nombre_negocio || 'Remesas Perú-Venezuela';
+      const nombreNegocio = perfil?.nombre_negocio || 'Remesas IA';
       const enlace = construirEnlaceWhatsAppGenerico(
         op.cliente_telefono,
-        mensajeAvisoClientePeruValidado(op.cliente_nombre, nombreNegocio, op.monto_pen.toFixed(2))
+        mensajeAvisoClientePeruValidado(op.cliente_nombre, nombreNegocio, op.monto_pen.toFixed(2), configDe(op.corredor).monedaSimbolo)
       );
       intentarAvisarClientePorWhatsApp(enlace, pestanaWhatsApp);
     }
@@ -1057,7 +1057,7 @@ export function PeruDashboardView({
                 style={styles.gridItem}
                 op={op}
                 numero={numeracion.get(op.id)}
-                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas IA'}
                 puedeValidarPeru={!esVenezuela}
                 puedeValidarVe={op.check_deposito_peru && (esVenezuela || (esPrincipal && puedeValidarVeAunSinSerElMismo))}
                 onValidarPeru={() => validarPeru(op)}
@@ -1100,7 +1100,7 @@ export function PeruDashboardView({
                 style={styles.gridItem}
                 op={op}
                 numero={numeracion.get(op.id)}
-                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas IA'}
                 puedeValidarPeru={false}
                 puedeValidarVe={false}
                 onValidarPeru={() => {}}
@@ -1128,7 +1128,7 @@ export function PeruDashboardView({
                 style={styles.gridItem}
                 op={op}
                 numero={numeracion.get(op.id)}
-                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas IA'}
                 puedeValidarPeru={true}
                 puedeValidarVe={false}
                 onValidarPeru={() => validarPeru(op)}
@@ -1154,7 +1154,7 @@ export function PeruDashboardView({
                 style={styles.gridItem}
                 op={op}
                 numero={numeracion.get(op.id)}
-                nombreNegocio={perfil?.nombre_negocio || 'Remesas Perú-Venezuela'}
+                nombreNegocio={perfil?.nombre_negocio || 'Remesas IA'}
                 puedeValidarPeru={false}
                 puedeValidarVe={false}
                 onValidarPeru={() => {}}

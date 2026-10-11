@@ -206,7 +206,7 @@ export default function Invitacion() {
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <BannerTitle />
-      <Text style={styles.titulo}>Te invitaron a Remesas PERÚ-VENEZUELA</Text>
+      <Text style={styles.titulo}>Te invitaron a Remesas IA</Text>
       <Text style={styles.subtitulo}>Entra con tu número de teléfono y un PIN, o con Google.</Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}

@@ -153,9 +153,9 @@ export function enlaceWaEnviarPin(
 ): string {
   const { nombreNegocio, temporal = true } = opciones ?? {};
   const mensaje = temporal
-    ? `Tu acceso a Remesas PERU-VENEZUELA${nombreNegocio ? ` (${nombreNegocio})` : ''}: entra con tu numero de telefono y este PIN: ${pin}. ` +
+    ? `Tu acceso a Remesas IA${nombreNegocio ? ` (${nombreNegocio})` : ''}: entra con tu numero de telefono y este PIN: ${pin}. ` +
       `Al ingresar te pedira crear tu PIN definitivo de 4 digitos.`
-    : `Tu acceso a Remesas PERU-VENEZUELA${nombreNegocio ? ` (${nombreNegocio})` : ''}: entra con tu numero de telefono +${telefonoE164.replace(/\D/g, '')} y tu PIN: ${pin}. ` +
+    : `Tu acceso a Remesas IA${nombreNegocio ? ` (${nombreNegocio})` : ''}: entra con tu numero de telefono +${telefonoE164.replace(/\D/g, '')} y tu PIN: ${pin}. ` +
       `Puedes cambiar tu PIN cuando quieras desde tu Perfil.`;
   return `https://wa.me/${telefonoE164.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
 }
@@ -163,7 +163,7 @@ export function enlaceWaEnviarPin(
 /** Enlace wa.me al soporte cuando alguien olvidó su PIN desde la pantalla de login. */
 export function enlaceWaOlvidePin(telefono: string): string {
   const mensaje =
-    `Hola, olvide mi PIN de acceso a Remesas PERU-VENEZUELA. ` +
+    `Hola, olvide mi PIN de acceso a Remesas IA. ` +
     `Mi numero de telefono es ${telefono.trim() || '(escribe aqui tu numero)'}. Por favor ayudame a recuperarlo.`;
   return `https://wa.me/${NUMERO_ADMIN_WHATSAPP}?text=${encodeURIComponent(mensaje)}`;
 }

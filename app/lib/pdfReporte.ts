@@ -102,7 +102,7 @@ export async function generarYCompartirPdf(
         <h1>${titulo}</h1>
         <p class="subtitulo">${subtitulo}</p>
         ${cuerpoHtml}
-        <p class="pie">Generado automáticamente por App Remesas IA — Remesas PERU-VENEZUELA</p>
+        <p class="pie">Generado automáticamente por App Remesas IA — Remesas IA</p>
       </body>
     </html>
   `;

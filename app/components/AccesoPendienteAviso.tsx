@@ -13,7 +13,7 @@ export function AccesoPendienteAviso({ rol, etiqueta }: { rol: Rol; etiqueta?: s
     <View style={styles.center}>
       <RoleTag rol={rol} etiqueta={etiqueta} />
       <View style={[styles.card, cardShadow]}>
-        <Text style={styles.titulo}>Pronto se apertura el acceso a Remesas PERÚ-VENEZUELA</Text>
+        <Text style={styles.titulo}>Pronto se apertura el acceso a Remesas IA</Text>
       </View>
     </View>
   );

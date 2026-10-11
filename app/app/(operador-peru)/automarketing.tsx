@@ -372,7 +372,7 @@ export default function Automarketing() {
             style={styles.input}
             value={nombreNegocio}
             onChangeText={setNombreNegocio}
-            placeholder="Remesas Perú-Venezuela"
+            placeholder="Remesas IA"
             placeholderTextColor={colors.textMuted}
           />
 

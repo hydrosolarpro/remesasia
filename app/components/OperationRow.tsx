@@ -210,7 +210,7 @@ export function OperationRow({
   const clienteQuiereWhatsApp = op.cliente_canal_notificacion !== 'telegram';
   const enlaceWhatsAppClientePeru =
     clienteQuiereWhatsApp && op.check_deposito_peru
-      ? construirEnlaceWhatsAppGenerico(op.cliente_telefono, mensajeAvisoClientePeruValidado(op.cliente_nombre, nombreNegocio, op.monto_pen.toFixed(2)))
+      ? construirEnlaceWhatsAppGenerico(op.cliente_telefono, mensajeAvisoClientePeruValidado(op.cliente_nombre, nombreNegocio, op.monto_pen.toFixed(2), moneda === 'PEN' ? 'S/' : moneda))
       : null;
   const enlaceWhatsAppClienteVe =
     clienteQuiereWhatsApp && op.check_deposito_ve

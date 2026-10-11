@@ -6,7 +6,7 @@ import { ZoomableImageModal } from './ZoomableImageModal';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const MENSAJE_COMPARTIR =
-  '📲 Así puedes instalar la app de Remesas Perú-Venezuela en tu celular, paso a paso:';
+  '📲 Así puedes instalar la app de Remesas IA en tu celular, paso a paso:';
 
 // Tarjeta con la infografía de instalación (agregar la web app a la
 // pantalla de inicio del celular) -- todos pueden verla con zoom y
@@ -25,7 +25,7 @@ export function InstalarAppCard({ puedeEnviar = false }: { puedeEnviar?: boolean
   return (
     <View style={[styles.card, cardShadow]}>
       <Text style={styles.titulo}>Instalar la app en el celular</Text>
-      <Text style={styles.ayuda}>Guía paso a paso para agregar Remesas Perú-Venezuela a la pantalla de inicio.</Text>
+      <Text style={styles.ayuda}>Guía paso a paso para agregar Remesas IA a la pantalla de inicio.</Text>
       <Pressable onPress={() => setZoom(true)}>
         <Image source={{ uri: IMAGEN_INSTALAR_APP_URL }} style={styles.imagen} resizeMode="contain" />
         <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
