@@ -419,8 +419,8 @@ function FormularioSolicitudPlanFijo({
           marcar la aceptación declaras que los leíste, comprendiste y aceptas íntegramente. No se puede enviar la solicitud sin
           aceptarlos.
         </Text>
-        <Pressable onPress={() => Linking.openURL('/legal/terminos-legales-remesas-peru-venezuela.pdf')}>
-          <Text style={styles.linkPdf}>📁 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS PERÚ-VENEZUELA (PDF)</Text>
+        <Pressable onPress={() => Linking.openURL('/legal/terminos-legales-remesas-ia.pdf')}>
+          <Text style={styles.linkPdf}>📁 Descargar TÉRMINOS LEGALES Y DE USO DE REMESAS IA (PDF)</Text>
         </Pressable>
         <View style={styles.terminosAceptacion}>
           <TouchableOpacity onPress={() => setAceptaTerminos((v) => !v)} style={styles.checkboxContainer}>
