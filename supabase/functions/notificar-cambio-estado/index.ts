@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { enviarPush } from '../_shared/fcm.ts';
+import { monedaDeSolicitud } from '../_shared/moneda.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
@@ -31,7 +32,8 @@ Deno.serve(async (req) => {
 
     const destinatario = await resolverDestinatario(supabase, solicitud, estado_nuevo);
     if (destinatario?.push_token) {
-      const { titulo, cuerpo } = mensajePorEstado(estado_nuevo, solicitud);
+      const moneda = await monedaDeSolicitud(supabase, solicitud);
+      const { titulo, cuerpo } = mensajePorEstado(estado_nuevo, solicitud, moneda.etiqueta);
       await enviarPush(destinatario.push_token, titulo, cuerpo, { solicitud_id, estado: estado_nuevo });
     }
 
@@ -75,10 +77,10 @@ async function resolverDestinatario(supabase: any, solicitud: any, estadoNuevo: 
 }
 
 // deno-lint-ignore no-explicit-any
-function mensajePorEstado(estado: string, solicitud: any): { titulo: string; cuerpo: string } {
+function mensajePorEstado(estado: string, solicitud: any, monedaEtiqueta = 'S/'): { titulo: string; cuerpo: string } {
   switch (estado) {
     case 'EN_VERIFICACION':
-      return { titulo: 'Nueva solicitud con comprobante', cuerpo: `${solicitud.beneficiario_nombre} — S/ ${solicitud.monto_pen}` };
+      return { titulo: 'Nueva solicitud con comprobante', cuerpo: `${solicitud.beneficiario_nombre} — ${monedaEtiqueta} ${solicitud.monto_pen}` };
     case 'FONDOS_VERIFICADOS':
       return { titulo: 'Fondos verificados', cuerpo: 'Tu pago fue confirmado, estamos procesando tu remesa.' };
     case 'RECHAZADA':

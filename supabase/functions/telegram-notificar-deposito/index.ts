@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { sendTelegramMessage, sendTelegramPhotos } from '../_shared/telegram.ts';
 import { formatearBs } from '../_shared/formato.ts';
+import { monedaDeSolicitud } from '../_shared/moneda.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
@@ -68,7 +69,7 @@ async function nombreNegocioDe(supabase: any, negocioOperadorPeruId: string): Pr
     .select('nombre_negocio')
     .eq('operador_peru_id', negocioOperadorPeruId)
     .maybeSingle();
-  return data?.nombre_negocio || 'Remesas PERU-VENEZUELA';
+  return data?.nombre_negocio || 'Remesas IA';
 }
 
 // deno-lint-ignore no-explicit-any
@@ -91,11 +92,12 @@ async function notificarCliente(supabase: any, solicitud: any) {
   }
 
   const nombreNegocio = await nombreNegocioDe(supabase, solicitud.negocio_operador_peru_id);
+  const moneda = await monedaDeSolicitud(supabase, solicitud);
   const mensaje =
     `✅ Gracias ${cliente.nombre} por tu confianza en ${nombreNegocio}. ` +
-    `Tu depósito de S/ ${solicitud.monto_pen.toFixed(2)} fue validado. ` +
+    `Tu depósito de ${moneda.etiqueta} ${Number(solicitud.monto_pen).toFixed(2)} fue validado. ` +
     `En breve se realizará la transferencia a la cuenta en Venezuela que ha solicitado. ` +
-    `Revisa tus "Solicitudes" en el aplicativo Remesas PERU-VENEZUELA.`;
+    `Revisa tus "Solicitudes" en el aplicativo Remesas IA.`;
 
   // Adjunta la(s) foto(s) del comprobante de depósito en Perú (el que el
   // propio cliente subió al crear la solicitud) como imagen, con el mismo
@@ -172,7 +174,7 @@ async function notificarBeneficiario(supabase: any, solicitud: any) {
   const nombreCliente = cliente?.nombre ?? 'tu cliente';
 
   const mensaje =
-    `✅ Gracias ${solicitud.beneficiario_nombre} por tu confianza en ${nombreNegocio} de Remesas PERÚ-VENEZUELA. ` +
+    `✅ Gracias ${solicitud.beneficiario_nombre} por tu confianza en ${nombreNegocio} de Remesas IA. ` +
     `Le comunicamos que se ha transferido a su cuenta ${solicitud.beneficiario_cuenta} de la ${solicitud.beneficiario_banco} ` +
     `por una cantidad de Bs ${formatearBs(solicitud.monto_ves)}, solicitado por ${nombreCliente}. ` +
     `Por favor verificar dicho deposito en cuenta. En caso contrario comunicarse con ${nombreCliente}.`;

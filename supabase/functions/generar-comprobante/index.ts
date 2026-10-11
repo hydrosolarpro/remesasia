@@ -1,6 +1,7 @@
 import PDFDocument from 'npm:pdfkit@0.15.0';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
+import { monedaDeSolicitud } from '../_shared/moneda.ts';
 
 /**
  * F9 — Comprobante PDF automático, generado al marcar una solicitud COMPLETADA.
@@ -35,7 +36,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const pdfBytes = await renderizarComprobante(solicitud);
+    const moneda = await monedaDeSolicitud(supabase, solicitud);
+    const pdfBytes = await renderizarComprobante(solicitud, moneda);
     const path = `${solicitud_id}/comprobante.pdf`;
 
     const { error: uploadError } = await supabase.storage
@@ -69,7 +71,7 @@ Deno.serve(async (req) => {
 });
 
 // deno-lint-ignore no-explicit-any
-function renderizarComprobante(solicitud: any): Promise<Uint8Array> {
+function renderizarComprobante(solicitud: any, moneda: { codigo: string; etiqueta: string }): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A5', margin: 40 });
     const chunks: Uint8Array[] = [];
@@ -89,7 +91,7 @@ function renderizarComprobante(solicitud: any): Promise<Uint8Array> {
     doc.fontSize(18).text('App Remesas IA', { align: 'center' });
     // La fuente Helvetica por defecto de pdfkit no tiene el glifo "→" y lo
     // renderiza como caracteres corruptos -- se usa "->" en su lugar.
-    doc.fontSize(11).fillColor('#666').text('Comprobante de transferencia PEN -> VES', { align: 'center' });
+    doc.fontSize(11).fillColor('#666').text(`Comprobante de transferencia ${moneda.codigo} -> VES`, { align: 'center' });
     doc.moveDown(1.5);
 
     doc.fillColor('#000').fontSize(10);
@@ -99,8 +101,8 @@ function renderizarComprobante(solicitud: any): Promise<Uint8Array> {
     fila(doc, 'Banco', solicitud.beneficiario_banco);
     fila(doc, 'Cuenta / teléfono', solicitud.beneficiario_cuenta);
     doc.moveDown(0.5);
-    fila(doc, 'Monto enviado', `S/ ${Number(solicitud.monto_pen).toFixed(2)}`);
-    fila(doc, 'Tasa (S/ 1 = Bs)', `Bs ${Number(solicitud.tasa_pen_ves).toFixed(2)}`);
+    fila(doc, 'Monto enviado', `${moneda.etiqueta} ${Number(solicitud.monto_pen).toFixed(2)}`);
+    fila(doc, `Tasa (${moneda.etiqueta} 1 = Bs)`, `Bs ${Number(solicitud.tasa_pen_ves).toFixed(2)}`);
     doc.moveDown(0.5);
     doc.fontSize(13).text(`Monto recibido: Bs ${Number(solicitud.monto_ves).toFixed(2)}`, { align: 'left' });
 

@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     const token = texto.replace(/^\/start\s*/, '').trim();
     if (!token) {
-      await sendTelegramMessage(String(chatId), 'Usa el enlace de vinculación que te compartieron desde la app Remesas PERU-VENEZUELA.');
+      await sendTelegramMessage(String(chatId), 'Usa el enlace de vinculación que te compartieron desde la app Remesas IA.');
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
