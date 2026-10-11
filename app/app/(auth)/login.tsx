@@ -5,6 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import { signInWithGoogle } from '../../lib/googleAuth';
 import { loginConPin, enlaceWaOlvidePin } from '../../lib/pinAuth';
 import { TelefonoInput, telefonoCompleto } from '../../components/TelefonoInput';
+import { SelectorCorredorLogin } from '../../components/SelectorCorredor';
 import { useAuth } from '../../lib/auth';
 import { colors, radius } from '../../constants/theme';
 
@@ -107,6 +108,8 @@ export default function Login() {
           </View>
         ))}
       </View>
+
+      <SelectorCorredorLogin />
 
       <View style={styles.tabs}>
         <Pressable

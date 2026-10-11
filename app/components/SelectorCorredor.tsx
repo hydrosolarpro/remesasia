@@ -1,5 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useCorredor, banderaCorredor, TODOS_LOS_CORREDORES } from '../lib/corredor';
+import { useCorredor, banderaCorredor, TODOS_LOS_CORREDORES, CorredorId } from '../lib/corredor';
 import { colors, radius } from '../constants/theme';
 
 // Selector de corredor (país de recepción -> Venezuela). Solo aparece si el
@@ -7,6 +7,37 @@ import { colors, radius } from '../constants/theme';
 // la app se ve igual que siempre. `permitirTodos` agrega la vista
 // consolidada (panel y estadísticas del operador); el cliente elige un
 // corredor concreto para cada solicitud.
+// Catálogo para el LOGIN (todavía no sabemos qué corredores tiene activos el negocio).
+const CORREDORES_LOGIN: { id: CorredorId; etiqueta: string }[] = [
+  { id: 'PE-VE', etiqueta: 'Perú → Venezuela' },
+  { id: 'CO-VE', etiqueta: 'Colombia → Venezuela' },
+  { id: 'CL-VE', etiqueta: 'Chile → Venezuela' },
+  { id: 'OT-VE', etiqueta: 'Otro país → Venezuela' },
+];
+
+/** Selector del login: guarda el corredor con el que quiere operar; al entrar se aplica si su negocio lo tiene activo. */
+export function SelectorCorredorLogin() {
+  const { seleccionPreferida, setSeleccion } = useCorredor();
+  return (
+    <View style={styles.wrap}>
+      <Text style={styles.titulo}>Corredor de remesas</Text>
+      <View style={styles.fila}>
+        {CORREDORES_LOGIN.map((c) => (
+          <Pressable
+            key={c.id}
+            style={[styles.chip, seleccionPreferida === c.id && styles.chipActivo]}
+            onPress={() => setSeleccion(c.id)}
+          >
+            <Text style={[styles.chipTexto, seleccionPreferida === c.id && styles.chipTextoActivo]}>
+              {banderaCorredor(c.id)} {c.etiqueta}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function SelectorCorredor({ permitirTodos = false }: { permitirTodos?: boolean }) {
   const { corredores, seleccion, setSeleccion, multiCorredor } = useCorredor();
   if (!multiCorredor) return null;

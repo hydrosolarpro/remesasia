@@ -98,6 +98,8 @@ interface CorredorState {
   corredores: ConfigCorredor[];
   /** Selección actual: un corredor o 'TODOS' (consolidado). */
   seleccion: CorredorSeleccion;
+  /** Lo que el usuario eligió (aunque su negocio todavía no lo tenga activo): se usa en el login. */
+  seleccionPreferida: CorredorSeleccion;
   setSeleccion: (s: CorredorSeleccion) => void;
   /** Configuración del corredor activo; en 'TODOS' es la del primero (para formatos por defecto). */
   corredor: ConfigCorredor;
@@ -112,6 +114,7 @@ interface CorredorState {
 const CorredorContext = createContext<CorredorState>({
   corredores: [CORREDOR_PE_VE],
   seleccion: 'PE-VE',
+  seleccionPreferida: 'PE-VE',
   setSeleccion: () => {},
   corredor: CORREDOR_PE_VE,
   multiCorredor: false,
@@ -192,6 +195,7 @@ export function CorredorProvider({ children }: PropsWithChildren) {
     return {
       corredores,
       seleccion: valida,
+      seleccionPreferida: seleccion,
       setSeleccion,
       corredor: activo,
       multiCorredor: corredores.length > 1,
