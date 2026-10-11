@@ -63,7 +63,7 @@ export function PeruDashboardView({
   miembrosAsignadosIds?: string[] | null;
   puedeValidarVeAunSinSerElMismo?: boolean;
 }) {
-  const { corredor, esConsolidado, configDe } = useCorredor();
+  const { corredor, esConsolidado, configDe, multiCorredor } = useCorredor();
   const moneda = corredor.monedaCodigo;
   const esPrincipal = tipoSesion === 'principal';
   const esMiembroPe = tipoSesion === 'miembro';
@@ -839,6 +839,16 @@ export function PeruDashboardView({
       </Text>
       <LiveClock />
       <SelectorCorredor permitirTodos />
+      {esPrincipal && !multiCorredor && (
+        <Pressable style={styles.corredoresCta} onPress={() => router.push('/(operador-peru)/perfil')}>
+          <Text style={styles.corredoresCtaTitulo}>🌎 Trabaja más países con tu mismo negocio</Text>
+          <Text style={styles.corredoresCtaTexto}>
+            Activa Colombia → Venezuela, Chile → Venezuela u otro país en Perfil → Corredores del negocio. Se abren las
+            sesiones de cliente, operador del país de recepción, operador miembro y operador de Venezuela para ese corredor.
+          </Text>
+          <Text style={styles.corredoresCtaLink}>Ir a Corredores del negocio →</Text>
+        </Pressable>
+      )}
 
       {/* Solo el Operador principal necesita ver el flujo completo del
           negocio (las 3 sesiones involucradas) -- queda siempre visible en
@@ -1330,6 +1340,17 @@ const styles = StyleSheet.create({
   negocioRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   negocioLogo: { width: 84, height: 84, borderRadius: 24, backgroundColor: colors.cardAlt },
   negocioNombre: { color: colors.accent, fontSize: 16, fontWeight: '800', flexShrink: 1 },
+  corredoresCta: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}14`,
+    borderRadius: radius.md,
+    padding: 12,
+    gap: 4,
+  },
+  corredoresCtaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  corredoresCtaTexto: { color: colors.textMuted, fontSize: 14, lineHeight: 19 },
+  corredoresCtaLink: { color: colors.accent, fontSize: 14, fontWeight: '800', marginTop: 4 },
   bienvenida: { color: colors.text, fontSize: 25, fontWeight: '800', marginBottom: -4 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16 },
   tasaCard: { alignItems: 'flex-start', gap: 4, marginTop: 8 },
