@@ -58,7 +58,7 @@ export const ComparisonTable: React.FC = () => {
               },
               {
                 trad: 'Riesgo de desacuerdos entre operadores PE/VE',
-                digi: 'Sincronización Transparente Perú ↔ Venezuela en Segundos'
+                digi: 'Sincronización Transparente entre país de recepción y Venezuela en Segundos'
               }
             ].map((item, idx) => (
               <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
@@ -76,7 +76,7 @@ export const ComparisonTable: React.FC = () => {
                   <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
                     <span className="text-[9px] font-mono font-bold text-cyan-400 uppercase block mb-0.5 flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-cyan-400" /> REMESAS PERÚ-VENEZUELA
+                      <Zap className="w-3 h-3 text-cyan-400" /> REMESAS IA
                     </span>
                     <span>{item.digi}</span>
                   </div>
@@ -99,7 +99,7 @@ export const ComparisonTable: React.FC = () => {
                   <th className="p-6 text-xs font-bold uppercase tracking-wider text-cyan-400 w-2/3 bg-slate-900/90 border-l border-slate-800">
                     <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-                      <span>REMESAS PERÚ-VENEZUELA (DIGITAL & AUTOMATIZADA)</span>
+                      <span>REMESAS IA (DIGITAL & AUTOMATIZADA)</span>
                     </div>
                   </th>
                 </tr>
@@ -170,7 +170,7 @@ export const ComparisonTable: React.FC = () => {
                   <td className="p-5 text-emerald-400 font-bold bg-slate-900/80 border-l border-slate-800 group-hover:bg-emerald-950/20 transition-colors">
                     <div className="flex items-center gap-3">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Sincronización Transparente Perú ↔ Venezuela en Segundos</span>
+                      <span>Sincronización Transparente entre país de recepción y Venezuela en Segundos</span>
                     </div>
                   </td>
                 </tr>

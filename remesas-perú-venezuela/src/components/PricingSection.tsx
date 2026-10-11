@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Check, Sparkles, ArrowRight, Smartphone, Zap } from 'lucide-react';
 import { PLANES } from '../data/planes';
+import { useTipoCambioSunat, solesADolares } from '../lib/tipoCambio';
 
 interface PricingSectionProps {
   onOpenDemoModal: () => void;
@@ -66,6 +67,8 @@ const ESTILO_POR_PLAN: Record<
 };
 
 export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal }) => {
+  const tc = useTipoCambioSunat();
+  const usd = (soles: number) => solesADolares(soles, tc);
 
   return (
     <section id="plans" className="py-24 px-4 bg-slate-950 relative overflow-hidden">
@@ -137,6 +140,11 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal 
                   <h3 className={`text-xl font-black font-mono uppercase tracking-wider ${estilo.titulo}`}>{plan.nombre}</h3>
                   <div className="text-3xl font-extrabold font-mono text-white my-4">
                     S/ {plan.precio} <span className="text-xs font-normal text-slate-400">/mes</span>
+                    {usd(plan.precio) !== null && (
+                      <span className="block text-xs font-mono font-semibold text-cyan-300 mt-1">
+                        ≈ US$ {usd(plan.precio)!.toFixed(2)}
+                      </span>
+                    )}
                   </div>
                   <ul className="space-y-3 text-xs text-slate-300">
                     <li className="flex items-start gap-2">
@@ -145,7 +153,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenDemoModal 
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className={`w-4 h-4 shrink-0 mt-0.5 ${estilo.check}`} />
-                      <span>{plan.operadoresPeru} Operadores en Perú</span>
+                      <span>{plan.operadoresPeru} Operadores en el país de recepción</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className={`w-4 h-4 shrink-0 mt-0.5 ${estilo.check}`} />

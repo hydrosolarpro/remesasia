@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RotateCcw, Zap, Shield, ArrowRight, Smartphone, Sparkles, Globe as GlobeIcon } from 'lucide-react';
+import { useCorredorLanding } from '../lib/corredorContext';
+import { CorredorTabs } from './CorredorTabs';
+import { FlagPeru, FlagColombia, FlagChile, FlagVenezuela, FlagCorredor } from './Flag';
 
 interface HeroMap3DProps {
   onOpenDemoModal: () => void;
@@ -9,7 +12,8 @@ interface HeroMap3DProps {
 export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [autoRotate, setAutoRotate] = useState(true);
-  const [activePreset, setActivePreset] = useState<'route' | 'peru' | 'venezuela'>('route');
+  const [activePreset, setActivePreset] = useState<'route' | 'peru' | 'colombia' | 'chile' | 'venezuela'>('route');
+  const { corredor, setCorredorId } = useCorredorLanding();
 
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const groupRef = useRef<THREE.Group | null>(null);
@@ -153,6 +157,18 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
       ];
       drawPolygon(peruPoly, 'rgba(59, 130, 246, 0.45)', '#3b82f6');
 
+      // Colombia
+      const colombiaPoly: Array<[number, number]> = [
+        [12.4, -71.9], [11.0, -74.3], [8.9, -77.3], [7.2, -77.9], [1.2, -79.0], [-1.5, -76.5], [-4.2, -69.9], [1.5, -67.5], [6.2, -67.4], [7.0, -72.2]
+      ];
+      drawPolygon(colombiaPoly, 'rgba(250, 204, 21, 0.45)', '#facc15');
+
+      // Chile
+      const chilePoly: Array<[number, number]> = [
+        [-18.3, -70.3], [-22.0, -70.2], [-30.0, -71.4], [-38.0, -73.3], [-45.0, -73.6], [-52.0, -74.4], [-55.0, -70.5], [-52.0, -69.0], [-44.0, -71.7], [-36.0, -70.5], [-28.0, -69.8], [-21.0, -68.5]
+      ];
+      drawPolygon(chilePoly, 'rgba(239, 68, 68, 0.45)', '#ef4444');
+
       // G. Glowing Golden City Lights at Night
       const cityLights: Array<{ lat: number; lon: number; r: number }> = [
         // Peru & Venezuela Primary Lights
@@ -163,7 +179,8 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
         { lat: -8.111, lon: -79.028, r: 4 },  // Trujillo PE
 
         // Other Major World Lights
-        { lat: 4.711, lon: -74.072, r: 4 },   // Bogota
+        { lat: 4.711, lon: -74.072, r: 6 },   // Bogota
+        { lat: -33.449, lon: -70.669, r: 6 }, // Santiago
         { lat: -23.550, lon: -46.633, r: 5 }, // Sao Paulo
         { lat: -34.603, lon: -58.381, r: 4 }, // Buenos Aires
         { lat: 40.712, lon: -74.006, r: 5 },  // NYC
@@ -314,6 +331,8 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
     // Coords: Lima, Peru & Caracas, Venezuela
     const posPeru = latLongToVector3(-12.043, -77.028, sphereRadius * 1.01);
     const posVenezuela = latLongToVector3(10.480, -66.903, sphereRadius * 1.01);
+    const posColombia = latLongToVector3(4.711, -74.072, sphereRadius * 1.01);
+    const posChile = latLongToVector3(-33.449, -70.669, sphereRadius * 1.01);
 
     // 4. Country Pins & Pulsing Radar Targets
     const createMarkerPin = (position: THREE.Vector3, colorHex: number, label: string) => {
@@ -344,54 +363,51 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
       return { pinMesh, ringMesh };
     };
 
-    const peruMarker = createMarkerPin(posPeru, 0x3b82f6, 'PERÚ');       // Blue
-    const venMarker = createMarkerPin(posVenezuela, 0x10b981, 'VENEZUELA'); // Emerald
+    const peruMarker = createMarkerPin(posPeru, 0x3b82f6, 'PERÚ');          // Azul
+    const colMarker = createMarkerPin(posColombia, 0xfacc15, 'COLOMBIA');    // Amarillo
+    const chiMarker = createMarkerPin(posChile, 0xef4444, 'CHILE');          // Rojo
+    const venMarker = createMarkerPin(posVenezuela, 0x10b981, 'VENEZUELA'); // Esmeralda
 
-    // 5. Elevated Curved Bezier Arc (Transnational Money Flow)
-    const distance = posPeru.distanceTo(posVenezuela);
-    const midPoint = posPeru.clone().add(posVenezuela).multiplyScalar(0.5);
-    const midLength = midPoint.length();
-    midPoint.normalize();
-    midPoint.multiplyScalar(midLength + distance * 0.48);
+    // 5. Arcos curvos (flujo de remesas): Perú, Colombia y Chile -> Venezuela
+    const crearArco = (origen: THREE.Vector3, colorHex: number) => {
+      const distance = origen.distanceTo(posVenezuela);
+      const midPoint = origen.clone().add(posVenezuela).multiplyScalar(0.5);
+      const midLength = midPoint.length();
+      midPoint.normalize();
+      midPoint.multiplyScalar(midLength + distance * 0.48);
 
-    const curve = new THREE.QuadraticBezierCurve3(posPeru, midPoint, posVenezuela);
-    const arcPoints = curve.getPoints(80);
-    const lineGeom = new THREE.BufferGeometry().setFromPoints(arcPoints);
+      const arc = new THREE.QuadraticBezierCurve3(origen, midPoint, posVenezuela);
+      const lineGeom = new THREE.BufferGeometry().setFromPoints(arc.getPoints(80));
+      globeGroup.add(
+        new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: 0.9 }))
+      );
+      const glow = new THREE.Line(
+        lineGeom,
+        new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.4 })
+      );
+      glow.scale.set(1.02, 1.02, 1.02);
+      globeGroup.add(glow);
+      return arc;
+    };
 
-    // Main Glowing Arc Line
-    const lineMat = new THREE.LineBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.9,
-      linewidth: 3
+    const arcos = [
+      crearArco(posPeru, 0x3b82f6),
+      crearArco(posColombia, 0xfacc15),
+      crearArco(posChile, 0xef4444),
+    ];
+
+    // 6. Partículas de energía fluyendo por cada arco
+    const particles: { mesh: THREE.Mesh; progress: number; speed: number; arco: THREE.QuadraticBezierCurve3 }[] = [];
+    arcos.forEach((arco) => {
+      for (let i = 0; i < 4; i++) {
+        const pMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.06, 12, 12),
+          new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
+        globeGroup.add(pMesh);
+        particles.push({ mesh: pMesh, progress: i / 4, speed: 0.007 + Math.random() * 0.003, arco });
+      }
     });
-    const arcLine = new THREE.Line(lineGeom, lineMat);
-    globeGroup.add(arcLine);
-
-    // Secondary Cyan/Gold Ambient Trail Line
-    const arcLineGlow = new THREE.Line(
-      lineGeom,
-      new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.4 })
-    );
-    arcLineGlow.scale.set(1.02, 1.02, 1.02);
-    globeGroup.add(arcLineGlow);
-
-    // 6. Flowing Energy Particles Along the Arc
-    const particleCount = 5;
-    const particles: { mesh: THREE.Mesh; progress: number; speed: number }[] = [];
-
-    for (let i = 0; i < particleCount; i++) {
-      const pGeom = new THREE.SphereGeometry(0.06, 12, 12);
-      const pMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const pMesh = new THREE.Mesh(pGeom, pMat);
-      globeGroup.add(pMesh);
-
-      particles.push({
-        mesh: pMesh,
-        progress: i / particleCount,
-        speed: 0.007 + Math.random() * 0.003
-      });
-    }
 
     // Realistic Lighting System
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -510,6 +526,8 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
       // Pulse Radar Rings
       const scaleVal = 1 + Math.sin(elapsedTime * 3.5) * 0.25;
       peruMarker.ringMesh.scale.set(scaleVal, scaleVal, scaleVal);
+      colMarker.ringMesh.scale.set(scaleVal, scaleVal, scaleVal);
+      chiMarker.ringMesh.scale.set(scaleVal, scaleVal, scaleVal);
       venMarker.ringMesh.scale.set(scaleVal, scaleVal, scaleVal);
 
       // Advance particles along arc trajectory
@@ -517,7 +535,7 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
         p.progress += p.speed;
         if (p.progress > 1) p.progress = 0;
 
-        const currentPos = curve.getPointAt(p.progress);
+        const currentPos = p.arco.getPointAt(p.progress);
         p.mesh.position.copy(currentPos);
       });
 
@@ -553,7 +571,7 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
   }, [autoRotate]);
 
   // Camera Preset Views
-  const handlePresetChange = (preset: 'route' | 'peru' | 'venezuela') => {
+  const handlePresetChange = (preset: 'route' | 'peru' | 'colombia' | 'chile' | 'venezuela') => {
     setActivePreset(preset);
     if (!groupRef.current) return;
 
@@ -564,6 +582,12 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
     } else if (preset === 'peru') {
       groupRef.current.rotation.x = 0.25;
       groupRef.current.rotation.y = 1.2;
+    } else if (preset === 'colombia') {
+      groupRef.current.rotation.x = -0.1;
+      groupRef.current.rotation.y = 1.29;
+    } else if (preset === 'chile') {
+      groupRef.current.rotation.x = 0.5;
+      groupRef.current.rotation.y = 1.23;
     } else if (preset === 'venezuela') {
       groupRef.current.rotation.x = -0.12;
       groupRef.current.rotation.y = 1.52;
@@ -581,7 +605,7 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
         <div className="lg:col-span-6 flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-xs font-mono font-bold uppercase tracking-wider text-blue-400 shadow-lg shadow-blue-500/10">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <span>REMESAS AUTOMÁTIZADAS PERÚ - VENEZUELA</span>
+            <span>REMESAS IA · {corredor.nombre.toUpperCase()}</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black italic uppercase leading-none tracking-tighter text-white">
@@ -590,8 +614,10 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
           </h1>
 
           <p className="text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed">
-            Control total de operaciones transnacionales entre Perú y Venezuela en tiempo real. Digitaliza tu negocio de remesas con automatización, notificaciones instantáneas y perfil multi-operador.
+            Control total de operaciones transnacionales entre el país de recepción y el país de entrega en tiempo real. Opera Perú, Colombia, Chile u otro país hacia Venezuela desde una sola plataforma, con automatización, notificaciones instantáneas y perfil multi-operador.
           </p>
+
+          <CorredorTabs className="justify-center lg:justify-start" />
 
           {/* Video flyer */}
           <div className="w-full max-w-xl rounded-2xl overflow-hidden border border-slate-800 bg-black shadow-xl shadow-blue-500/10">
@@ -617,7 +643,7 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
             </button>
 
             <a
-              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`}
+              href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la plataforma Remesas IA con la prueba gratuita por 7 días.")}`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -645,35 +671,35 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
             <div className="flex items-center gap-1.5 min-w-0">
               <GlobeIcon className="w-4 h-4 text-blue-400 animate-spin-slow shrink-0" />
               <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-200 tracking-wider uppercase truncate">
-                PLANETA 3D PE ↔ VE
+                PLANETA 3D · CORREDORES ↔ VE
               </span>
             </div>
 
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              <button
-                onClick={() => handlePresetChange('route')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                  activePreset === 'route' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                Ruta
-              </button>
-              <button
-                onClick={() => handlePresetChange('peru')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                  activePreset === 'peru' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                🇵🇪 Perú
-              </button>
-              <button
-                onClick={() => handlePresetChange('venezuela')}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                  activePreset === 'venezuela' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                🇻🇪 Vzla
-              </button>
+              {([
+                ['route', 'Ruta', null],
+                ['peru', 'Perú', 'PE-VE'],
+                ['colombia', 'Colombia', 'CO-VE'],
+                ['chile', 'Chile', 'CL-VE'],
+                ['venezuela', 'Vzla', null],
+              ] as const).map(([preset, etiqueta, corredorId]) => (
+                <button
+                  key={preset}
+                  onClick={() => {
+                    handlePresetChange(preset);
+                    if (corredorId) setCorredorId(corredorId);
+                  }}
+                  className={`px-1.5 sm:px-2.5 py-1 rounded-lg text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                    activePreset === preset ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {preset === 'peru' && <FlagPeru className="h-3 w-4" />}
+                  {preset === 'colombia' && <FlagColombia className="h-3 w-4" />}
+                  {preset === 'chile' && <FlagChile className="h-3 w-4" />}
+                  {preset === 'venezuela' && <FlagVenezuela className="h-3 w-4" />}
+                  <span>{etiqueta}</span>
+                </button>
+              ))}
               <button
                 onClick={() => setAutoRotate(!autoRotate)}
                 className={`p-1 sm:p-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
@@ -691,22 +717,22 @@ export const HeroMap3D: React.FC<HeroMap3DProps> = ({ onOpenDemoModal }) => {
 
           {/* Floating HUD Cards on Canvas */}
           <div className="relative z-20 pointer-events-none grid grid-cols-2 gap-2 mt-auto">
-            {/* Peru Node Badge */}
+            {/* Nodo del país de recepción (según el corredor elegido) */}
             <div className="p-2 sm:p-2.5 rounded-xl bg-slate-950/80 border border-blue-500/40 backdrop-blur-md shadow-lg flex items-center gap-2 pointer-events-auto card-beam-highlight info-card-interactive">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-xs sm:text-sm font-bold text-blue-400 shrink-0">
-                🇵🇪
+              <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center shrink-0">
+                <FlagCorredor id={corredor.id} className="h-4 w-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-[8px] sm:text-[9px] font-mono uppercase font-bold text-blue-400 tracking-wider truncate">NODO PERÚ</div>
-                <div className="text-[10px] sm:text-xs font-bold text-white truncate">Perú (Soles)</div>
-                <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono truncate hidden sm:block">Yape / Plin / Bancos</div>
+                <div className="text-[8px] sm:text-[9px] font-mono uppercase font-bold text-blue-400 tracking-wider truncate">NODO {corredor.pais.toUpperCase()}</div>
+                <div className="text-[10px] sm:text-xs font-bold text-white truncate">{corredor.pais} ({corredor.monedaNombre})</div>
+                <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono truncate hidden sm:block">{corredor.billeteras.join(' / ')} / Bancos</div>
               </div>
             </div>
 
             {/* Venezuela Node Badge */}
             <div className="p-2 sm:p-2.5 rounded-xl bg-slate-950/80 border border-emerald-500/40 backdrop-blur-md shadow-lg flex items-center gap-2 pointer-events-auto card-beam-highlight info-card-interactive">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-xs sm:text-sm font-bold text-emerald-400 shrink-0">
-                🇻🇪
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                <FlagVenezuela className="h-4 w-6" />
               </div>
               <div className="min-w-0">
                 <div className="text-[8px] sm:text-[9px] font-mono uppercase font-bold text-emerald-400 tracking-wider truncate">NODO VENEZUELA</div>

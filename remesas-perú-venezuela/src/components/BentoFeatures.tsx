@@ -43,7 +43,7 @@ export const BentoFeatures: React.FC = () => {
     {
       num: '03',
       title: 'Sincronización Instantánea PE ↔ VE',
-      description: 'Información de las solicitudes del cliente compartidas de forma automática e instantánea entre operadores en Perú y los operadores en Venezuela.',
+      description: 'Información de las solicitudes del cliente compartidas de forma automática e instantánea entre los operadores del país de recepción y los operadores en Venezuela.',
       icon: RefreshCw,
       accent: 'from-cyan-500/20 to-blue-500/10',
       borderHover: 'group-hover:border-cyan-500/60',
@@ -63,7 +63,7 @@ export const BentoFeatures: React.FC = () => {
     {
       num: '05',
       title: 'Listado de Operaciones & Validación en 2 Pasos',
-      description: 'Listado de operaciones para la recepción de solicitudes de los clientes finales con todos los datos requeridos para la transferencia de la remesa, resumen de operaciones, carga de imágenes de depósitos (Perú/Venezuela), lista de operaciones realizadas y de revisión con check de validación de recepción de pago y de validación de los depósitos en el país de entrega de remesa.',
+      description: 'Listado de operaciones para la recepción de solicitudes de los clientes finales con todos los datos requeridos para la transferencia de la remesa, resumen de operaciones, carga de imágenes de depósitos (país de recepción/Venezuela), lista de operaciones realizadas y de revisión con check de validación de recepción de pago y de validación de los depósitos en el país de entrega de remesa.',
       icon: ClipboardList,
       accent: 'from-emerald-500/20 to-blue-500/10',
       borderHover: 'group-hover:border-emerald-500/60',
@@ -73,7 +73,7 @@ export const BentoFeatures: React.FC = () => {
     {
       num: '06',
       title: 'Información en Tiempo Real & Alarma Sonora',
-      description: 'Información automatizada y en tiempo real de indicaciones de fecha y hora de las operaciones, tiempo de respuesta entre operaciones en curso, realizadas, operaciones por revisión para la confirmación de validación de depósito por los clientes y de alarma sonora en las sesiones de operadores (Perú/Venezuela) para la eficiente gestión de las remesas.',
+      description: 'Información automatizada y en tiempo real de indicaciones de fecha y hora de las operaciones, tiempo de respuesta entre operaciones en curso, realizadas, operaciones por revisión para la confirmación de validación de depósito por los clientes y de alarma sonora en las sesiones de operadores (país de recepción/Venezuela) para la eficiente gestión de las remesas.',
       icon: Bell,
       accent: 'from-amber-500/20 to-orange-500/10',
       borderHover: 'group-hover:border-amber-500/60',
@@ -83,7 +83,7 @@ export const BentoFeatures: React.FC = () => {
     {
       num: '07',
       title: 'Respuestas Automáticas WhatsApp & Telegram ChatBot',
-      description: 'Respuesta automáticas e inmediatas de las operaciones de remesa a los clientes (Perú/Venezuela) por vía WhatsApp y Telegram ChatBot.',
+      description: 'Respuesta automáticas e inmediatas de las operaciones de remesa a los clientes (país de recepción/Venezuela) por vía WhatsApp y Telegram ChatBot.',
       icon: Bot,
       accent: 'from-blue-500/20 to-purple-500/10',
       borderHover: 'group-hover:border-blue-500/60',
@@ -93,7 +93,7 @@ export const BentoFeatures: React.FC = () => {
     {
       num: '08',
       title: 'Acceso Directo para Operadores por WhatsApp',
-      description: 'Respuesta de información de enlaces para el acceso del equipo de operadores (Perú/Venezuela) por vía WhatsApp.',
+      description: 'Respuesta de información de enlaces para el acceso del equipo de operadores (país de recepción/Venezuela) por vía WhatsApp.',
       icon: Link,
       accent: 'from-emerald-500/20 to-teal-500/10',
       borderHover: 'group-hover:border-emerald-500/60',
@@ -103,7 +103,7 @@ export const BentoFeatures: React.FC = () => {
     {
       num: '09',
       title: 'Estadísticas Avanzadas & Gráficos Interactivos',
-      description: 'Resultado de estadísticas: total de operaciones realizadas, total de montos en la moneda de recepción/entrega con su total de Ganancias, resumen de operaciones por operadores (Perú/Venezuela), reporte por día, fecha específica, rango de fechas, mes, rango de meses, año y rango de años, gráficas de las operaciones resultados tipo barra, circular y lineal.',
+      description: 'Resultado de estadísticas: total de operaciones realizadas, total de montos en la moneda de recepción/entrega con su total de Ganancias, resumen de operaciones por operadores (país de recepción/Venezuela), reporte por día, fecha específica, rango de fechas, mes, rango de meses, año y rango de años, gráficas de las operaciones resultados tipo barra, circular y lineal.',
       icon: BarChart3,
       accent: 'from-indigo-500/20 to-purple-500/10',
       borderHover: 'group-hover:border-indigo-500/60',
@@ -166,7 +166,7 @@ export const BentoFeatures: React.FC = () => {
             Plataforma Integral de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-indigo-400">Remesas</span>
           </h2>
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-            Todas las herramientas esenciales diseñadas específicamente para automatizar, controlar y escalar tu negocio de transferencias entre Perú y Venezuela.
+            Todas las herramientas esenciales diseñadas específicamente para automatizar, controlar y escalar tu negocio de remesas desde Perú, Colombia, Chile u otro país hacia Venezuela, todo con una sola cuenta.
           </p>
         </motion.div>
 

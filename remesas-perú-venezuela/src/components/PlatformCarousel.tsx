@@ -108,7 +108,7 @@ export const PlatformCarousel: React.FC = () => {
             Fotos de la Plataforma en <span className="text-blue-500">Acción</span>
           </h2>
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-            Explora las capturas de pantalla reales del sistema en sus diferentes sesiones de trabajo. Revisa los paneles de control, gráficos, notificaciones en Telegram y validaciones.
+            Explora las capturas de pantalla reales del sistema en sus diferentes sesiones de trabajo. Revisa los paneles de control, gráficos, notificaciones en Telegram y validaciones. Las capturas son de ejemplo del corredor Perú → Venezuela; Colombia, Chile y otros países usan las mismas pantallas con su propia moneda, tasa y medios de pago.
           </p>
         </div>
 
@@ -461,7 +461,7 @@ export const PlatformCarousel: React.FC = () => {
                       <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                         <div className="text-[10px] text-emerald-400 font-mono font-bold">● Cliente</div>
                         <div className="text-xs font-bold text-white leading-tight">
-                          Bienvenido a Remesas Perú-Venezuela, José Alfredo Silva Castillo
+                          Bienvenido a Remesas IA · Perú-Venezuela, José Alfredo Silva Castillo
                         </div>
                         <div className="text-[9px] text-slate-400 font-mono">Miércoles, 29 de julio de 2026</div>
                         <div className="text-[10px] italic text-emerald-300 font-serif">"Ahora Venezuela libre y se volvera a levantar 💪"</div>

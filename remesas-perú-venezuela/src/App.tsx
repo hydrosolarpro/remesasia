@@ -12,16 +12,18 @@ import { FounderSection } from './components/FounderSection';
 import { Footer } from './components/Footer';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { ModalCalificacion } from './components/ModalCalificacion';
+import { CorredorLandingProvider } from './lib/corredorContext';
 
 export default function App() {
   const [demoModalOpen, setDemoModalOpen] = useState(false);
 
   return (
+    <CorredorLandingProvider>
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-600 selection:text-white pb-16 lg:pb-0">
       {/* Navbar */}
       <Header onOpenDemoModal={() => setDemoModalOpen(true)} />
 
-      {/* Hero with Interactive 3D Peru ↔ Venezuela Globe Map */}
+      {/* Hero con el globo 3D interactivo: Perú · Colombia · Chile ↔ Venezuela */}
       <main>
         <HeroMap3D onOpenDemoModal={() => setDemoModalOpen(true)} />
 
@@ -59,5 +61,6 @@ export default function App() {
       {/* Cuestionario de calificación + solicitud de Demo */}
       <ModalCalificacion isOpen={demoModalOpen} onClose={() => setDemoModalOpen(false)} />
     </div>
+    </CorredorLandingProvider>
   );
 }

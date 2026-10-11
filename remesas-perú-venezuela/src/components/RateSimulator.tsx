@@ -1,14 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Calculator, ArrowRight, ShieldCheck, Clock, TrendingUp, CheckCircle2, Sparkles, Activity } from 'lucide-react';
+import { useCorredorLanding } from '../lib/corredorContext';
+import { CorredorTabs } from './CorredorTabs';
+import { FlagCorredor, FlagVenezuela } from './Flag';
 
 interface RateSimulatorProps {
   onOpenDemoModal: () => void;
 }
 
 export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _onOpenDemoModal }) => {
-  const [soles, setSoles] = useState<number>(100);
-  const [tasa] = useState<number>(235.00);
+  const { corredor } = useCorredorLanding();
+  const [soles, setSoles] = useState<number>(corredor.montoInicial);
+  // La tasa es demostrativa: cada operador publica la suya cada día.
+  const tasa = corredor.tasaDemo;
+  useEffect(() => {
+    setSoles(corredor.montoInicial);
+  }, [corredor.id, corredor.montoInicial]);
   const [bcvUsd] = useState<number>(36.50);
   const [bcvEur] = useState<number>(39.80);
   const [rentabilidadPercent] = useState<number>(5.0);
@@ -41,9 +49,11 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
             Calculadora de Conversión & <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-emerald-400">Rentabilidad</span>
           </h2>
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-            Prueba cómo la plataforma calcula automáticamente la conversión de Soles a Bolívares y la conversión a dólares y euros con las tasas actualizadas del BCV.
+            Elige tu corredor y prueba cómo la plataforma calcula automáticamente la conversión de {corredor.monedaNombre} a Bolívares y su equivalente en dólares y euros con las tasas actualizadas del BCV.
           </p>
         </motion.div>
+
+        <CorredorTabs className="justify-center mb-8" />
 
         {/* Simulator Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
@@ -60,11 +70,11 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
                 <span className="w-3 h-3 rounded-full bg-blue-500 animate-ping" />
                 <span className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                   <Activity className="w-4 h-4 text-blue-400" />
-                  Operación Soles (PE) ➔ Bolívares (VE)
+                  Operación {corredor.monedaNombre} ({corredor.id.slice(0, 2)}) ➔ Bolívares (VE)
                 </span>
               </div>
               <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-mono font-bold text-emerald-400">
-                Tasa Activa: Bs {tasa.toFixed(2)}
+                Tasa demo: Bs {tasa.toLocaleString('es-VE', { maximumFractionDigits: 4 })}
               </span>
             </div>
 
@@ -72,11 +82,11 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
               {/* Soles Input */}
               <div className="space-y-2">
                 <label className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                  <span>Monto a Recibir (Perú)</span>
-                  <span className="text-blue-400 font-bold">Soles (S/)</span>
+                  <span className="flex items-center gap-1.5"><FlagCorredor id={corredor.id} /> Monto a Recibir ({corredor.pais})</span>
+                  <span className="text-blue-400 font-bold">{corredor.monedaNombre} ({corredor.simbolo})</span>
                 </label>
                 <div className="relative group">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-extrabold text-xl">S/</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-extrabold text-xl">{corredor.simbolo}</span>
                   <input
                     type="number"
                     min="1"
@@ -86,7 +96,7 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
                   />
                 </div>
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {[50, 100, 200, 500].map((quick) => (
+                  {corredor.montosRapidos.map((quick) => (
                     <button
                       key={quick}
                       onClick={() => setSoles(quick)}
@@ -96,7 +106,7 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
                           : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                       }`}
                     >
-                      S/ {quick}
+                      {corredor.simbolo} {quick.toLocaleString('es-VE')}
                     </button>
                   ))}
                 </div>
@@ -105,7 +115,7 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
               {/* Bolivares Output */}
               <div className="space-y-2">
                 <label className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                  <span>Monto a Transferir (Venezuela)</span>
+                  <span className="flex items-center gap-1.5"><FlagVenezuela /> Monto a Transferir (Venezuela)</span>
                   <span className="text-emerald-400 font-bold">Bolívares (Bs)</span>
                 </label>
                 <div className="relative">
@@ -119,7 +129,7 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
                 </div>
                 <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  Calculado automáticamente con Tasa = Bs {tasa}
+                  Calculado automáticamente con Tasa = Bs {tasa.toLocaleString('es-VE', { maximumFractionDigits: 4 })}
                 </p>
               </div>
             </div>
@@ -170,9 +180,9 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
                 </div>
               </div>
               <div className="space-y-0.5">
-                <div className="text-[10px] text-slate-400 font-mono font-bold uppercase">Ganancia Operador (S/)</div>
+                <div className="text-[10px] text-slate-400 font-mono font-bold uppercase">Ganancia Operador ({corredor.simbolo})</div>
                 <div className="text-xl font-extrabold text-emerald-400 font-mono">
-                  + S/ {gananciaSoles.toFixed(2)}
+                  + {corredor.simbolo} {gananciaSoles.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
               <div className="space-y-0.5">
@@ -199,26 +209,36 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
                 <span>Métodos Acreditados Integrados</span>
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                La plataforma sincroniza comprobantes de pago de los principales sistemas financieros de Perú y Venezuela sin demoras.
+                La plataforma sincroniza comprobantes de pago de los principales sistemas financieros de {corredor.pais} y Venezuela sin demoras.
               </p>
 
               <div className="space-y-3 pt-2">
                 <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">🇵🇪</span>
-                    <span className="text-xs font-bold text-white">Medios en Perú</span>
+                    <FlagCorredor id={corredor.id} className="h-5 w-7" />
+                    <span className="text-xs font-bold text-white">Medios en {corredor.pais}</span>
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
-                    <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 font-mono font-bold text-[10px] border border-purple-500/30">Yape</span>
-                    <span className="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 font-mono font-bold text-[10px] border border-cyan-500/30">Plin</span>
-                    <span className="px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 font-mono font-bold text-[10px] border border-blue-500/30">Banca PERUANA</span>
+                    {corredor.billeteras.map((b, i) => (
+                      <span
+                        key={b}
+                        className={`px-2.5 py-1 rounded-lg font-mono font-bold text-[10px] border ${
+                          i % 2 === 0
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                            : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                        }`}
+                      >
+                        {b}
+                      </span>
+                    ))}
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 font-mono font-bold text-[10px] border border-blue-500/30">{corredor.banca}</span>
                     <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 font-mono font-bold text-[10px] border border-indigo-500/30">Otros Bancos</span>
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">🇻🇪</span>
+                    <FlagVenezuela className="h-5 w-7" />
                     <span className="text-xs font-bold text-white">Bancos en Venezuela</span>
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
@@ -240,11 +260,11 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
               <ul className="space-y-2 text-xs text-slate-300 leading-relaxed font-mono">
                 <li className="flex items-start gap-2 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80">
                   <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
-                  <span>Publicación de la tasa actual del día Soles ➔ Bs</span>
+                  <span>Publicación de la tasa actual del día {corredor.monedaNombre} ➔ Bs</span>
                 </li>
                 <li className="flex items-start gap-2 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80">
                   <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
-                  <span>Registro de las solicitudes y notificación de pago de los clientes en Perú.</span>
+                  <span>Registro de las solicitudes y notificación de pago de los clientes en {corredor.pais}.</span>
                 </li>
               </ul>
             </div>
@@ -253,17 +273,17 @@ export const RateSimulator: React.FC<RateSimulatorProps> = ({ onOpenDemoModal: _
             <div className="p-6 rounded-3xl bg-slate-900/90 border border-blue-500/30 space-y-3 shadow-xl hover:border-blue-500/50 transition-colors card-beam-highlight info-card-interactive">
               <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-blue-400">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Notificación Instantánea Cliente en Perú y Venezuela</span>
+                <span>Notificación Instantánea Cliente en {corredor.pais} y Venezuela</span>
               </div>
               <ul className="space-y-2 text-xs text-slate-300 leading-relaxed">
                 <li className="flex items-start gap-2 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80">
-                  <span className="text-base shrink-0 mt-0.5">🇵🇪</span>
+                  <FlagCorredor id={corredor.id} className="h-4 w-6 mt-1" />
                   <span>
-                    Al validar el depósito del cliente en Perú, el sistema emite automáticamente un mensaje por Telegram usando un ChatBot indicando que ya fue exitoso su depósito.
+                    Al validar el depósito del cliente en {corredor.pais}, el sistema emite automáticamente un mensaje por Telegram usando un ChatBot indicando que ya fue exitoso su depósito.
                   </span>
                 </li>
                 <li className="flex items-start gap-2 p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80">
-                  <span className="text-base shrink-0 mt-0.5">🇻🇪</span>
+                  <FlagVenezuela className="h-4 w-6 mt-1" />
                   <span>
                     Al validar el depósito en Venezuela, el sistema emite automáticamente un mensaje por Telegram usando un ChatBot indicando quien realiza la operación y el monto transferido para la confirmación con el cliente en Venezuela.
                   </span>

@@ -16,7 +16,7 @@ const ES_ARCHIVO_DE_VIDEO = /\.(mp4|webm|mov)$/i.test(URL_VIDEO_PROMOCIONAL);
 
 const BENEFICIOS = [
   { icon: Zap, texto: 'Automatiza cobros, validaciones y avisos por WhatsApp y Telegram' },
-  { icon: RefreshCw, texto: 'Sincronización instantánea entre tu equipo en Perú y en Venezuela' },
+  { icon: RefreshCw, texto: 'Sincronización instantánea entre tu equipo del país de recepción y el de Venezuela' },
   { icon: ShieldCheck, texto: 'Respaldo de base de datos y seguridad cibernética incluidos' },
   { icon: Headphones, texto: 'Soporte técnico y asesorías en línea 24/7 sin costo adicional' },
 ];
@@ -43,7 +43,7 @@ export const VideoPromocional: React.FC<VideoPromocionalProps> = ({ onOpenDemoMo
             Mira Cómo <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">Funciona</span>
           </h2>
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-            Un recorrido rápido por la plataforma: cómo automatiza tu negocio de remesas de principio a fin, y por qué operadores en Perú y Venezuela ya confían en ella.
+            Un recorrido rápido por la plataforma: cómo automatiza tu negocio de remesas de principio a fin, y por qué operadores de Perú, Colombia, Chile y Venezuela ya confían en ella.
           </p>
         </motion.div>
 
@@ -60,7 +60,7 @@ export const VideoPromocional: React.FC<VideoPromocionalProps> = ({ onOpenDemoMo
             ) : URL_VIDEO_PROMOCIONAL ? (
               <iframe
                 src={URL_VIDEO_PROMOCIONAL}
-                title="Video promocional Remesas Perú-Venezuela"
+                title="Video promocional Remesas IA"
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

@@ -134,7 +134,7 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
     const enlace = data.invitacion_token ? construirEnlaceAcceso(data.invitacion_token) : null;
     setEnlaceAcceso(enlace);
 
-    // DEMO inmediato: se crea la cuenta de Operador Perú (plan DEMO 7 días,
+    // DEMO inmediato: se crea la cuenta de Operador principal (plan DEMO 7 días,
     // acceso concedido) y se entra directo a la plataforma, sin validación
     // del admin. Si el correo ya tenía cuenta, cae al enlace con Google.
     if (data.invitacion_token) {
@@ -152,7 +152,7 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
   };
 
   const mensajeWhatsApp = encodeURIComponent(
-    `Hola! Completé el cuestionario de Remesas PERÚ-VENEZUELA. Nombre: ${nombre}. Teléfono: ${telefono}. Email: ${email}.`
+    `Hola! Completé el cuestionario de Remesas IA. Nombre: ${nombre}. Teléfono: ${telefono}. Email: ${email}.`
   );
 
   return (
@@ -224,9 +224,11 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
                   onChange={(e) => setPais(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-medium text-sm focus:outline-none focus:border-blue-500"
                 >
-                  <option value="peru">🇵🇪 Perú</option>
-                  <option value="venezuela">🇻🇪 Venezuela</option>
-                  <option value="ambos">🇵🇪 🇻🇪 Ambos Países</option>
+                  <option value="peru">Perú</option>
+                  <option value="colombia">Colombia</option>
+                  <option value="chile">Chile</option>
+                  <option value="venezuela">Venezuela</option>
+                  <option value="ambos">Varios países / Otro país</option>
                 </select>
               </div>
             </div>
@@ -268,7 +270,7 @@ export const ModalCalificacion: React.FC<ModalCalificacionProps> = ({ isOpen, on
               onCambiar={setVolumenMensual}
             />
             <OpcionesRadio
-              pregunta="¿Tienes equipo en Perú y/o Venezuela?"
+              pregunta="¿Tienes equipo en el país de recepción y/o en Venezuela?"
               opciones={PREGUNTA_TIENE_EQUIPO}
               valor={tieneEquipo}
               onCambiar={setTieneEquipo}

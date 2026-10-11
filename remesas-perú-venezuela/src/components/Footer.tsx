@@ -14,10 +14,10 @@ export const Footer: React.FC = () => {
           </div>
           <div className="text-left">
             <div className="font-black text-base text-white tracking-widest uppercase font-mono">
-              REMESAS
+              REMESAS IA
             </div>
             <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider font-mono">
-              PERÚ-VENEZUELA · PLATAFORMA DIGITAL
+              PERÚ · COLOMBIA · CHILE → VENEZUELA · PLATAFORMA DIGITAL
             </div>
           </div>
         </div>
@@ -25,7 +25,7 @@ export const Footer: React.FC = () => {
         {/* Contact info list */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-xs font-mono font-bold">
           <a
-            href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`}
+            href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la plataforma Remesas IA con la prueba gratuita por 7 días.")}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-emerald-400 hover:text-white transition-colors"
@@ -64,7 +64,7 @@ export const Footer: React.FC = () => {
         {/* Copyright */}
         <div className="pt-4 border-t border-slate-900 w-full">
           <p className="text-[10px] tracking-[0.2em] uppercase text-slate-600 font-mono font-bold">
-            © 2026 REMESAS PERÚ-VENEZUELA. TODOS LOS DERECHOS RESERVADOS.
+            © 2026 REMESAS IA. TODOS LOS DERECHOS RESERVADOS.
           </p>
         </div>
       </div>

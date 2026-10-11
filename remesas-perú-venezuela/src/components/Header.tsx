@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Currency, MessageCircle, Smartphone, Menu, X } from 'lucide-react';
-import flagsImg from '../assets/images/peru_venezuela_flags_1785374379770.jpg';
+import { FlagPeru, FlagColombia, FlagChile, FlagVenezuela } from './Flag';
 import logoImg from '../assets/images/logo-remesas.png';
 
 interface HeaderProps {
@@ -32,28 +32,27 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoModal }) => {
         <div className="flex items-center gap-2.5 sm:gap-5 min-w-0">
           <a href="#" className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
             <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_0_10px_rgba(59,130,246,0.45)]">
-              <img src={logoImg} alt="Remesas Perú-Venezuela" className="w-full h-full object-contain" />
+              <img src={logoImg} alt="Remesas IA" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-extrabold text-xs sm:text-base text-white tracking-tight uppercase leading-tight truncate">
-                REMESAS <span className="text-blue-500">PERÚ - VENEZUELA</span>
+                REMESAS <span className="text-blue-500">IA</span>
               </span>
               <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono tracking-wider uppercase flex items-center gap-1 mt-0.5 truncate">
-                <span>PERÚ 🇵🇪</span>
+                <span>PERÚ · COLOMBIA · CHILE</span>
                 <span className="text-blue-400">↔</span>
-                <span>VENEZUELA 🇻🇪</span>
+                <span>VENEZUELA</span>
               </span>
             </div>
           </a>
 
-          {/* Peru & Venezuela Flags Banner Image in Header */}
-          <div className="hidden md:flex items-center h-9 rounded-lg overflow-hidden border border-slate-800 shadow-md bg-slate-900 px-1 hover:scale-105 transition-transform">
-            <img
-              src={flagsImg}
-              alt="Banderas Perú y Venezuela"
-              className="h-7 w-auto object-contain rounded"
-              referrerPolicy="no-referrer"
-            />
+          {/* Banderas de los corredores */}
+          <div className="hidden md:flex items-center gap-1.5 h-9 rounded-lg border border-slate-800 shadow-md bg-slate-900 px-2.5">
+            <FlagPeru className="h-5 w-7" />
+            <FlagColombia className="h-5 w-7" />
+            <FlagChile className="h-5 w-7" />
+            <span className="text-blue-400 text-xs">↔</span>
+            <FlagVenezuela className="h-5 w-7" />
           </div>
         </div>
 
@@ -82,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoModal }) => {
         {/* Action Buttons */}
         <div className="hidden sm:flex items-center gap-3">
           <a
-            href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.")}`}
+            href={`https://wa.me/51960442025?text=${encodeURIComponent("Hola!, deseo ingresar a la plataforma Remesas IA con la prueba gratuita por 7 días.")}`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-emerald-400 hover:text-white transition-all cursor-pointer"
@@ -114,13 +113,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoModal }) => {
       {mobileMenuOpen && (
         <div className="lg:hidden bg-slate-950/95 backdrop-blur-2xl border-b border-slate-800 px-6 py-6 space-y-4">
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
-            <span className="text-xs text-slate-300 font-mono font-bold uppercase">REMESAS PERÚ - VENEZUELA</span>
-            <img
-              src={flagsImg}
-              alt="Banderas Perú y Venezuela"
-              className="h-6 w-auto object-contain rounded"
-              referrerPolicy="no-referrer"
-            />
+            <span className="text-xs text-slate-300 font-mono font-bold uppercase">REMESAS IA</span>
+            <div className="flex items-center gap-1">
+              <FlagPeru />
+              <FlagColombia />
+              <FlagChile />
+              <FlagVenezuela />
+            </div>
           </div>
 
           <nav className="flex flex-col space-y-3 font-semibold text-slate-300 text-xs uppercase tracking-wider">

@@ -21,7 +21,7 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose }) => {
   };
 
   const whatsappMessage = encodeURIComponent(
-    `Hola!, deseo ingresar a la Plaforma Remesas PERÚ-VENEZUELA  con la prueba gratuita por 7 días.${fullName ? ` Nombre: ${fullName}. Teléfono: ${phone}. Email: ${email}` : ''}`
+    `Hola!, deseo ingresar a la plataforma Remesas IA con la prueba gratuita por 7 días.${fullName ? ` Nombre: ${fullName}. Teléfono: ${phone}. Email: ${email}` : ''}`
   );
 
   return (
@@ -83,9 +83,11 @@ export const DemoModal: React.FC<DemoModalProps> = ({ isOpen, onClose }) => {
                   onChange={(e) => setLocation(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-medium text-sm focus:outline-none focus:border-blue-500"
                 >
-                  <option value="peru">🇵🇪 Perú</option>
-                  <option value="venezuela">🇻🇪 Venezuela</option>
-                  <option value="ambos">🇵🇪 🇻🇪 Ambos Países</option>
+                  <option value="peru">Perú</option>
+                  <option value="colombia">Colombia</option>
+                  <option value="chile">Chile</option>
+                  <option value="venezuela">Venezuela</option>
+                  <option value="ambos">Varios países / Otro país</option>
                 </select>
               </div>
             </div>

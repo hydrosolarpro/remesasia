@@ -161,7 +161,7 @@ export const CalculadoraPlan: React.FC<CalculadoraPlanProps> = ({ onOpenDemoModa
                 <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-300">
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    {tramo.operadoresPeru} Operadores Perú
+                    {tramo.operadoresPeru} Operadores en el país de recepción
                   </span>
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />

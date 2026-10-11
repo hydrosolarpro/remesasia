@@ -12,7 +12,7 @@ export interface OpcionPregunta<T extends string> {
 // (supabase/migrations/0074_prospectos_crm.sql) -- ahí vive el puntaje real
 // de cada opción, este archivo solo define qué ve/elige el visitante.
 export const PREGUNTA_OPERA_ACTUALMENTE: OpcionPregunta<OperaActualmente>[] = [
-  { value: 'ya_opero', label: 'Ya opero un negocio de remesas Perú-Venezuela' },
+  { value: 'ya_opero', label: 'Ya opero un negocio de remesas hacia Venezuela' },
   { value: 'quiero_empezar', label: 'Quiero empezar uno' },
   { value: 'solo_investigando', label: 'Solo estoy investigando por ahora' },
 ];
@@ -25,7 +25,7 @@ export const PREGUNTA_VOLUMEN_MENSUAL: OpcionPregunta<VolumenMensual>[] = [
 ];
 
 export const PREGUNTA_TIENE_EQUIPO: OpcionPregunta<TieneEquipo>[] = [
-  { value: 'con_equipo', label: 'Sí, tengo equipo en Perú y/o Venezuela' },
+  { value: 'con_equipo', label: 'Sí, tengo equipo en mi país y/o en Venezuela' },
   { value: 'solo', label: 'Por ahora trabajo solo' },
   { value: 'sin_equipo', label: 'Todavía no tengo equipo' },
 ];
