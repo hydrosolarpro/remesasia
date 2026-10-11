@@ -88,7 +88,7 @@ export default function Login() {
       showsVerticalScrollIndicator={false}
     >
       <Image source={require('../../assets/android-icon-foreground.png')} style={styles.logo} resizeMode="contain" />
-      <Text style={styles.title}>Remesas PERÚ-VENEZUELA</Text>
+      <Text style={styles.title}>Remesas IA</Text>
       <Text style={styles.subtitle}>Y entérate al instante</Text>
 
       {avisoSesionCerrada && (

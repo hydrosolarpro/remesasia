@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../constants/theme';
-import { FlagPeru, FlagVenezuela } from './FlagIcon';
 
 const FORMATTER_COMPACTO = new Intl.DateTimeFormat('es-PE', {
   day: '2-digit',
@@ -24,7 +23,7 @@ export function BannerTitle() {
   return (
     <View>
       <Text style={styles.title} numberOfLines={1}>
-        Remesas PERU-VENEZUELA
+        Remesas IA
       </Text>
       <Text style={styles.reloj} numberOfLines={1}>
         {FORMATTER_COMPACTO.format(ahora)}
@@ -37,13 +36,10 @@ export function BannerTitle() {
 // emoji): los emoji de bandera no se renderizan en Windows/Chrome. El
 // botón "Inicio" que vivía aquí se quitó: cada sesión ya tiene su propia
 // barra de pestañas para volver al panel principal.
+// Las banderas ya no van en el encabezado: la marca es "Remesas IA" (varios
+// corredores) y cada corredor muestra sus propias banderas en el selector.
 export function BannerFlags() {
-  return (
-    <View style={styles.flagsWrap}>
-      <FlagPeru width={66} height={45} />
-      <FlagVenezuela width={66} height={45} />
-    </View>
-  );
+  return null;
 }
 
 const styles = StyleSheet.create({

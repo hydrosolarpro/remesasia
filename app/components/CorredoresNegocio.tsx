@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Alert, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import { useCorredor, banderaCorredor, CorredorId } from '../lib/corredor';
+import { useCorredor, CorredorId } from '../lib/corredor';
+import { EtiquetaCorredor } from './SelectorCorredor';
 import { DatosPagoCorredor } from './DatosPagoCorredor';
 import { colors, radius } from '../constants/theme';
 
@@ -87,7 +88,7 @@ export function CorredoresNegocio() {
   return (
     <View style={styles.wrap}>
       <View style={styles.fijo}>
-        <Text style={styles.nombre}>{banderaCorredor('PE-VE')} Perú → Venezuela</Text>
+        <EtiquetaCorredor id="PE-VE" etiqueta="Perú → Venezuela" activo />
         <Text style={styles.detalle}>Siempre activo</Text>
       </View>
 
@@ -97,9 +98,7 @@ export function CorredoresNegocio() {
           <View key={o.id} style={styles.item}>
             <View style={styles.cabecera}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.nombre}>
-                  {banderaCorredor(o.id)} {o.nombre}
-                </Text>
+                <EtiquetaCorredor id={o.id} etiqueta={o.nombre} activo />
                 <Text style={styles.detalle}>{o.detalle}</Text>
               </View>
               <Pressable

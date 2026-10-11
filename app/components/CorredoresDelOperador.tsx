@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import { useCorredor, banderaCorredor } from '../lib/corredor';
+import { useCorredor } from '../lib/corredor';
+import { EtiquetaCorredor } from './SelectorCorredor';
 import { colors, radius } from '../constants/theme';
 
 // El operador principal arma su equipo por corredor: marca en cuáles países
@@ -85,10 +86,7 @@ export function CorredoresDelOperador({
           const activo = asignados.has(c.id);
           return (
             <Pressable key={c.id} style={[styles.chip, activo && styles.chipActivo]} onPress={() => alternar(c.id)}>
-              <Text style={[styles.chipTexto, activo && styles.chipTextoActivo]}>
-                {activo ? '✓ ' : ''}
-                {banderaCorredor(c.id)} {c.etiqueta}
-              </Text>
+              <EtiquetaCorredor id={c.id} etiqueta={`${activo ? '✓ ' : ''}${c.etiqueta}`} activo={activo} />
             </Pressable>
           );
         })}
