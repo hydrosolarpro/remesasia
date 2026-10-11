@@ -60,12 +60,13 @@ export async function obtenerMiembrosAsignadosAlVe(veId: string): Promise<string
   return (data ?? []).map((m) => m.id as string);
 }
 
-export function etiquetaSesion(tipo: TipoSesionOperador): string {
+/** `pais` = país de recepción del corredor activo (por defecto Perú). */
+export function etiquetaSesion(tipo: TipoSesionOperador, pais = 'Perú'): string {
   switch (tipo) {
     case 'principal':
-      return 'Operador principal de Perú';
+      return `Operador principal de ${pais}`;
     case 'miembro':
-      return 'Operador de Perú miembro';
+      return `Operador de ${pais} miembro`;
     case 'venezuela':
       return 'Operador de Venezuela';
   }

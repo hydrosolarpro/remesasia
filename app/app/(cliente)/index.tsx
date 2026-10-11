@@ -478,7 +478,9 @@ export default function InicioCliente() {
         )}
         <VideoInicioRapidoCard />
       </View>
-      <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {usuario?.nombre}</Text>
+      <Text style={styles.bienvenida}>
+        Bienvenido a Remesas IA · {corredor.paisRecepcion}-{corredor.paisEntrega}, {usuario?.nombre}
+      </Text>
       <LiveClock />
       <SelectorCorredor />
       {!!perfil?.eslogan && <Text style={styles.eslogan}>&quot;{perfil.eslogan}&quot;</Text>}

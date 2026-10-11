@@ -810,7 +810,7 @@ export function PeruDashboardView({
   return (
     <View style={styles.raiz}>
     <ScrollView contentContainerStyle={styles.container}>
-      <RoleTag rol={esVenezuela ? 'operador_venezuela' : 'operador_peru'} etiqueta={etiquetaSesion(tipoSesion)} />
+      <RoleTag rol={esVenezuela ? 'operador_venezuela' : 'operador_peru'} etiqueta={etiquetaSesion(tipoSesion, esConsolidado ? 'todos tus países' : corredor.paisRecepcion)} />
       <View style={styles.encabezadoNegocio}>
         {!!perfil?.nombre_negocio ? (
           <View style={styles.negocioRow}>
@@ -834,7 +834,9 @@ export function PeruDashboardView({
           <VideoInicioRapidoCard videoUrl={VIDEO_OPERADOR_VENEZUELA_URL} miniaturaUrl={VIDEO_OPERADOR_VENEZUELA_MINIATURA_URL} />
         )}
       </View>
-      <Text style={styles.bienvenida}>Bienvenido a Remesas Perú-Venezuela, {nombreUsuarioActual}</Text>
+      <Text style={styles.bienvenida}>
+        Bienvenido a Remesas IA{esConsolidado ? ' · Todos los corredores' : ` · ${corredor.paisRecepcion}-${corredor.paisEntrega}`}, {nombreUsuarioActual}
+      </Text>
       <LiveClock />
       <SelectorCorredor permitirTodos />
 

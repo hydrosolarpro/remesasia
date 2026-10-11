@@ -94,19 +94,21 @@ function aConfig(f: FilaCorredor): ConfigCorredor | null {
 }
 
 interface CorredorState {
-  /** Corredores ACTIVOS del negocio (siempre incluye al menos Perú-Venezuela). */
+  /** Corredores ACTIVOS del negocio (el principal puede trabajar solo 1 o 2 pares). */
   corredores: ConfigCorredor[];
   /** Selección actual: un corredor o 'TODOS' (consolidado). */
   seleccion: CorredorSeleccion;
   /** Lo que el usuario eligió (aunque su negocio todavía no lo tenga activo): se usa en el login. */
   seleccionPreferida: CorredorSeleccion;
   setSeleccion: (s: CorredorSeleccion) => void;
-  /** Configuración del corredor activo; en 'TODOS' es la del primero (para formatos por defecto). */
+  /** Configuración del corredor activo; en 'TODOS' es la de la sede (para formatos por defecto). */
   corredor: ConfigCorredor;
+  /** Sede principal del negocio: el corredor con el que se abre el dashboard por defecto. */
+  sede: CorredorId;
   /** true si el negocio trabaja más de un corredor (hay que mostrar el selector). */
   multiCorredor: boolean;
   esConsolidado: boolean;
-  /** Config de un corredor por id (respaldo: Perú-Venezuela). */
+  /** Config de un corredor por id (incluye los desactivados, para el historial). */
   configDe: (id: string | null | undefined) => ConfigCorredor;
   recargar: () => Promise<void>;
 }
@@ -117,6 +119,7 @@ const CorredorContext = createContext<CorredorState>({
   seleccionPreferida: 'PE-VE',
   setSeleccion: () => {},
   corredor: CORREDOR_PE_VE,
+  sede: 'PE-VE',
   multiCorredor: false,
   esConsolidado: false,
   configDe: () => CORREDOR_PE_VE,
@@ -128,40 +131,56 @@ const CLAVE_SELECCION = 'corredor_seleccionado';
 export function CorredorProvider({ children }: PropsWithChildren) {
   const { usuario } = useAuth();
   const [corredores, setCorredores] = useState<ConfigCorredor[]>([CORREDOR_PE_VE]);
-  const [seleccion, setSeleccionState] = useState<CorredorSeleccion>('PE-VE');
+  // Todos los corredores del negocio, activos o no (el historial de un corredor
+  // desactivado se sigue mostrando con su moneda).
+  const [catalogo, setCatalogo] = useState<ConfigCorredor[]>([CORREDOR_PE_VE]);
+  const [sede, setSede] = useState<CorredorId>('PE-VE');
+  // null = el usuario todavía no eligió: se abre en la sede principal.
+  const [seleccion, setSeleccionState] = useState<CorredorSeleccion | null>(null);
 
   const recargar = useCallback(async () => {
     if (!usuario) {
       setCorredores([CORREDOR_PE_VE]);
+      setCatalogo([CORREDOR_PE_VE]);
+      setSede('PE-VE');
       return;
     }
     // RLS (negocio_corredores: lectura del negocio) ya filtra al negocio del usuario.
     const { data, error } = await supabase
       .from('negocio_corredores')
       .select(
-        'corredor, activo, pais_nombre, moneda_codigo, moneda_simbolo, prefijo_tel, corredores(id, pais_recepcion, pais_entrega, moneda_codigo, moneda_simbolo, prefijo_tel, digitos_tel, billetera_1, billetera_2, etiqueta_cuenta, documento_principal)'
-      )
-      .eq('activo', true);
-    if (error || !data) {
+        'corredor, activo, es_sede, pais_nombre, moneda_codigo, moneda_simbolo, prefijo_tel, corredores(id, pais_recepcion, pais_entrega, moneda_codigo, moneda_simbolo, prefijo_tel, digitos_tel, billetera_1, billetera_2, etiqueta_cuenta, documento_principal)'
+      );
+    if (error || !data || data.length === 0) {
       setCorredores([CORREDOR_PE_VE]);
+      setCatalogo([CORREDOR_PE_VE]);
+      setSede('PE-VE');
       return;
     }
-    const lista = (data as unknown as FilaCorredor[])
+    const filas = data as unknown as (FilaCorredor & { es_sede?: boolean })[];
+    const orden = (a: ConfigCorredor, b: ConfigCorredor) =>
+      a.id === 'PE-VE' ? -1 : b.id === 'PE-VE' ? 1 : a.id.localeCompare(b.id);
+    const todos = filas.map(aConfig).filter((c): c is ConfigCorredor => !!c).sort(orden);
+    const activos = filas
+      .filter((f) => f.activo)
       .map(aConfig)
       .filter((c): c is ConfigCorredor => !!c)
-      .sort((a, b) => (a.id === 'PE-VE' ? -1 : b.id === 'PE-VE' ? 1 : a.id.localeCompare(b.id)));
-    let visibles = lista.length > 0 ? lista : [CORREDOR_PE_VE];
-    // Miembro de Perú / operador de Venezuela: solo los corredores que el
-    // principal le asignó (equipo_corredor; sin marcas = solo Perú-Venezuela).
+      .sort(orden);
+    let visibles = activos.length > 0 ? activos : [CORREDOR_PE_VE];
+    // Miembro / VE: solo los corredores que el principal le asignó (equipo_corredor;
+    // sin marcas = solo Perú-Venezuela).
     if (usuario.rol === 'operador_peru_miembro' || usuario.rol === 'operador_venezuela') {
       const { data: eq } = await supabase.from('equipo_corredor').select('corredor');
       const ids = new Set<string>(((eq as { corredor: string }[] | null) ?? []).map((r) => r.corredor));
       if (ids.size === 0) ids.add('PE-VE');
       const filtrados = visibles.filter((c) => ids.has(c.id));
-      visibles = filtrados.length > 0 ? filtrados : [CORREDOR_PE_VE];
+      visibles = filtrados.length > 0 ? filtrados : visibles.slice(0, 1);
     }
+    const sedeFila = filas.find((f) => f.es_sede && f.activo)?.corredor;
+    setCatalogo(todos.length > 0 ? todos : [CORREDOR_PE_VE]);
     setCorredores(visibles);
-  }, [usuario?.id]);
+    setSede(sedeFila && visibles.some((c) => c.id === sedeFila) ? sedeFila : visibles[0].id);
+  }, [usuario?.id, usuario?.rol]);
 
   useEffect(() => {
     recargar();
@@ -176,14 +195,15 @@ export function CorredorProvider({ children }: PropsWithChildren) {
       .catch(() => {});
   }, []);
 
+  const elegida: CorredorSeleccion = seleccion ?? sede;
   const valida: CorredorSeleccion =
-    seleccion === TODOS_LOS_CORREDORES
+    elegida === TODOS_LOS_CORREDORES
       ? corredores.length > 1
         ? TODOS_LOS_CORREDORES
         : corredores[0].id
-      : corredores.some((c) => c.id === seleccion)
-        ? seleccion
-        : corredores[0].id;
+      : corredores.some((c) => c.id === elegida)
+        ? elegida
+        : sede;
 
   const setSeleccion = useCallback((s: CorredorSeleccion) => {
     setSeleccionState(s);
@@ -191,19 +211,21 @@ export function CorredorProvider({ children }: PropsWithChildren) {
   }, []);
 
   const valor = useMemo<CorredorState>(() => {
-    const activo = corredores.find((c) => c.id === valida) ?? corredores[0];
+    const activo =
+      corredores.find((c) => c.id === valida) ?? corredores.find((c) => c.id === sede) ?? corredores[0];
     return {
       corredores,
       seleccion: valida,
-      seleccionPreferida: seleccion,
+      seleccionPreferida: elegida,
       setSeleccion,
       corredor: activo,
+      sede,
       multiCorredor: corredores.length > 1,
       esConsolidado: valida === TODOS_LOS_CORREDORES,
-      configDe: (id) => corredores.find((c) => c.id === id) ?? CORREDOR_PE_VE,
+      configDe: (id) => catalogo.find((c) => c.id === id) ?? CORREDOR_PE_VE,
       recargar,
     };
-  }, [corredores, valida, setSeleccion, recargar]);
+  }, [corredores, catalogo, valida, elegida, sede, setSeleccion, recargar]);
 
   return <CorredorContext.Provider value={valor}>{children}</CorredorContext.Provider>;
 }
