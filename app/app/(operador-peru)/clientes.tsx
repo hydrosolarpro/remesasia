@@ -13,6 +13,7 @@ import { DOCUMENTO_TIPO_ETIQUETA, documentoClienteCompleto } from '../../lib/per
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { ProvisionarClientePin } from '../../components/ProvisionarClientePin';
+import { CupoClientesCard } from '../../components/CupoClientesAviso';
 import { Collapsible } from '../../components/Collapsible';
 import { Usuario, OperadorPeruMiembro } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
@@ -298,16 +299,12 @@ export default function ClientesRegistrados() {
       <ProvisionarClientePin miembroId={miembroId} onCreado={cargarClientes} />
 
 
-      <View style={[styles.card, cardShadow]}>
-        <Text style={styles.cardTitulo}>Cupo de clientes</Text>
-        <Text style={styles.cardTexto}>
-          {(() => {
-            const cupo = obtenerLimiteClientes(planNegocio, limiteClientesUnlimited);
-            if (cupo === Infinity) return `${clientes.length} clientes — plan ${planNegocio.toUpperCase()} sin límite.`;
-            return `${clientes.length} de ${cupo} clientes usados — te quedan ${Math.max(0, cupo - clientes.length)} cupos.`;
-          })()}
-        </Text>
-      </View>
+      <CupoClientesCard
+        usados={clientes.length}
+        limite={obtenerLimiteClientes(planNegocio, limiteClientesUnlimited)}
+        plan={planNegocio}
+        mostrarSolicitar={esPrincipal}
+      />
 
       <View style={styles.header}>
         <Text style={styles.titulo}>Clientes registrados ({clientes.length})</Text>

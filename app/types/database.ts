@@ -375,6 +375,8 @@ export interface ConfiguracionPagosAdmin {
   plin_telefono: string | null;
   otro_medio_nombre: string | null;
   otro_medio_telefono: string | null;
+  /** Enlace de pago de PayPal (https://www.paypal.com/ncp/payment/...). */
+  paypal_url: string | null;
   monto_suscripcion: number;
   updated_at: string;
 }

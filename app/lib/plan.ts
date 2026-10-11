@@ -54,6 +54,35 @@ export function tramoPlanMedida(nClientes: number): string | null {
   return null;
 }
 
+// Cambio a plan a la medida EN PLENO CICLO pagado: el costo se prorratea por
+// los días que faltan para terminar el ciclo, con el NUEVO tope de clientes
+// (N × S/ 1 por mes). Sin ciclo vigente (DEMO, vencido o primera vez) se
+// cobra el mes completo. El mes siguiente se renueva al precio completo.
+export function prorrateoPlanMedida(
+  nClientes: number,
+  planInicio: string | null | undefined,
+  hayCicloPagadoVigente: boolean
+): { mensual: number; monto: number; diasRestantes: number; aplica: boolean } {
+  const mensual = precioPlanMedida(nClientes);
+  const dias = hayCicloPagadoVigente ? diasRestantesPlanPagado(planInicio) : 0;
+  if (!hayCicloPagadoVigente || dias <= 0 || dias >= DIAS_PLAN_PAGADO) {
+    return { mensual, monto: mensual, diasRestantes: dias, aplica: false };
+  }
+  const monto = Math.round(((mensual * dias) / DIAS_PLAN_PAGADO) * 100) / 100;
+  return { mensual, monto, diasRestantes: dias, aplica: true };
+}
+
+// Aviso de cupo de clientes: desde este % del límite del plan se avisa que
+// se está agotando; al 100% ya no se pueden registrar más clientes.
+export const UMBRAL_AVISO_CUPO = 0.9;
+
+export function estadoCupoClientes(usados: number, limite: number): 'ok' | 'por_agotarse' | 'agotado' {
+  if (!Number.isFinite(limite)) return 'ok';
+  if (usados >= limite) return 'agotado';
+  if (usados >= limite * UMBRAL_AVISO_CUPO) return 'por_agotarse';
+  return 'ok';
+}
+
 export function planDesdeMonto(monto: number): string {
   if (monto === 0) return 'demo';
   if (monto === 100) return 'starter';

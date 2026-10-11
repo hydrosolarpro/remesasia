@@ -18,6 +18,7 @@ import {
   fechaFinPlanPagado,
   obtenerLimiteClientes,
   planDesdeMonto,
+  precioPlanMedida,
   planLabel,
 } from '../../lib/plan';
 import { PlanOperador } from '../../types/database';
@@ -104,6 +105,9 @@ function calcularPlanActual(op: OperadorFila) {
 // para todos los planes salvo UNLIMITED, que se acuerda caso por caso con
 // el administrador (se toma el monto de su último pago verificado).
 function precioPlanOperador(op: OperadorFila, planActual: string): number {
+  // A la medida: S/ 1 por cliente del cupo vigente -- el último pago puede ser un
+  // monto prorrateado (cambio en pleno ciclo), así que no sirve como precio mensual.
+  if (planActual === 'medida' && op.limite_clientes_unlimited) return precioPlanMedida(op.limite_clientes_unlimited);
   if (planActual === 'unlimited' || planActual === 'medida') {
     const verificados = op.pagos_suscripcion
       .filter((p) => p.estado === 'verificado')

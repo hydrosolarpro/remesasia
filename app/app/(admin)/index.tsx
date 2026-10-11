@@ -305,6 +305,7 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
   const [plinTelefono, setPlinTelefono] = useState(config?.plin_telefono ?? '');
   const [otroMedioNombre, setOtroMedioNombre] = useState(config?.otro_medio_nombre ?? '');
   const [otroMedioTelefono, setOtroMedioTelefono] = useState(config?.otro_medio_telefono ?? '');
+  const [paypalUrl, setPaypalUrl] = useState(config?.paypal_url ?? '');
   const [guardando, setGuardando] = useState(false);
 
   const guardar = async () => {
@@ -318,6 +319,7 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
       plin_telefono: plinTelefono.trim() || null,
       otro_medio_nombre: otroMedioNombre.trim() || null,
       otro_medio_telefono: otroMedioTelefono.trim() || null,
+      paypal_url: paypalUrl.trim() || null,
     };
     const { error } = config
       ? await supabase.from('configuracion_pagos_admin').update(payload).eq('id', config.id)
@@ -365,6 +367,16 @@ function ConfiguracionPagosSection({ config, onGuardado }: { config: Configuraci
         />
       </View>
 
+      <Label texto="Enlace de pago de PayPal (opcional)" />
+      <TextInput
+        style={styles.input}
+        value={paypalUrl}
+        onChangeText={setPaypalUrl}
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholder="https://www.paypal.com/ncp/payment/..."
+        placeholderTextColor={colors.textMuted}
+      />
       <Pressable style={styles.boton} onPress={guardar} disabled={guardando}>
         {guardando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.botonTexto}>Guardar configuración</Text>}
       </Pressable>

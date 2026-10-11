@@ -6,13 +6,21 @@ import { supabase } from '../lib/supabase';
 import { CopyField } from './CopyField';
 import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin } from '../types/database';
-import { PRECIO_PLAN, planLabel, precioPlanMedida, tramoPlanMedida, NOMBRE_PLAN, PRECIO_MEDIDA_POR_CLIENTE } from '../lib/plan';
+import {
+  PRECIO_PLAN,
+  planLabel,
+  precioPlanMedida,
+  tramoPlanMedida,
+  NOMBRE_PLAN,
+  PRECIO_MEDIDA_POR_CLIENTE,
+  prorrateoPlanMedida,
+} from '../lib/plan';
 import { construirEnlaceWhatsAppAdmin } from '../lib/whatsapp';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
-type FormaPago = 'yape' | 'transferencia';
+type FormaPago = 'yape' | 'transferencia' | 'paypal';
 
 // UNLIMITED no tiene tarifa fija, formas de pago ni comprobante que
 // mostrar todavía -- se acuerda por WhatsApp con el administrador antes
@@ -194,7 +202,12 @@ function FormularioSolicitudPlanFijo({
 
   const esMedida = plan === 'medida';
   const nClientesMedida = Math.round(clientesAMedida ?? 0);
-  const monto = esMedida ? precioPlanMedida(nClientesMedida) : (montoOverride ?? PRECIO_PLAN[plan]);
+  // Plan a la medida pedido en pleno ciclo pagado ('cambio'): se prorratea por los
+  // días que faltan, con el nuevo tope de clientes.
+  const prorrateo = esMedida
+    ? prorrateoPlanMedida(nClientesMedida, usuario?.plan_inicio, modo === 'cambio' && usuario?.plan !== 'demo')
+    : null;
+  const monto = esMedida ? prorrateo!.monto : (montoOverride ?? PRECIO_PLAN[plan]);
   const tramoMedida = esMedida ? tramoPlanMedida(nClientesMedida) : null;
 
   useEffect(() => {
@@ -326,7 +339,9 @@ function FormularioSolicitudPlanFijo({
     <View style={{ gap: 12 }}>
       <Text style={styles.subtitulo}>
         {esMedida
-          ? `Solicitud de plan ${NOMBRE_PLAN.medida} — S/ ${monto.toFixed(2)} / mes (${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]} — período ${periodoActual()}`
+          ? prorrateo?.aplica
+            ? `Solicitud de plan ${NOMBRE_PLAN.medida} para ${nClientesMedida} clientes — prorrateado: S/ ${monto.toFixed(2)} por los ${prorrateo.diasRestantes} días que faltan de tu ciclo (precio mensual S/ ${prorrateo.mensual.toFixed(2)}: ${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]}`
+            : `Solicitud de plan ${NOMBRE_PLAN.medida} — S/ ${monto.toFixed(2)} / mes (${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]} — período ${periodoActual()}`
           : `Solicitud de plan ${planLabel(plan)} — S/ ${monto.toFixed(2)} / mes — período ${periodoActual()}`}
       </Text>
 
@@ -335,9 +350,22 @@ function FormularioSolicitudPlanFijo({
         <View style={styles.selectorRow}>
           <SelectorOpcion etiqueta="YAPE" seleccionado={formaPago === 'yape'} onPress={() => setFormaPago('yape')} />
           <SelectorOpcion etiqueta="Transferencia bancaria" seleccionado={formaPago === 'transferencia'} onPress={() => setFormaPago('transferencia')} />
+          {!!config?.paypal_url && (
+            <SelectorOpcion etiqueta="PayPal" seleccionado={formaPago === 'paypal'} onPress={() => setFormaPago('paypal')} />
+          )}
         </View>
 
-        {formaPago === 'yape' ? (
+        {formaPago === 'paypal' ? (
+          <View style={{ marginTop: 4, gap: 8 }}>
+            <Text style={styles.avisoTexto}>
+              Monto a pagar: S/ {monto.toFixed(2)}. Pulsa el botón, completa el pago en PayPal y vuelve aquí a subir la captura
+              de tu pago como comprobante.
+            </Text>
+            <Pressable style={styles.paypalBtn} onPress={() => config?.paypal_url && Linking.openURL(config.paypal_url)}>
+              <Text style={styles.paypalBtnTexto}>Pagar con PayPal</Text>
+            </Pressable>
+          </View>
+        ) : formaPago === 'yape' ? (
           <View style={{ marginTop: 4 }}>
             {config?.yape_telefono && <CopyField label="Yape" value={config.yape_telefono} />}
             {config?.plin_telefono && <CopyField label="Plin" value={config.plin_telefono} />}
@@ -424,6 +452,8 @@ function SelectorOpcion({ etiqueta, seleccionado, onPress }: { etiqueta: string;
 }
 
 const styles = StyleSheet.create({
+  paypalBtn: { backgroundColor: '#FFD140', borderRadius: radius.md, paddingVertical: 14, alignItems: 'center' },
+  paypalBtnTexto: { color: '#000000', fontWeight: '800', fontSize: 17 },
   subtitulo: { color: colors.textMuted, fontSize: 15 },
   card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 16, gap: 4, width: '100%' },
   seccionTitulo: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 6 },

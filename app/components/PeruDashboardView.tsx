@@ -28,6 +28,7 @@ import { GuiaPasoAPaso } from './GuiaPasoAPaso';
 import { FlujoProcesoDiagrama } from './FlujoProcesoDiagrama';
 import { Collapsible } from './Collapsible';
 import { SelectorCorredor } from './SelectorCorredor';
+import { CupoClientesPrincipal } from './CupoClientesAviso';
 import { useCorredor } from '../lib/corredor';
 import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
 import { colors, radius, cardShadow } from '../constants/theme';
@@ -839,6 +840,7 @@ export function PeruDashboardView({
       </Text>
       <LiveClock />
       <SelectorCorredor permitirTodos />
+      {esPrincipal && <CupoClientesPrincipal />}
       {esPrincipal && !multiCorredor && (
         <Pressable style={styles.corredoresCta} onPress={() => router.push('/(operador-peru)/perfil')}>
           <Text style={styles.corredoresCtaTitulo}>🌎 Trabaja más países con tu mismo negocio</Text>
