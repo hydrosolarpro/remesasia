@@ -11,7 +11,7 @@ import { colors, radius } from '../../constants/theme';
 
 const DESTACADOS = [
   'Confirmación automática para ti y tu familia — sin tener que preguntar, sin esperar respuesta por WhatsApp. Tus seres queridos son avisados en el momento exacto.',
-  'Integración automática sin fronteras — control total de operaciones transnacionales entre Perú y Venezuela en tiempo real.',
+  'Integración automática sin fronteras — control total de operaciones transnacionales entre país de Recepción y país de Entrega en tiempo real.',
   'Automatización, notificaciones instantáneas y perfil multi-operador.',
 ];
 
