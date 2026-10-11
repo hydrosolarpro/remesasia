@@ -34,6 +34,7 @@ import { ComisionPorCorredor } from '../../components/ComisionPorCorredor';
 import { CorredoresDelOperador } from '../../components/CorredoresDelOperador';
 import { SelectorCorredor } from '../../components/SelectorCorredor';
 import { useCorredor } from '../../lib/corredor';
+import { useTipoCambioSunat, usdTxt } from '../../lib/tipoCambio';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
@@ -44,6 +45,7 @@ const FORMATTER_FECHA = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month
 
 export default function Perfil() {
   const { usuario } = useAuth();
+  useTipoCambioSunat(); // re-renderiza los precios con su equivalente en US$ cuando llega el tipo de cambio
   // Equipos por corredor: con más de un corredor activo, los equipos se arman y se
   // ven POR CORREDOR (el elegido en el selector); "Todos" muestra todo el equipo.
   const { corredor, esConsolidado, multiCorredor } = useCorredor();
@@ -549,7 +551,7 @@ export default function Perfil() {
           {(usuario.plan === 'unlimited' || usuario.plan === 'medida') && usuario.limite_clientes_unlimited && (
             <Text style={styles.cardTexto}>
               {usuario.plan === 'medida'
-                ? `Plan a la medida: hasta ${usuario.limite_clientes_unlimited} clientes (S/ ${usuario.limite_clientes_unlimited} / mes).`
+                ? `Plan a la medida: hasta ${usuario.limite_clientes_unlimited} clientes (S/ ${usuario.limite_clientes_unlimited}${usdTxt(usuario.limite_clientes_unlimited)} / mes).`
                 : `Cupo acordado: hasta ${usuario.limite_clientes_unlimited} clientes.`}
             </Text>
           )}
@@ -686,7 +688,7 @@ export default function Perfil() {
                 <>
                   <View style={styles.metaFila}>
                     <View style={styles.metaFilaDatos}>
-                      <Text style={styles.metaFilaNombre}>S/ {precioPlanMedida(nMedida).toFixed(2)} / mes</Text>
+                      <Text style={styles.metaFilaNombre}>S/ {precioPlanMedida(nMedida).toFixed(2)}{usdTxt(precioPlanMedida(nMedida))} / mes</Text>
                       <Text style={styles.metaFilaDato}>
                         {nMedida} clientes · {limitesMedida.peru} operador(es) Perú · {limitesMedida.venezuela} en Venezuela ·
                         incluye las características del plan {NOMBRE_PLAN[tramo]}

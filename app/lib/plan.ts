@@ -1,3 +1,4 @@
+import { usdTxt } from './tipoCambio';
 export const PRECIO_STARTER_MENSUAL = 100;
 export const PRECIO_PRO_MENSUAL = 200;
 export const PRECIO_EXPERT_MENSUAL = 400;
@@ -94,14 +95,14 @@ export function planDesdeMonto(monto: number): string {
 }
 
 export function planLabel(plan: string, monto?: number): string {
-  if ((plan === 'unlimited' || plan === 'medida') && monto) return `${NOMBRE_PLAN[plan]} (S/ ${monto})`;
+  if ((plan === 'unlimited' || plan === 'medida') && monto) return `${NOMBRE_PLAN[plan]} (S/ ${monto}${usdTxt(monto)})`;
   return NOMBRE_PLAN[plan] ?? plan.toUpperCase();
 }
 
 export function planPrecioLabel(plan: string, monto?: number): string {
-  if ((plan === 'unlimited' || plan === 'medida') && monto) return `S/ ${monto}/mes`;
+  if ((plan === 'unlimited' || plan === 'medida') && monto) return `S/ ${monto}/mes${usdTxt(monto)}`;
   const p = PRECIO_PLAN[plan];
-  return p !== undefined ? `S/ ${p}/mes` : '';
+  return p !== undefined ? `S/ ${p}/mes${usdTxt(p)}` : '';
 }
 
 export const DIAS_DEMO = 7;

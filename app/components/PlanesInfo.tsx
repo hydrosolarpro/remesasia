@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { PRECIO_PLAN } from '../lib/plan';
+import { useTipoCambioSunat, solesADolares } from '../lib/tipoCambio';
 import { colors, radius, cardShadow } from '../constants/theme';
 import { Collapsible } from './Collapsible';
 
@@ -132,16 +133,28 @@ const PLATAFORMA_INTRO =
 // Términos y Condiciones se aceptan al momento de solicitar/cambiar de
 // plan (ver FormularioSolicitudPlan), no acá.
 export function PlanesInfo() {
+  const tc = useTipoCambioSunat();
+  // Equivalente en dólares (tipo de cambio SUNAT del día) del precio mensual de cada plan.
+  const sufijoUsd = (id: string) => {
+    const precio = PRECIO_PLAN[id];
+    const u = precio !== undefined ? solesADolares(precio) : null;
+    return u === null ? '' : ` — ≈ US$ ${u.toFixed(2)}`;
+  };
   return (
     <View style={[styles.card, cardShadow]}>
       <Text style={styles.titulo}>Haz crecer tu negocio de remesas</Text>
+      {tc && (
+        <Text style={styles.intro}>
+          Precios en soles; equivalente en dólares con el tipo de cambio SUNAT del {tc.fecha} (venta S/ {tc.venta.toFixed(3)} por US$ 1).
+        </Text>
+      )}
       <Text style={styles.intro}>
         Empieza gratis y sube de plan cuando tu negocio lo pida — sin perder nada de lo que ya construiste: tus clientes, tu
         equipo y tu historial siguen intactos.
       </Text>
 
       {PLANES.map((p) => (
-        <Collapsible key={p.id} titulo={p.encabezado}>
+        <Collapsible key={p.id} titulo={`${p.encabezado}${sufijoUsd(p.id)}`}>
           <Beneficio texto={p.acceso} />
           <Beneficio texto={PLATAFORMA_INTRO} />
           <Beneficio texto={p.registro} />

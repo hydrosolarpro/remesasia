@@ -22,6 +22,7 @@ import {
   planLabel,
 } from '../../lib/plan';
 import { PlanOperador } from '../../types/database';
+import { useTipoCambioSunat } from '../../lib/tipoCambio';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7);
@@ -118,6 +119,7 @@ function precioPlanOperador(op: OperadorFila, planActual: string): number {
 }
 
 export default function PanelControl() {
+  useTipoCambioSunat();
   const [operadores, setOperadores] = useState<OperadorFila[]>([]);
   const [pendientes, setPendientes] = useState<PendienteFila[]>([]);
   const [cargando, setCargando] = useState(true);

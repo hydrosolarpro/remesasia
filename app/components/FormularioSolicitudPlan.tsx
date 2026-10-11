@@ -16,6 +16,7 @@ import {
   prorrateoPlanMedida,
 } from '../lib/plan';
 import { construirEnlaceWhatsAppAdmin } from '../lib/whatsapp';
+import { useTipoCambioSunat, usdTxt, solesADolares } from '../lib/tipoCambio';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
@@ -200,6 +201,7 @@ function FormularioSolicitudPlanFijo({
   const [error, setError] = useState<string | null>(null);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
+  const tipoCambio = useTipoCambioSunat();
   const esMedida = plan === 'medida';
   const nClientesMedida = Math.round(clientesAMedida ?? 0);
   // Plan a la medida pedido en pleno ciclo pagado ('cambio'): se prorratea por los
@@ -340,9 +342,9 @@ function FormularioSolicitudPlanFijo({
       <Text style={styles.subtitulo}>
         {esMedida
           ? prorrateo?.aplica
-            ? `Solicitud de plan ${NOMBRE_PLAN.medida} para ${nClientesMedida} clientes — prorrateado: S/ ${monto.toFixed(2)} por los ${prorrateo.diasRestantes} días que faltan de tu ciclo (precio mensual S/ ${prorrateo.mensual.toFixed(2)}: ${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]}`
-            : `Solicitud de plan ${NOMBRE_PLAN.medida} — S/ ${monto.toFixed(2)} / mes (${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]} — período ${periodoActual()}`
-          : `Solicitud de plan ${planLabel(plan)} — S/ ${monto.toFixed(2)} / mes — período ${periodoActual()}`}
+            ? `Solicitud de plan ${NOMBRE_PLAN.medida} para ${nClientesMedida} clientes — prorrateado: S/ ${monto.toFixed(2)}${usdTxt(monto)} por los ${prorrateo.diasRestantes} días que faltan de tu ciclo (precio mensual S/ ${prorrateo.mensual.toFixed(2)}${usdTxt(prorrateo.mensual)}: ${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]}`
+            : `Solicitud de plan ${NOMBRE_PLAN.medida} — S/ ${monto.toFixed(2)}${usdTxt(monto)} / mes (${nClientesMedida} clientes × S/ ${PRECIO_MEDIDA_POR_CLIENTE}) — incluye las características del plan ${NOMBRE_PLAN[tramoMedida!]} — período ${periodoActual()}`
+          : `Solicitud de plan ${planLabel(plan)} — S/ ${monto.toFixed(2)}${usdTxt(monto)} / mes — período ${periodoActual()}`}
       </Text>
 
       <View style={[styles.card, cardShadow]}>
@@ -358,8 +360,9 @@ function FormularioSolicitudPlanFijo({
         {formaPago === 'paypal' ? (
           <View style={{ marginTop: 4, gap: 8 }}>
             <Text style={styles.avisoTexto}>
-              Monto a pagar: S/ {monto.toFixed(2)}. Pulsa el botón, completa el pago en PayPal y vuelve aquí a subir la captura
-              de tu pago como comprobante.
+              Monto a pagar: S/ {monto.toFixed(2)}
+              {solesADolares(monto) !== null ? ` ≈ US$ ${solesADolares(monto)!.toFixed(2)} (tipo de cambio SUNAT ${tipoCambio?.fecha}: S/ ${tipoCambio?.venta.toFixed(3)} por US$ 1)` : ''}.
+              Pulsa el botón, completa el pago en PayPal y vuelve aquí a subir la captura de tu pago como comprobante.
             </Text>
             <Pressable style={styles.paypalBtn} onPress={() => config?.paypal_url && Linking.openURL(config.paypal_url)}>
               <Text style={styles.paypalBtnTexto}>Pagar con PayPal</Text>
