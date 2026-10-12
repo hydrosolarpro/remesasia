@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { useCorredor, CorredorId } from '../lib/corredor';
 import { EtiquetaCorredor } from './SelectorCorredor';
 import { DatosPagoCorredor } from './DatosPagoCorredor';
+import { buscarPais, sugerirPaises, MONEDAS } from '../lib/paises';
 import { colors, radius } from '../constants/theme';
 
 // Administración de corredores del negocio (solo el Operador principal):
@@ -16,7 +17,7 @@ const OPCIONES: { id: CorredorId; nombre: string; detalle: string }[] = [
   { id: 'PE-VE', nombre: 'Perú → Venezuela', detalle: 'PEN · +51 · Yape / Plin' },
   { id: 'CO-VE', nombre: 'Colombia → Venezuela', detalle: 'COP · +57 · Nequi / Daviplata' },
   { id: 'CL-VE', nombre: 'Chile → Venezuela', detalle: 'CLP · +56 · Mach / Tenpo' },
-  { id: 'OT-VE', nombre: 'Otro país → Venezuela', detalle: 'Tú defines el país y la moneda' },
+  { id: 'OT-VE', nombre: 'Otro país → Venezuela', detalle: 'Escribe el país (Argentina, Bolivia, Ecuador, México, Panamá, España, Centroamérica…) y la moneda se completa sola' },
 ];
 
 interface Fila {
@@ -119,6 +120,12 @@ export function CorredoresNegocio() {
       aviso('Debe quedar al menos un corredor activo.');
       return;
     }
+    // "Otro país" sin país escrito todavía: se abre el formulario y se
+    // activa al guardar el país (ver "Guardar y activar").
+    if (id === 'OT-VE' && !f.activo && (!f.pais_nombre.trim() || !f.moneda_codigo.trim())) {
+      cambiar(id, { activo: true });
+      return;
+    }
     setGuardando(id);
     const ok = await guardarFila(id, { ...f, activo: !f.activo });
     if (ok) {
@@ -193,8 +200,40 @@ export function CorredoresNegocio() {
                   placeholder="País de recepción (ej. Argentina)"
                   placeholderTextColor={colors.textMuted}
                   value={f.pais_nombre}
-                  onChangeText={(t) => cambiar(o.id, { pais_nombre: t })}
+                  onChangeText={(t) => {
+                    // Si coincide con un país del catálogo, completa moneda, símbolo y prefijo.
+                    const p = buscarPais(t);
+                    const m = p ? MONEDAS[p.moneda] : undefined;
+                    cambiar(
+                      o.id,
+                      p && m
+                        ? { pais_nombre: p.nombre, moneda_codigo: m.codigo, moneda_simbolo: m.simbolo, prefijo_tel: p.prefijo }
+                        : { pais_nombre: t }
+                    );
+                  }}
                 />
+                {!buscarPais(f.pais_nombre) &&
+                  sugerirPaises(f.pais_nombre).map((p) => (
+                    <Pressable
+                      key={p.nombre}
+                      style={styles.sugerencia}
+                      onPress={() => {
+                        const m = MONEDAS[p.moneda];
+                        cambiar(o.id, { pais_nombre: p.nombre, moneda_codigo: m.codigo, moneda_simbolo: m.simbolo, prefijo_tel: p.prefijo });
+                      }}
+                    >
+                      <Text style={styles.sugerenciaTexto}>
+                        {p.nombre} · {MONEDAS[p.moneda].nombre} ({p.moneda})
+                      </Text>
+                    </Pressable>
+                  ))}
+                {!!f.moneda_codigo && (
+                  <Text style={styles.nota}>
+                    Moneda: {MONEDAS[f.moneda_codigo.toUpperCase()]?.nombre ?? f.moneda_codigo.toUpperCase()} ({f.moneda_codigo.toUpperCase()}
+                    {f.moneda_simbolo ? ` · ${f.moneda_simbolo}` : ''}){f.prefijo_tel ? ` · +${f.prefijo_tel}` : ''}. Puedes ajustar los
+                    datos abajo si tu país no está en la lista.
+                  </Text>
+                )}
                 <TextInput
                   style={styles.input}
                   placeholder="Código de moneda (ej. ARS)"
@@ -227,7 +266,7 @@ export function CorredoresNegocio() {
                     setGuardando(null);
                   }}
                 >
-                  <Text style={styles.botonTexto}>{guardando === o.id ? 'Guardando…' : 'Guardar datos del país'}</Text>
+                  <Text style={styles.botonTexto}>{guardando === o.id ? 'Guardando…' : 'Guardar y activar'}</Text>
                 </Pressable>
               </View>
             )}
@@ -251,6 +290,8 @@ const styles = StyleSheet.create({
   sedeTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 14 },
   sedeTextoActiva: { color: colors.text },
   otro: { gap: 8 },
+  sugerencia: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
+  sugerenciaTexto: { color: colors.text, fontSize: 14 },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

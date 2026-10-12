@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { nombreMoneda, unidadMoneda } from '../../lib/guiaContenido';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -23,8 +24,8 @@ export default function TasaDelDia() {
   const { usuario } = useAuth();
   const { corredor } = useCorredor();
   // Perú se llama "Soles"/"sol"; los demás corredores usan el código de su moneda.
-  const monedaTxt = corredor.id === 'PE-VE' ? 'Soles' : corredor.monedaCodigo;
-  const unidadTxt = corredor.id === 'PE-VE' ? 'sol' : corredor.monedaCodigo;
+  const monedaTxt = nombreMoneda(corredor.monedaCodigo);
+  const unidadTxt = unidadMoneda(corredor.monedaCodigo);
   const [tasaActual, setTasaActual] = useState<Tasa | null>(null);
   const [penVes, setPenVes] = useState('');
   const [tasaAdquisicion, setTasaAdquisicion] = useState('');

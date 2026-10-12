@@ -1,3 +1,4 @@
+import { nombreMonedaPorCodigo, unidadMonedaPorCodigo } from './paises';
 export interface PasoGuia {
   icono: string;
   titulo: string;
@@ -230,7 +231,7 @@ export function construirFlujoCompleto(pais = 'Perú', monedaNombre = 'Soles'): 
 
 export const GUIA_FLUJO_COMPLETO: PasoGuia[] = construirFlujoCompleto();
 
-/** Nombre de la moneda de recepción para textos ("Soles" en Perú, el código en los demás). */
-export const nombreMoneda = (codigo: string) => (codigo === 'PEN' ? 'Soles' : codigo);
-/** Unidad en singular ("sol" en Perú, el código en los demás). */
-export const unidadMoneda = (codigo: string) => (codigo === 'PEN' ? 'sol' : codigo);
+/** Nombre de la moneda de recepción para textos ("Soles", "Pesos argentinos"; el código si no se conoce). */
+export const nombreMoneda = nombreMonedaPorCodigo;
+/** Unidad en singular ("sol", "peso argentino"). */
+export const unidadMoneda = unidadMonedaPorCodigo;
