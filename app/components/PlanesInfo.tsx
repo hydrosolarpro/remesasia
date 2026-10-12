@@ -1,8 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { PRECIO_PLAN } from '../lib/plan';
 import { useTipoCambioSunat, solesADolares } from '../lib/tipoCambio';
-import { colors, radius, cardShadow } from '../constants/theme';
-import { Collapsible } from './Collapsible';
+import { colors } from '../constants/theme';
 
 // Contenido EXACTO de cada plan, tal como está escrito en
 // "SOBRE PLANES Y PAGOS/sobre-planes.md" (fuente de verdad de contenido y
@@ -127,45 +126,37 @@ const PLANES: PlanContenido[] = [
 const PLATAFORMA_INTRO =
   'Plataforma digital en línea atractiva, colaborativa entre clientes y operadores, fácil uso y adecuada para el manejo con smartphone con respaldo de base de datos y seguridad cibernética.';
 
-// Presentación comercial de los planes (distinta de la tarjeta "Tu plan",
-// que muestra el estado puntual del operador): un desplegable por plan,
-// con el contenido exacto de "SOBRE PLANES Y PAGOS/sobre-planes.md". Los
-// Términos y Condiciones se aceptan al momento de solicitar/cambiar de
-// plan (ver FormularioSolicitudPlan), no acá.
-export function PlanesInfo() {
-  const tc = useTipoCambioSunat();
-  // Equivalente en dólares (tipo de cambio SUNAT del día) del precio mensual de cada plan.
-  const sufijoUsd = (id: string) => {
-    const precio = PRECIO_PLAN[id];
-    const u = precio !== undefined ? solesADolares(precio) : null;
-    return u === null ? '' : ` — ≈ US$ ${u.toFixed(2)}`;
-  };
-  return (
-    <View style={[styles.card, cardShadow]}>
-      <Text style={styles.titulo}>Haz crecer tu negocio de remesas</Text>
-      {tc && (
-        <Text style={styles.intro}>
-          Precios en soles; equivalente en dólares con el tipo de cambio SUNAT del {tc.fecha} (venta S/ {tc.venta.toFixed(3)} por US$ 1).
-        </Text>
-      )}
-      <Text style={styles.intro}>
-        Empieza gratis y sube de plan cuando tu negocio lo pida — sin perder nada de lo que ya construiste: tus clientes, tu
-        equipo y tu historial siguen intactos.
-      </Text>
+// Datos de cada plan (contenido exacto de "SOBRE PLANES Y PAGOS/sobre-planes.md").
+// Ya no es una sección aparte: se muestran dentro de "Cambiar de plan" del
+// perfil del Operador principal, tanto en la lista como en el paso de
+// información previo a las formas de pago. Los Términos y Condiciones se
+// aceptan al enviar la solicitud (ver FormularioSolicitudPlan).
 
-      {PLANES.map((p) => (
-        <Collapsible key={p.id} titulo={`${p.encabezado}${sufijoUsd(p.id)}`}>
-          <Beneficio texto={p.acceso} />
-          <Beneficio texto={PLATAFORMA_INTRO} />
-          <Beneficio texto={p.registro} />
-          <Beneficio texto={p.operadores} />
-          {BENEFICIOS_COMUNES.map((texto) => (
-            <Beneficio key={texto} texto={texto} />
-          ))}
-          {p.incluyeExtra && BENEFICIOS_EXTRA.map((texto) => <Beneficio key={texto} texto={texto} />)}
-          {p.incluyeNuevasFuncionalidades && <Beneficio texto={ACCESO_NUEVAS_FUNCIONALIDADES} />}
-        </Collapsible>
+/** Encabezado del plan con su precio mensual y, si hay tipo de cambio SUNAT, el equivalente en US$. */
+export function encabezadoPlan(id: string): string {
+  const p = PLANES.find((x) => x.id === id);
+  if (!p) return id;
+  const precio = PRECIO_PLAN[id];
+  const u = precio !== undefined ? solesADolares(precio) : null;
+  return `${p.encabezado}${u === null ? '' : ` — ≈ US$ ${u.toFixed(2)}`}`;
+}
+
+/** Lista de características del plan, tal como está en sobre-planes.md. */
+export function PlanDetalle({ id }: { id: string }) {
+  useTipoCambioSunat(); // re-renderiza con el equivalente en US$ cuando llega el tipo de cambio
+  const p = PLANES.find((x) => x.id === id);
+  if (!p) return null;
+  return (
+    <View style={styles.detalle}>
+      <Beneficio texto={p.acceso} />
+      <Beneficio texto={PLATAFORMA_INTRO} />
+      <Beneficio texto={p.registro} />
+      <Beneficio texto={p.operadores} />
+      {BENEFICIOS_COMUNES.map((texto) => (
+        <Beneficio key={texto} texto={texto} />
       ))}
+      {p.incluyeExtra && BENEFICIOS_EXTRA.map((texto) => <Beneficio key={texto} texto={texto} />)}
+      {p.incluyeNuevasFuncionalidades && <Beneficio texto={ACCESO_NUEVAS_FUNCIONALIDADES} />}
     </View>
   );
 }
@@ -180,16 +171,7 @@ function Beneficio({ texto }: { texto: string }) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: 16,
-    gap: 10,
-  },
-  titulo: { color: colors.text, fontSize: 18, fontWeight: '900' },
-  intro: { color: colors.textMuted, fontSize: 15, lineHeight: 18 },
+  detalle: { gap: 10 },
   beneficioRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   beneficioCheck: { color: colors.success, fontSize: 15, fontWeight: '800', marginTop: 1 },
   beneficioTexto: { color: colors.textMuted, fontSize: 15, lineHeight: 18, flex: 1 },

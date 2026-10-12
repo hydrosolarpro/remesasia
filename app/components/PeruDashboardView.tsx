@@ -30,7 +30,7 @@ import { Collapsible } from './Collapsible';
 import { SelectorCorredor } from './SelectorCorredor';
 import { CupoClientesPrincipal } from './CupoClientesAviso';
 import { useCorredor } from '../lib/corredor';
-import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
+import { GUIA_OPERADOR_PRINCIPAL, GUIA_OPERADOR_MIEMBRO, GUIA_OPERADOR_VENEZUELA, construirFlujoCompleto, nombreMoneda, unidadMoneda } from '../lib/guiaContenido';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 // Panel de operaciones de Remesas IA. Lo usan las tres
@@ -80,7 +80,7 @@ export function PeruDashboardView({
   const { usuario, refreshUsuario } = useAuth();
   const [mostrarGuia, setMostrarGuia] = useState(false);
   const pasosGuia = esPrincipal
-    ? [...GUIA_OPERADOR_PRINCIPAL, ...GUIA_FLUJO_COMPLETO]
+    ? [...GUIA_OPERADOR_PRINCIPAL, ...construirFlujoCompleto(corredor.paisRecepcion, nombreMoneda(moneda))]
     : esMiembroPe
       ? GUIA_OPERADOR_MIEMBRO
       : GUIA_OPERADOR_VENEZUELA;
@@ -859,7 +859,7 @@ export function PeruDashboardView({
       {esPrincipal && (
         <Collapsible
           abiertoPorDefecto
-          titulo="🔄 Flujo del proceso de remesas Perú-Venezuela"
+          titulo={`🔄 Flujo del proceso de remesas ${corredor.paisRecepcion}-${corredor.paisEntrega}`}
           subtitulo="Los 4 pasos, de principio a fin"
         >
           <FlujoProcesoDiagrama />
@@ -912,7 +912,7 @@ export function PeruDashboardView({
 
       {puedeGestionar && (
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
-          <Text style={styles.tasaLabel}>Tasa de adquisición (bolívares que compras con cada sol)</Text>
+          <Text style={styles.tasaLabel}>Tasa de adquisición (bolívares que compras con cada {unidadMoneda(moneda)})</Text>
           <Text style={styles.tasaValor}>{tasa?.tasa_adquisicion ? `VES ${tasa.tasa_adquisicion}` : 'Sin publicar'}</Text>
           <Pressable onPress={() => router.push('/(operador-peru)/tasa')}>
             <Text style={styles.tasaEditar}>Actualizar tasa →</Text>
@@ -922,7 +922,7 @@ export function PeruDashboardView({
 
       <View style={[styles.card, cardShadow, styles.tasaCard]}>
         <Text style={styles.tasaLabel}>
-          {`${esMiembroPe ? 'Tasa del día del Operador principal' : 'Tasa del día'} (${moneda === 'PEN' ? 'Soles' : moneda} → Bolívares)`}
+          {`${esMiembroPe ? 'Tasa del día del Operador principal' : 'Tasa del día'} (${nombreMoneda(moneda)} → Bolívares)`}
         </Text>
         <Text style={styles.tasaValor}>{tasa ? `VES ${tasa.tasa_pen_ves}` : 'Sin publicar'}</Text>
         {puedeGestionar && (

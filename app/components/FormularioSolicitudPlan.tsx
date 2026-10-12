@@ -29,7 +29,7 @@ type FormaPago = 'yape' | 'transferencia' | 'paypal';
 // delega en este componente aparte para ese plan puntual, en vez de
 // mostrar el formulario completo (formas de pago/comprobante/términos)
 // con un monto que el cliente todavía no conoce.
-function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onEnviado?: () => void }) {
+function SolicitudUnlimited({ modo, onEnviado, onCancelar }: { modo: 'nueva' | 'cambio'; onEnviado?: () => void; onCancelar?: () => void }) {
   const { usuario, refreshUsuario } = useAuth();
   const [cupoSolicitado, setCupoSolicitado] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -120,7 +120,16 @@ function SolicitudUnlimited({ modo, onEnviado }: { modo: 'nueva' | 'cambio'; onE
           {enviando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.enviarBtnTexto}>💬 Consultar por WhatsApp</Text>}
         </Pressable>
       )}
+      {onCancelar && !enviado && <BotonCancelar onPress={onCancelar} />}
     </View>
+  );
+}
+
+function BotonCancelar({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable style={styles.cancelarBtn} onPress={onPress}>
+      <Text style={styles.cancelarBtnTexto}>Cancelar solicitud</Text>
+    </Pressable>
   );
 }
 
@@ -154,19 +163,22 @@ export function FormularioSolicitudPlan(props: {
   plan: string;
   modo: 'nueva' | 'cambio';
   onEnviado?: () => void;
+  /** Si se pasa, muestra el botón "Cancelar solicitud" bajo "Enviar solicitud". */
+  onCancelar?: () => void;
   montoUnlimitedAcordado?: number;
   // Solo plan 'medida': N° de clientes que el operador solicita. El monto
   // (= N × S/ 1) y el cupo se derivan de acá -- ver lib/plan.ts.
   clientesAMedida?: number;
 }) {
   if (props.plan === 'unlimited' && !props.montoUnlimitedAcordado) {
-    return <SolicitudUnlimited modo={props.modo} onEnviado={props.onEnviado} />;
+    return <SolicitudUnlimited modo={props.modo} onEnviado={props.onEnviado} onCancelar={props.onCancelar} />;
   }
   return (
     <FormularioSolicitudPlanFijo
       plan={props.plan}
       modo={props.modo}
       onEnviado={props.onEnviado}
+      onCancelar={props.onCancelar}
       montoOverride={props.montoUnlimitedAcordado}
       clientesAMedida={props.clientesAMedida}
     />
@@ -181,12 +193,14 @@ function FormularioSolicitudPlanFijo({
   plan,
   modo,
   onEnviado,
+  onCancelar,
   montoOverride,
   clientesAMedida,
 }: {
   plan: string;
   modo: 'nueva' | 'cambio';
   onEnviado?: () => void;
+  onCancelar?: () => void;
   montoOverride?: number;
   clientesAMedida?: number;
 }) {
@@ -439,6 +453,7 @@ function FormularioSolicitudPlanFijo({
       <Pressable style={[styles.enviarBtn, !aceptaTerminos && styles.enviarBtnDeshabilitado]} onPress={enviarSolicitud} disabled={enviando || !aceptaTerminos}>
         {enviando ? <ActivityIndicator color={colors.text} /> : <Text style={styles.enviarBtnTexto}>Enviar solicitud</Text>}
       </Pressable>
+      {onCancelar && <BotonCancelar onPress={onCancelar} />}
     </View>
   );
 }
@@ -503,6 +518,8 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 15 },
   enviarBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   enviarBtnDeshabilitado: { opacity: 0.5 },
+  cancelarBtn: { borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 14, alignItems: 'center' },
+  cancelarBtnTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 16 },
   enviarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 18 },
   terminosBox: { borderColor: colors.primary, gap: 8 },
   terminosTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },

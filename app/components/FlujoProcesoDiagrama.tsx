@@ -1,11 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { GUIA_FLUJO_COMPLETO } from '../lib/guiaContenido';
+import { construirFlujoCompleto, nombreMoneda } from '../lib/guiaContenido';
+import { useCorredor } from '../lib/corredor';
 import { colors, radius } from '../constants/theme';
-
-const ETIQUETA_ACTOR: Record<'cliente' | 'operadores', string> = {
-  cliente: 'CLIENTE',
-  operadores: 'OPERADORES PERÚ · VENEZUELA',
-};
 
 // Esquema visual permanente del flujo de 4 pasos (ver
 // funcionaldiades - flujo remesas peru-venezuela.pdf, última página):
@@ -17,7 +13,13 @@ const ETIQUETA_ACTOR: Record<'cliente' | 'operadores', string> = {
 export function FlujoProcesoDiagrama() {
   // El primer elemento de GUIA_FLUJO_COMPLETO es la frase introductoria
   // (sin número ni actor); los 4 siguientes son los pasos del esquema.
-  const [intro, ...pasos] = GUIA_FLUJO_COMPLETO;
+  // Se adapta al corredor activo: país de recepción y su moneda.
+  const { corredor } = useCorredor();
+  const [intro, ...pasos] = construirFlujoCompleto(corredor.paisRecepcion, nombreMoneda(corredor.monedaCodigo));
+  const ETIQUETA_ACTOR: Record<'cliente' | 'operadores', string> = {
+    cliente: 'CLIENTE',
+    operadores: `OPERADORES ${corredor.paisRecepcion.toUpperCase()} · ${corredor.paisEntrega.toUpperCase()}`,
+  };
 
   return (
     <View style={styles.wrap}>

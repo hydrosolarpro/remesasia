@@ -194,7 +194,7 @@ export default function TasaDelDia() {
         <SelectorCorredor />
 
         <Text style={styles.hint}>
-          Tasa del Operador principal: {tasaPrincipalRef ? `venta S/1 = Bs ${tasaPrincipalRef.tasa_pen_ves}` : 'sin publicar'}. Se
+          Tasa del Operador principal: {tasaPrincipalRef ? `venta ${corredor.monedaSimbolo}1 = Bs ${tasaPrincipalRef.tasa_pen_ves}` : 'sin publicar'}. Se
           aplica a todos los clientes del negocio, salvo a los tuyos si publicas tu propia tasa abajo.
         </Text>
 
@@ -234,8 +234,8 @@ export default function TasaDelDia() {
         <SelectorCorredor />
       {tasaActual && (
         <Text style={styles.hint}>
-          Última publicada: venta S/1 = Bs {tasaActual.tasa_pen_ves}
-          {tasaActual.tasa_adquisicion != null ? ` · adquisición S/1 = Bs ${tasaActual.tasa_adquisicion}` : ''}
+          Última publicada: venta {corredor.monedaSimbolo}1 = Bs {tasaActual.tasa_pen_ves}
+          {tasaActual.tasa_adquisicion != null ? ` · adquisición ${corredor.monedaSimbolo}1 = Bs ${tasaActual.tasa_adquisicion}` : ''}
         </Text>
       )}
 

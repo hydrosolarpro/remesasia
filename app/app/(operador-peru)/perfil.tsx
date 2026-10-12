@@ -23,7 +23,7 @@ import {
 } from '../../lib/plan';
 import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
-import { PlanesInfo } from '../../components/PlanesInfo';
+import { PlanDetalle, encabezadoPlan } from '../../components/PlanesInfo';
 import { PinAccesoCard } from '../../components/PinAccesoCard';
 import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { Collapsible } from '../../components/Collapsible';
@@ -98,6 +98,11 @@ export default function Perfil() {
   const [miVe, setMiVe] = useState<OperadorVenezuelaPerfil | null>(null);
 
   const [solicitandoPlan, setSolicitandoPlan] = useState<string | null>(null);
+  // Paso del flujo de solicitud: 'info' (datos del plan -> Continuar) y luego 'pago' (formas de pago).
+  const [pasoSolicitud, setPasoSolicitud] = useState<'info' | 'pago'>('info');
+  useEffect(() => {
+    setPasoSolicitud('info');
+  }, [solicitandoPlan]);
   // Plan a la medida: N° de clientes que el operador quiere registrar. El
   // monto (= N × S/ 1) y las características (tramo estándar equivalente)
   // se calculan solos -- ver lib/plan.ts.
@@ -625,109 +630,119 @@ export default function Perfil() {
             </View>
           )}
 
-          {/* Cualquier operador puede solicitar cualquier plan por encima
-              del que tiene, en cualquier momento -- no solo el siguiente
-              nivel ni solo cerca del vencimiento. */}
-          {siguientesPlanes(usuario.plan, ORDEN_PLANES.length).length > 0 && (
+          {/* Cambiar de plan: un solo bloque con los datos de cada plan
+              (antes en "Haz crecer tu negocio de remesas"). El flujo de la
+              solicitud va en 3 pasos: 1) información del plan -> botón
+              Continuar, 2) Formas de pago -> Enviar solicitud / Cancelar
+              solicitud. Cualquier operador puede pedir cualquier plan por
+              encima del que tiene, en cualquier momento. */}
+          {solicitandoPlan ? (
+            <View style={styles.metaFormulario}>
+              <View style={styles.metaFormularioHeader}>
+                <Text style={styles.metaTitulo}>
+                  {pasoSolicitud === 'info' ? 'Plan' : 'Formas de pago · plan'} {planLabel(solicitandoPlan)}
+                </Text>
+              </View>
+              {pasoSolicitud === 'info' ? (
+                <>
+                  {solicitandoPlan === 'medida' ? (
+                    <>
+                      <Text style={styles.metaFilaDato}>
+                        {Math.round(Number(clientesMedida) || 0)} clientes × S/ {PRECIO_MEDIDA_POR_CLIENTE} = S/{' '}
+                        {precioPlanMedida(Math.round(Number(clientesMedida) || 0)).toFixed(2)} / mes
+                      </Text>
+                      <PlanDetalle id="medida" />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.metaFilaNombre}>{encabezadoPlan(solicitandoPlan)}</Text>
+                      <PlanDetalle id={solicitandoPlan} />
+                    </>
+                  )}
+                  <Pressable style={styles.metaSolicitarBtn} onPress={() => setPasoSolicitud('pago')}>
+                    <Text style={styles.metaSolicitarBtnTexto}>Continuar →</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setSolicitandoPlan(null)}>
+                    <Text style={styles.cancelarSolicitudTexto}>Cancelar solicitud</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <FormularioSolicitudPlan
+                  key={solicitandoPlan}
+                  plan={solicitandoPlan}
+                  modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
+                  montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? (unlimitedInfo?.porPagar ?? undefined) : undefined}
+                  clientesAMedida={solicitandoPlan === 'medida' ? Math.round(Number(clientesMedida) || 0) : undefined}
+                  onCancelar={() => setSolicitandoPlan(null)}
+                  onEnviado={() => {
+                    setSolicitandoPlan(null);
+                    cargarContexto();
+                  }}
+                />
+              )}
+            </View>
+          ) : (
             <View style={styles.metaBloque}>
               <Text style={styles.metaTitulo}>Cambiar de plan</Text>
-              {siguientesPlanes(usuario.plan, ORDEN_PLANES.length).map((planSiguiente) => {
-                const limites = obtenerLimitesPlan(planSiguiente);
-                return (
-                  <View key={planSiguiente} style={styles.metaFila}>
-                    <View style={styles.metaFilaDatos}>
-                      <Text style={styles.metaFilaNombre}>{planLabel(planSiguiente)}</Text>
-                      <Text style={styles.metaFilaDato}>
-                        {limites.clientes === Infinity ? 'Clientes a acordar' : `${limites.clientes} clientes`} ·{' '}
-                        {limites.peru === Infinity ? 'operadores PE a acordar' : `${limites.peru} operador(es) Perú`} ·{' '}
-                        {limites.venezuela === Infinity ? 'operadores VE a acordar' : `${limites.venezuela} en Venezuela`}
-                      </Text>
-                    </View>
-                    <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(planSiguiente)}>
-                      <Text style={styles.metaSolicitarBtnTexto}>Solicitar →</Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
-          )}
+              {siguientesPlanes(usuario.plan, ORDEN_PLANES.length).map((planSiguiente) => (
+                <Collapsible key={planSiguiente} titulo={encabezadoPlan(planSiguiente)}>
+                  <PlanDetalle id={planSiguiente} />
+                  <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan(planSiguiente)}>
+                    <Text style={styles.metaSolicitarBtnTexto}>Solicitar este plan →</Text>
+                  </Pressable>
+                </Collapsible>
+              ))}
 
-          {/* PLAN A LA MEDIDA: el operador escribe cuántos clientes va a
-              registrar y la suscripción se calcula sola -- N × S/ 1 / mes,
-              con las características del tramo estándar equivalente. Más de
-              1000 clientes se deriva al plan UNLIMITED. Pasa por el mismo
-              formulario de pago y la misma validación manual del admin. */}
-          <View style={styles.metaBloque}>
-            <Text style={styles.metaTitulo}>Plan a la medida</Text>
-            <Text style={styles.metaFilaDato}>
-              Paga solo por los clientes que manejas: S/ {PRECIO_MEDIDA_POR_CLIENTE} por cliente / mes. Considera siempre un
-              poco más de clientes según tu crecimiento mensual.
-            </Text>
-            <Text style={styles.label}>¿Cuántos clientes vas a registrar?</Text>
-            <TextInput
-              style={styles.input}
-              value={clientesMedida}
-              onChangeText={(t) => setClientesMedida(t.replace(/[^0-9]/g, ''))}
-              keyboardType="numeric"
-              placeholder="Ej: 150"
-              placeholderTextColor={colors.textMuted}
-            />
-            {(() => {
-              const nMedida = Math.round(Number(clientesMedida) || 0);
-              if (nMedida < 1) return null;
-              const tramo = tramoPlanMedida(nMedida);
-              if (tramo === null) {
-                return (
-                  <Text style={styles.metaFilaDato}>
-                    Más de 1000 clientes: solicita el plan UNLIMITED y acuerda la tarifa con el administrador.
-                  </Text>
-                );
-              }
-              const limitesMedida = obtenerLimitesPlan('medida', nMedida);
-              return (
-                <>
-                  <View style={styles.metaFila}>
-                    <View style={styles.metaFilaDatos}>
+              {/* PLAN A LA MEDIDA: el operador escribe cuántos clientes va a
+                  registrar y la suscripción se calcula sola -- N × S/ 1 / mes,
+                  con las características del tramo estándar equivalente. Más
+                  de 1000 clientes se deriva al plan UNLIMITED. Pasa por el
+                  mismo formulario de pago y la misma validación manual del admin. */}
+              <Collapsible titulo={encabezadoPlan('medida')}>
+                <Text style={styles.metaFilaDato}>
+                  Paga solo por los clientes que manejas: S/ {PRECIO_MEDIDA_POR_CLIENTE} por cliente / mes. Considera siempre un
+                  poco más de clientes según tu crecimiento mensual.
+                </Text>
+                <Text style={styles.label}>¿Cuántos clientes vas a registrar?</Text>
+                <TextInput
+                  style={styles.input}
+                  value={clientesMedida}
+                  onChangeText={(t) => setClientesMedida(t.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="Ej: 150"
+                  placeholderTextColor={colors.textMuted}
+                />
+                {(() => {
+                  const nMedida = Math.round(Number(clientesMedida) || 0);
+                  if (nMedida < 1) return null;
+                  const tramo = tramoPlanMedida(nMedida);
+                  if (tramo === null) {
+                    return (
+                      <Text style={styles.metaFilaDato}>
+                        Más de 1000 clientes: solicita el plan UNLIMITED y acuerda la tarifa con el administrador.
+                      </Text>
+                    );
+                  }
+                  const limitesMedida = obtenerLimitesPlan('medida', nMedida);
+                  return (
+                    <>
                       <Text style={styles.metaFilaNombre}>S/ {precioPlanMedida(nMedida).toFixed(2)}{usdTxt(precioPlanMedida(nMedida))} / mes</Text>
                       <Text style={styles.metaFilaDato}>
                         {nMedida} clientes · {limitesMedida.peru} operador(es) Perú · {limitesMedida.venezuela} en Venezuela ·
                         incluye las características del plan {NOMBRE_PLAN[tramo]}
                       </Text>
-                    </View>
-                    <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan('medida')}>
-                      <Text style={styles.metaSolicitarBtnTexto}>Solicitar →</Text>
-                    </Pressable>
-                  </View>
-                </>
-              );
-            })()}
-          </View>
-
-          {solicitandoPlan && (
-            <View style={styles.metaFormulario}>
-              <View style={styles.metaFormularioHeader}>
-                <Text style={styles.metaTitulo}>Solicitar {planLabel(solicitandoPlan)}</Text>
-                <Pressable onPress={() => setSolicitandoPlan(null)}>
-                  <Text style={styles.miembroEliminarTexto}>✕</Text>
-                </Pressable>
-              </View>
-              <FormularioSolicitudPlan
-                key={solicitandoPlan}
-                plan={solicitandoPlan}
-                modo={usuario.plan === 'demo' ? 'nueva' : 'cambio'}
-                montoUnlimitedAcordado={solicitandoPlan === 'unlimited' ? (unlimitedInfo?.porPagar ?? undefined) : undefined}
-                clientesAMedida={solicitandoPlan === 'medida' ? Math.round(Number(clientesMedida) || 0) : undefined}
-                onEnviado={() => {
-                  setSolicitandoPlan(null);
-                  cargarContexto();
-                }}
-              />
+                      <Pressable style={styles.metaSolicitarBtn} onPress={() => setSolicitandoPlan('medida')}>
+                        <Text style={styles.metaSolicitarBtnTexto}>Solicitar este plan →</Text>
+                      </Pressable>
+                    </>
+                  );
+                })()}
+                <PlanDetalle id="medida" />
+              </Collapsible>
             </View>
           )}
         </View>
       )}
-
-      {esPrincipal && <PlanesInfo />}
 
       {esPrincipal && (
         <Collapsible
@@ -1150,6 +1165,7 @@ const styles = StyleSheet.create({
   metaFilaNombre: { color: colors.text, fontSize: 16, fontWeight: '800' },
   metaFilaDato: { color: colors.textMuted, fontSize: 14 },
   metaSolicitarBtn: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
+  cancelarSolicitudTexto: { color: colors.textMuted, fontWeight: '700', fontSize: 15, textAlign: 'center', paddingVertical: 8 },
   metaSolicitarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
   metaFormulario: { marginTop: 12, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   metaFormularioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

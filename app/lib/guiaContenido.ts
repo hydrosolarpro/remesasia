@@ -192,37 +192,45 @@ export const GUIA_CLIENTE: PasoGuia[] = [
 // Solo se agrega al final de la guía del Operador principal de Perú: es
 // quien necesita entender el flujo completo de las 3 sesiones (Cliente,
 // Perú y Venezuela) para poder supervisar todo el negocio.
-export const GUIA_FLUJO_COMPLETO: PasoGuia[] = [
-  {
-    icono: '🔄',
-    titulo: 'El flujo completo, en 4 pasos',
-    texto: 'Como dueño del negocio, esto es lo que pasa detrás de cada remesa, de principio a fin.',
-  },
-  {
-    icono: '1️⃣',
-    titulo: 'El cliente solicita',
-    texto: 'El cliente en Perú, ya registrado, ingresa el monto y los datos de su beneficiario, y envía su solicitud con el comprobante de su depósito.',
-    actor: 'cliente',
-  },
-  {
-    icono: '2️⃣',
-    titulo: 'Perú valida',
-    texto:
-      'La solicitud llega como "En curso" al Operador de Perú (principal o miembro), que valida el depósito en Soles. La app avisa al cliente por Telegram al instante. Desde aquí también se puede derivar la operación al equipo, o validar directo la transferencia a Venezuela.',
-    actor: 'operadores',
-  },
-  {
-    icono: '3️⃣',
-    titulo: 'Venezuela transfiere',
-    texto:
-      'El Operador de Venezuela recibe la operación ya validada, hace la transferencia al beneficiario y sube su comprobante. La operación pasa a "Realizada" y la app avisa por Telegram al beneficiario y al cliente, con la imagen de la transferencia.',
-    actor: 'operadores',
-  },
-  {
-    icono: '4️⃣',
-    titulo: 'El cliente confirma',
-    texto:
-      'El cliente confirma que su beneficiario recibió el dinero, o marca "No ha llegado". Si no llegó, la operación pasa a "Por revisar" hasta que un operador la resuelva y recargue el comprobante — ahí vuelve a quedar como "Realizada".',
-    actor: 'cliente',
-  },
-];
+export function construirFlujoCompleto(pais = 'Perú', monedaNombre = 'Soles'): PasoGuia[] {
+  return [
+    {
+      icono: '🔄',
+      titulo: 'El flujo completo, en 4 pasos',
+      texto: 'Como dueño del negocio, esto es lo que pasa detrás de cada remesa, de principio a fin.',
+    },
+    {
+      icono: '1️⃣',
+      titulo: 'El cliente solicita',
+      texto: `El cliente en ${pais}, ya registrado, ingresa el monto y los datos de su beneficiario, y envía su solicitud con el comprobante de su depósito.`,
+      actor: 'cliente',
+    },
+    {
+      icono: '2️⃣',
+      titulo: `${pais} valida`,
+      texto: `La solicitud llega como "En curso" al Operador de ${pais} (principal o miembro), que valida el depósito en ${monedaNombre}. La app avisa al cliente por Telegram al instante. Desde aquí también se puede derivar la operación al equipo, o validar directo la transferencia a Venezuela.`,
+      actor: 'operadores',
+    },
+    {
+      icono: '3️⃣',
+      titulo: 'Venezuela transfiere',
+      texto:
+        'El Operador de Venezuela recibe la operación ya validada, hace la transferencia al beneficiario y sube su comprobante. La operación pasa a "Realizada" y la app avisa por Telegram al beneficiario y al cliente, con la imagen de la transferencia.',
+      actor: 'operadores',
+    },
+    {
+      icono: '4️⃣',
+      titulo: 'El cliente confirma',
+      texto:
+        'El cliente confirma que su beneficiario recibió el dinero, o marca "No ha llegado". Si no llegó, la operación pasa a "Por revisar" hasta que un operador la resuelva y recargue el comprobante — ahí vuelve a quedar como "Realizada".',
+      actor: 'cliente',
+    },
+  ];
+}
+
+export const GUIA_FLUJO_COMPLETO: PasoGuia[] = construirFlujoCompleto();
+
+/** Nombre de la moneda de recepción para textos ("Soles" en Perú, el código en los demás). */
+export const nombreMoneda = (codigo: string) => (codigo === 'PEN' ? 'Soles' : codigo);
+/** Unidad en singular ("sol" en Perú, el código en los demás). */
+export const unidadMoneda = (codigo: string) => (codigo === 'PEN' ? 'sol' : codigo);
