@@ -25,6 +25,103 @@ const TIPOS: { valor: TipoGrafico; etiqueta: string }[] = [
 
 const PALETA = [colors.primary, colors.accent, colors.warning, colors.success, colors.danger, colors.gradientEnd];
 
+// Techo "redondo" para el eje Y (1/2/5 x 10^n), igual criterio que usan las
+// librerías de gráficos para que las divisiones queden legibles.
+function techoEje(valor: number): number {
+  if (valor <= 0) return 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(valor)));
+  const n = valor / mag;
+  const paso = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return paso * mag;
+}
+
+// Curva suave (Catmull-Rom -> Bézier) que pasa por todos los puntos, para
+// imitar el `curved` del LineChart en pantalla.
+function pathCurvo(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+// El gráfico de línea del PDF se dibuja como un SVG propio a partir de los
+// mismos `puntos` que se ven en pantalla, en vez de rasterizar el
+// <LineChart> con ViewShot: en web, html2canvas no resuelve el clip-path
+// que la librería aplica a la línea y la exportaba en blanco (solo se veían
+// los ejes). El SVG va directo al HTML del reporte -- sin html2canvas de
+// por medio -- así que siempre sale con los datos correctos.
+function svgLineaDataUri(puntos: PuntoGrafico[]): string {
+  const W = 680;
+  const H = 340;
+  const padL = 52;
+  const padR = 20;
+  const padT = 28;
+  const padB = 34;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const montos = puntos.map((p) => Math.round(p.monto));
+  const maxEje = techoEje(Math.max(0, ...montos));
+  const n = puntos.length;
+  const px = (i: number) => (n <= 1 ? padL + plotW / 2 : padL + (plotW * i) / (n - 1));
+  const py = (v: number) => padT + plotH - (v / maxEje) * plotH;
+  const pts = montos.map((v, i) => ({ x: px(i), y: py(v) }));
+
+  const ejes =
+    `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="${colors.border}" stroke-width="1"/>` +
+    `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="${colors.border}" stroke-width="1"/>`;
+
+  let etiquetasY = '';
+  for (let k = 0; k <= 4; k++) {
+    const v = (maxEje * k) / 4;
+    const y = py(v);
+    etiquetasY += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="${colors.textMuted}">${Math.round(v)}</text>`;
+  }
+
+  const mostrarCadaX = n > 16 ? 2 : 1;
+  let etiquetasX = '';
+  puntos.forEach((p, i) => {
+    if (i % mostrarCadaX !== 0 && i !== n - 1) return;
+    etiquetasX += `<text x="${px(i).toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="9" fill="${colors.textMuted}">${esc(p.etiqueta)}</text>`;
+  });
+
+  const linea = n > 0 ? `<path d="${pathCurvo(pts)}" fill="none" stroke="${colors.primary}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>` : '';
+
+  let puntosSvg = '';
+  pts.forEach((pt, i) => {
+    const arriba = pt.y - 10 > padT + 6;
+    const ty = arriba ? pt.y - 10 : pt.y + 16;
+    puntosSvg +=
+      `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="3.5" fill="${colors.accent}"/>` +
+      `<text x="${pt.x.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${colors.text}">${montos[i]}</text>`;
+  });
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="-apple-system, Helvetica, Arial, sans-serif">` +
+    `<rect x="0" y="0" width="${W}" height="${H}" rx="12" fill="${colors.card}"/>` +
+    ejes +
+    etiquetasY +
+    etiquetasX +
+    linea +
+    puntosSvg +
+    (n === 0 ? `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="13" fill="${colors.textMuted}">Sin datos en este período</text>` : '') +
+    `</svg>`;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 // Ancho aproximado que gifted-charts reserva para las etiquetas del eje Y
 // (barras/línea) -- se descuenta del ancho medido para que el contenido
 // del gráfico (barWidth*n + spacing*n) quepa siempre dentro del ancho
@@ -81,7 +178,9 @@ export const EstadisticaGraficos = forwardRef<
     const ventanaWeb = prepararVentanaWeb();
     setExportandoUno(true);
     try {
-      const imagen = await capturar();
+      // El de línea se arma como SVG desde los datos (ver svgLineaDataUri);
+      // los otros dos sí se rasterizan bien con ViewShot.
+      const imagen = tipo === 'linea' ? svgLineaDataUri(puntos) : await capturar();
       if (!imagen) {
         ventanaWeb?.close();
         return;
@@ -99,6 +198,12 @@ export const EstadisticaGraficos = forwardRef<
     const tipoOriginal = tipo;
     const imagenes: { titulo: string; uri: string }[] = [];
     for (const t of TIPOS) {
+      // La línea no se captura de pantalla: html2canvas la exporta en blanco
+      // (clip-path de la librería). Se genera como SVG desde los datos.
+      if (t.valor === 'linea') {
+        imagenes.push({ titulo: t.etiqueta, uri: svgLineaDataUri(puntos) });
+        continue;
+      }
       setTipo(t.valor);
       await esperarRender();
       const imagen = await capturar();
@@ -107,7 +212,7 @@ export const EstadisticaGraficos = forwardRef<
     setTipo(tipoOriginal);
     return imagenes;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipo]);
+  }, [tipo, puntos]);
 
   useImperativeHandle(ref, () => ({ capturarImagenes }), [capturarImagenes]);
 
