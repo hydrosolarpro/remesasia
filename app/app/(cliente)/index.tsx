@@ -19,6 +19,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { calcularConversion, calcularConversionInversa, divisaAVes } from '../../lib/tasaCalculo';
 import { obtenerTasaBcv } from '../../lib/bcv';
+import { hoyLima } from '../../lib/tasaEspecial';
 import { formatearBs } from '../../lib/formato';
 import { CopyField } from '../../components/CopyField';
 import { LiveClock } from '../../components/LiveClock';
@@ -74,6 +75,8 @@ export default function InicioCliente() {
 
   const [cargando, setCargando] = useState(true);
   const [tasa, setTasa] = useState<Tasa | null>(null);
+  // true cuando la tasa mostrada es la tasa especial del día que el operador fijó para este cliente.
+  const [tasaEsEspecial, setTasaEsEspecial] = useState(false);
   const [bcv, setBcv] = useState<TasaBcv | null>(null);
   const [bcvCargando, setBcvCargando] = useState(true);
   const [perfil, setPerfil] = useState<PerfilNegocio | null>(null);
@@ -161,10 +164,11 @@ export default function InicioCliente() {
     if (miembroIdCliente) {
       const { data: miembroData } = await supabase
         .from('operador_peru_miembro')
-        .select('puede_editar_tasa')
+        .select('puede_editar_tasa, operador_peru_id')
         .eq('id', miembroIdCliente)
         .maybeSingle();
-      if (miembroData?.puede_editar_tasa) {
+      // Solo vale la tasa de un miembro que pertenezca al negocio actual del cliente.
+      if (miembroData?.puede_editar_tasa && miembroData.operador_peru_id === negocioId) {
         const { data: tasaMiembroData } = await supabase
           .from('tasas')
           .select('*')
@@ -179,6 +183,24 @@ export default function InicioCliente() {
         }
       }
     }
+
+    // Tasa especial del día para este cliente (la fija el Operador principal):
+    // si existe para hoy, reemplaza a la general solo en tasa_pen_ves; la
+    // Tasa de adquisición sigue siendo la del negocio.
+    const { data: especialData } = await supabase
+      .from('tasas_cliente')
+      .select('tasa_pen_ves')
+      .eq('cliente_id', usuario.id)
+      .eq('corredor', corredor.id)
+      .eq('fecha', hoyLima())
+      .maybeSingle();
+    if (especialData) {
+      tasaEfectiva = {
+        ...(tasaEfectiva ?? ({ id: 'especial', fecha: hoyLima(), tasa_adquisicion: null, publicada_por: negocioId, operador_peru_miembro_id: null, created_at: new Date().toISOString() } as Tasa)),
+        tasa_pen_ves: Number(especialData.tasa_pen_ves),
+      };
+    }
+    setTasaEsEspecial(!!especialData);
 
     if (corredor.id === 'PE-VE') {
       setPagoCorredor(null);
@@ -494,6 +516,7 @@ export default function InicioCliente() {
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
           <Text style={styles.tasaLabel}>Tasa del día ({monedaTxt} → Bolívares)</Text>
           <Text style={styles.tasaValor}>{tasa ? `VES ${tasa.tasa_pen_ves}` : '—'}</Text>
+          {tasaEsEspecial && <Text style={styles.tasaEspecial}>⭐ Tasa especial para ti hoy</Text>}
         </View>
         <View style={[styles.card, cardShadow, styles.tasaCard]}>
           <Text style={styles.tasaLabel}>BCV — USD / EUR</Text>
@@ -810,6 +833,7 @@ const styles = StyleSheet.create({
   gateBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
   tasaCard: { flex: 1, gap: 4 },
   tasaLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
+  tasaEspecial: { color: colors.success, fontSize: 12, fontWeight: '800', marginTop: 4 },
   tasaValor: { color: colors.text, fontSize: 25, fontWeight: '900' },
   bcvValor: { color: colors.text, fontSize: 17, fontWeight: '700' },
   seccionTitulo: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },

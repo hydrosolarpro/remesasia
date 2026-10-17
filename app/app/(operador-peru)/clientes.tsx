@@ -8,6 +8,8 @@ import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
+import { useCorredor } from '../../lib/corredor';
+import { hoyLima } from '../../lib/tasaEspecial';
 import { obtenerLimiteClientes } from '../../lib/plan';
 import { DOCUMENTO_TIPO_ETIQUETA, documentoClienteCompleto } from '../../lib/perfilCliente';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
@@ -23,6 +25,7 @@ const MENSAJE_INVITACION_CLIENTE =
 
 export default function ClientesRegistrados() {
   const { usuario } = useAuth();
+  const { corredor } = useCorredor();
   const [negocioId, setNegocioId] = useState<string | null | undefined>(undefined);
   const [miembroId, setMiembroId] = useState<string | null>(null);
   const [esPrincipal, setEsPrincipal] = useState(true);
@@ -44,6 +47,10 @@ export default function ClientesRegistrados() {
   const [derivandoMiembroId, setDerivandoMiembroId] = useState<string | null>(null);
   const [derivandoEnviando, setDerivandoEnviando] = useState(false);
   const [zoomDocumentoUrl, setZoomDocumentoUrl] = useState<string | null>(null);
+  // Tasa especial del día por cliente (solo el principal): vigente hoy y borrador del input.
+  const [tasasEspeciales, setTasasEspeciales] = useState<Record<string, number>>({});
+  const [tasaInputs, setTasaInputs] = useState<Record<string, string>>({});
+  const [guardandoTasaId, setGuardandoTasaId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!usuario) return;
@@ -102,6 +109,75 @@ export default function ClientesRegistrados() {
       setCargandoClientes(false);
     });
   }, [negocioId, conFiltrosDeSesion]);
+
+  const cargarTasasEspeciales = useCallback(async () => {
+    if (!negocioId) return;
+    const { data } = await supabase
+      .from('tasas_cliente')
+      .select('cliente_id, tasa_pen_ves')
+      .eq('negocio_operador_peru_id', negocioId)
+      .eq('corredor', corredor.id)
+      .eq('fecha', hoyLima());
+    const mapa: Record<string, number> = {};
+    (data ?? []).forEach((t) => {
+      mapa[t.cliente_id as string] = Number(t.tasa_pen_ves);
+    });
+    setTasasEspeciales(mapa);
+    setTasaInputs({});
+  }, [negocioId, corredor.id]);
+
+  useEffect(() => {
+    cargarTasasEspeciales();
+  }, [cargarTasasEspeciales]);
+
+  const avisar = (titulo: string, mensaje: string) => {
+    if (Platform.OS === 'web') window.alert(`${titulo}: ${mensaje}`);
+    else Alert.alert(titulo, mensaje);
+  };
+
+  const guardarTasaEspecial = async (clienteId: string) => {
+    if (!negocioId) return;
+    const valor = Number((tasaInputs[clienteId] ?? '').replace(',', '.'));
+    if (!Number.isFinite(valor) || valor <= 0) {
+      avisar('Tasa inválida', 'Ingresa una tasa mayor a 0.');
+      return;
+    }
+    setGuardandoTasaId(clienteId);
+    const { error } = await supabase.from('tasas_cliente').upsert(
+      {
+        negocio_operador_peru_id: negocioId,
+        cliente_id: clienteId,
+        corredor: corredor.id,
+        fecha: hoyLima(),
+        tasa_pen_ves: valor,
+        publicada_por: usuario?.id ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'cliente_id,corredor,fecha' }
+    );
+    setGuardandoTasaId(null);
+    if (error) {
+      avisar('No se pudo guardar', error.message);
+      return;
+    }
+    cargarTasasEspeciales();
+  };
+
+  const quitarTasaEspecial = async (clienteId: string) => {
+    setGuardandoTasaId(clienteId);
+    const { error } = await supabase
+      .from('tasas_cliente')
+      .delete()
+      .eq('cliente_id', clienteId)
+      .eq('corredor', corredor.id)
+      .eq('fecha', hoyLima());
+    setGuardandoTasaId(null);
+    if (error) {
+      avisar('No se pudo quitar', error.message);
+      return;
+    }
+    cargarTasasEspeciales();
+  };
 
   // Solo el principal puede derivar clientes a un miembro de su equipo.
   useEffect(() => {
@@ -377,6 +453,36 @@ export default function ClientesRegistrados() {
                     <Text style={styles.derivarBtnTexto}>Derivar a un operador de Perú →</Text>
                   </Pressable>
                 )}
+                {!!negocioId && (
+                  <View style={styles.tasaEspecialBox}>
+                    <Text style={styles.tasaEspecialTitulo}>
+                      Tasa especial del día{tasasEspeciales[item.id] ? `: VES ${tasasEspeciales[item.id]}` : ' (usa la tasa general)'}
+                    </Text>
+                    <View style={styles.tasaEspecialFila}>
+                      <TextInput
+                        style={styles.tasaEspecialInput}
+                        value={tasaInputs[item.id] ?? ''}
+                        onChangeText={(t) => setTasaInputs((prev) => ({ ...prev, [item.id]: t }))}
+                        placeholder="Ej: 275"
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="decimal-pad"
+                      />
+                      <Pressable
+                        style={[styles.tasaEspecialGuardar, guardandoTasaId === item.id && { opacity: 0.5 }]}
+                        disabled={guardandoTasaId === item.id}
+                        onPress={() => guardarTasaEspecial(item.id)}
+                      >
+                        <Text style={styles.tasaEspecialGuardarTexto}>Guardar</Text>
+                      </Pressable>
+                      {!!tasasEspeciales[item.id] && (
+                        <Pressable disabled={guardandoTasaId === item.id} onPress={() => quitarTasaEspecial(item.id)}>
+                          <Text style={styles.tasaEspecialQuitar}>Quitar</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                    <Text style={styles.dato}>Vale solo hoy; mañana vuelve a la tasa general.</Text>
+                  </View>
+                )}
                 <GestionPinUsuario
                   usuarioId={item.id}
                   provision={{ tipo: 'cliente', refId: miembroId }}
@@ -530,6 +636,13 @@ const styles = StyleSheet.create({
   clienteDatos: { flex: 1, gap: 2 },
   eliminarBtn: { borderWidth: 1, borderColor: colors.danger, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
   eliminarBtnTexto: { color: colors.danger, fontSize: 14, fontWeight: '700' },
+  tasaEspecialBox: { gap: 6, marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
+  tasaEspecialTitulo: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  tasaEspecialFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tasaEspecialInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 16, backgroundColor: colors.cardAlt },
+  tasaEspecialGuardar: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 16, paddingVertical: 11 },
+  tasaEspecialGuardarTexto: { color: colors.text, fontWeight: '700', fontSize: 14 },
+  tasaEspecialQuitar: { color: colors.danger, fontWeight: '700', fontSize: 14 },
   derivarBtn: { alignSelf: 'flex-start', marginTop: 8 },
   derivarBtnTexto: { color: colors.accent, fontWeight: '700', fontSize: 15 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
