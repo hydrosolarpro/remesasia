@@ -5,6 +5,7 @@ import { generarYCompartirExcel } from '../lib/excelReporte';
 import { generarYCompartirPdf } from '../lib/pdfReporte';
 import { DOCUMENTO_TIPO_ETIQUETA, documentoClienteCompleto } from '../lib/perfilCliente';
 import { ZoomableImageModal } from './ZoomableImageModal';
+import { TasaEspecialCliente } from './TasaEspecialCliente';
 import { Usuario, OperadorPeruMiembro } from '../types/database';
 import { colors, radius } from '../constants/theme';
 
@@ -147,6 +148,7 @@ export function ClientesMiembroList({
                     {c.referido_telefono ? ` · ${c.referido_telefono}` : ''}
                   </Text>
                 )}
+                <TasaEspecialCliente negocioId={miembro.operador_peru_id} clienteId={c.id} />
               </View>
               <Pressable style={styles.derivarBtn} onPress={() => abrirDerivacion(c)}>
                 <Text style={styles.derivarBtnTexto}>Derivar →</Text>
