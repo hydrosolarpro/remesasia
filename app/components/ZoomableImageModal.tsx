@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Modal, View, Pressable, Text, StyleSheet, PanResponder, Animated, Dimensions, Linking } from 'react-native';
 import { colors, radius } from '../constants/theme';
+import { descargarArchivo } from '../lib/descargarArchivo';
 
 const { width, height } = Dimensions.get('window');
 const ZOOM_MAX = 3;
@@ -75,7 +76,9 @@ export function ZoomableImageModal({ visible, uri, onClose }: { visible: boolean
   // en vez de intentar dibujarlo como imagen (quedaría en blanco/roto).
   const esPdf = uri.toLowerCase().endsWith('.pdf');
 
-  const descargar = () => Linking.openURL(uri);
+  const descargar = () => {
+    descargarArchivo(uri, `comprobante-${Date.now()}`).catch(() => Linking.openURL(uri));
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={cerrar}>

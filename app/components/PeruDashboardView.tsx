@@ -858,7 +858,6 @@ export function PeruDashboardView({
           bienvenida (ver GuiaPasoAPaso / GUIA_FLUJO_COMPLETO). */}
       {esPrincipal && (
         <Collapsible
-          abiertoPorDefecto
           titulo={`🔄 Flujo del proceso de remesas ${corredor.paisRecepcion}-${corredor.paisEntrega}`}
           subtitulo="Los 4 pasos, de principio a fin"
         >

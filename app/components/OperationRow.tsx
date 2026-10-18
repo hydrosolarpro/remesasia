@@ -14,6 +14,7 @@ import {
 import { formatearBs } from '../lib/formato';
 import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ZoomableImageModal } from './ZoomableImageModal';
+import { descargarArchivos } from '../lib/descargarArchivo';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { colors, radius, cardShadow } from '../constants/theme';
 
@@ -426,6 +427,9 @@ function ImagenDesplegable({ titulo, uris }: { titulo: string; uris: string[] })
             ))}
           </View>
           <Text style={styles.verCompletoTexto}>🔍 Toca una imagen para verla completa y hacer zoom</Text>
+          <Pressable onPress={() => descargarArchivos(uris, `comprobante-${titulo.toLowerCase().includes('venezuela') ? 'venezuela' : 'peru'}`).catch(() => Linking.openURL(uris[0]))}>
+            <Text style={styles.verCompletoTexto}>⬇ Descargar {uris.length > 1 ? `las ${uris.length} imágenes` : 'comprobante'}</Text>
+          </Pressable>
         </>
       )}
       <ZoomableImageModal visible={zoomIndex !== null} uri={zoomIndex !== null ? (uris[zoomIndex] ?? null) : null} onClose={() => setZoomIndex(null)} />

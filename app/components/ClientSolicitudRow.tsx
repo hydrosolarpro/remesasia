@@ -8,6 +8,7 @@ import { formatearBs } from '../lib/formato';
 import { FORMATTER_FECHA_HORA, formatearTiempoRespuesta } from './OperationRow';
 import { RoundCheck } from './RoundCheck';
 import { ZoomableImageModal } from './ZoomableImageModal';
+import { descargarArchivo } from '../lib/descargarArchivo';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 const ETIQUETA_METODO_PAGO: Record<Solicitud['metodo_pago'], string> = {
@@ -184,7 +185,7 @@ export function ClienteSolicitudRow({
                     <Pressable onPress={() => setZoomIndex(i)}>
                       <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />
                     </Pressable>
-                    <Pressable onPress={() => Linking.openURL(uri)}>
+                    <Pressable onPress={() => descargarArchivo(uri, `comprobante-venezuela-${i + 1}`).catch(() => Linking.openURL(uri))}>
                       <Text style={styles.descargarLink}>Descargar</Text>
                     </Pressable>
                   </View>
