@@ -1,16 +1,8 @@
 import { useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { ModoFiltroFecha, ETIQUETAS_MODO, calcularRango, RangoFecha } from '../lib/dateRange';
 import { CalendarioDias, CalendarioMeses, CalendarioAnios } from './CalendarioFecha';
 import { colors, radius } from '../constants/theme';
-
-// En Chrome/Safari móvil, arrastrar horizontalmente cerca del borde de la
-// pantalla (p.ej. al deslizar entre los chips de modo) puede confundirse
-// con el gesto nativo de "volver atrás" del navegador y sacar al usuario
-// de la app. `overscrollBehaviorX: 'contain'` evita que el gesto se
-// propague fuera de este scroll. Es una propiedad CSS web-only, por eso
-// el cast: React Native no la tipa.
-const SIN_OVERSCROLL_X = Platform.OS === 'web' ? ({ overscrollBehaviorX: 'contain' } as object) : null;
 
 const MODOS: ModoFiltroFecha[] = ['dia', 'rango_dias', 'mes', 'rango_meses', 'anio', 'rango_anios'];
 
@@ -77,7 +69,9 @@ export function DateRangeFilter({ onCambio }: { onCambio: (rango: RangoFecha | n
 
   return (
     <View style={styles.wrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={SIN_OVERSCROLL_X}>
+      {/* Los chips envuelven a varias líneas para que se vean todos los modos
+          (antes iban en un scroll horizontal y el último quedaba cortado). */}
+      <View style={styles.chipsRow}>
         {MODOS.map((m) => (
           <Pressable
             key={m}
@@ -92,7 +86,7 @@ export function DateRangeFilter({ onCambio }: { onCambio: (rango: RangoFecha | n
             <Text style={[styles.chipTexto, modo === m && styles.chipTextoActivo]}>{ETIQUETAS_MODO[m]}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
       {/* Los campos van en su propia fila (que puede envolver a 2 líneas
           en pantallas angostas) y el botón "Buscar" siempre abajo, a todo
@@ -132,13 +126,13 @@ export function DateRangeFilter({ onCambio }: { onCambio: (rango: RangoFecha | n
 
 const styles = StyleSheet.create({
   wrap: { gap: 10 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    marginRight: 8,
   },
   chipActivo: { borderColor: colors.primary, backgroundColor: `${colors.primary}22` },
   chipTexto: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
