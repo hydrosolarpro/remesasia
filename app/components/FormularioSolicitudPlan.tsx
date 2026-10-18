@@ -305,19 +305,20 @@ function FormularioSolicitudPlanFijo({
         );
         if (upsertError) throw upsertError;
       } else {
-        const { error: insertError } = await supabase.from('cambios_plan_pendientes').insert({
-          operador_peru_id: usuario.id,
-          plan_solicitado: plan,
-          monto,
-          comprobante_url: publicUrl.publicUrl,
-          estado: 'pendiente',
-          ...(esMedida ? { plan_a_medida: true, limite_clientes: nClientesMedida } : {}),
+        // RPC en vez de INSERT directo: descarta antes cualquier solicitud
+        // abierta sin comprobante (índice único por operador abierto).
+        const { error: rpcError } = await supabase.rpc('operador_solicitar_cambio_plan', {
+          p_plan: plan,
+          p_monto: monto,
+          p_comprobante_url: publicUrl.publicUrl,
+          p_plan_a_medida: esMedida,
+          p_limite_clientes: esMedida ? nClientesMedida : null,
         });
-        if (insertError) {
-          if (insertError.code === '23505') {
+        if (rpcError) {
+          if (rpcError.code === '23505') {
             throw new Error('Ya tienes una solicitud de renovación/cambio de plan en curso.');
           }
-          throw insertError;
+          throw rpcError;
         }
       }
 
