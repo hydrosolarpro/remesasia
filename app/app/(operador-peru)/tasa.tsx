@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { nombreMoneda, unidadMoneda } from '../../lib/guiaContenido';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { useCorredor } from '../../lib/corredor';
@@ -43,18 +43,27 @@ export default function TasaDelDia() {
   const [loadingPropia, setLoadingPropia] = useState(false);
   const [mensajePropia, setMensajePropia] = useState<string | null>(null);
 
+  // Los campos se llenan con la ÚLTIMA tasa publicada (la de hoy o, si hoy aún
+  // no hay, la más reciente anterior) y se refrescan solos cuando hay una
+  // actualización nueva -- salvo que el operador esté escribiendo (`editado`),
+  // para no pisarle lo que tecleó.
+  const negocioIdRef = useRef<string | null>(null);
+  const editado = useRef(false);
+
   const cargar = async (negocioId: string) => {
+    negocioIdRef.current = negocioId;
     const { data } = await supabase
       .from('tasas')
       .select('*')
-      .eq('fecha', HOY())
       .eq('publicada_por', negocioId)
       .eq('corredor', corredor.id)
       .is('operador_peru_miembro_id', null)
+      .order('fecha', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     setTasaActual(data as Tasa | null);
+    if (editado.current) return;
     if (data) {
       setPenVes(String(data.tasa_pen_ves));
       setTasaAdquisicion(data.tasa_adquisicion != null ? String(data.tasa_adquisicion) : '');
@@ -99,6 +108,7 @@ export default function TasaDelDia() {
       setEsPrincipal(ctx.tipo === 'principal');
       setEsMiembro(ctx.tipo === 'miembro');
       if (ctx.tipo === 'principal' && ctx.negocioId) {
+        editado.current = false;
         cargar(ctx.negocioId);
         setCargandoCtx(false);
       } else if (ctx.tipo === 'miembro' && ctx.negocioId && ctx.miembroId) {
@@ -109,6 +119,16 @@ export default function TasaDelDia() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario?.id, corredor.id]);
+
+  // Refresco automático: toma los últimos valores publicados sin recargar.
+  useEffect(() => {
+    if (!esPrincipal) return;
+    const id = setInterval(() => {
+      if (negocioIdRef.current) cargar(negocioIdRef.current);
+    }, 10_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esPrincipal, corredor.id]);
 
   const publicar = async () => {
     if (!usuario || !esPrincipal) return;
@@ -130,21 +150,20 @@ export default function TasaDelDia() {
       return;
     }
     setMensaje('Tasa publicada. Ya está visible para los clientes y para todo el equipo.');
+    editado.current = false;
     const ctx = await resolverContextoOperador(usuario);
     if (ctx.negocioId) cargar(ctx.negocioId);
   };
 
   // Las comisiones del equipo son un % de la ganancia bruta, así que solo
   // hay pérdida si la tasa del día no es menor que la de adquisición. Este
-  // aviso BLOQUEA el botón de guardar (ver disabled={... || !!avisoPerdida}
-  // más abajo) -- no es solo informativo. El servidor (publicar_tasa_del_dia,
-  // ver migración 0104) rechaza la misma condición aunque alguien la
-  // publique sin pasar por este formulario.
+  // aviso es solo informativo: el operador principal puede guardar igual
+  // (ver migración 0126, que quitó el rechazo del servidor).
   const avisoPerdida = useMemo(() => {
     const ta = Number(tasaAdquisicion.replace(',', '.'));
     const tv = Number(penVes.replace(',', '.'));
     if (!(ta > 0) || !(tv > 0) || tv < ta) return null;
-    return `⚠ Con estas tasas pierdes dinero en todas las operaciones: la tasa del día (${tv}) debe ser menor que tu tasa de adquisición (${ta}). No se puede guardar así.`;
+    return `⚠ Con estas tasas pierdes dinero en todas las operaciones: la tasa del día (${tv}) debe ser menor que tu tasa de adquisición (${ta}). Puedes guardarla igual, pero revísala.`;
   }, [tasaAdquisicion, penVes]);
 
   // Margen bruto = (Ta − Tv) / Ta × 100, con la Tv ingresada (tasa del día).
@@ -238,12 +257,12 @@ export default function TasaDelDia() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={[styles.container, { flex: undefined, flexGrow: 1, paddingBottom: 48 }]} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Tasa del día — {HOY()}</Text>
         <SelectorCorredor />
       {tasaActual && (
         <Text style={styles.hint}>
-          Última publicada: venta {corredor.monedaSimbolo}1 = Bs {tasaActual.tasa_pen_ves}
+          Última publicada{tasaActual.fecha !== HOY() ? ` (${tasaActual.fecha})` : ''}: venta {corredor.monedaSimbolo}1 = Bs {tasaActual.tasa_pen_ves}
           {tasaActual.tasa_adquisicion != null ? ` · adquisición ${corredor.monedaSimbolo}1 = Bs ${tasaActual.tasa_adquisicion}` : ''}
         </Text>
       )}
@@ -254,7 +273,7 @@ export default function TasaDelDia() {
           <TextInput
             style={styles.input}
             value={tasaAdquisicion}
-            onChangeText={setTasaAdquisicion}
+            onChangeText={(t) => { editado.current = true; setTasaAdquisicion(t); }}
             keyboardType="decimal-pad"
             placeholder="33.50"
             placeholderTextColor={colors.textMuted}
@@ -264,7 +283,7 @@ export default function TasaDelDia() {
           <TextInput
             style={styles.input}
             value={penVes}
-            onChangeText={setPenVes}
+            onChangeText={(t) => { editado.current = true; setPenVes(t); }}
             keyboardType="decimal-pad"
             placeholder="34.20"
             placeholderTextColor={colors.textMuted}
@@ -279,7 +298,7 @@ export default function TasaDelDia() {
           {avisoPerdida && <Text style={styles.avisoPerdida}>{avisoPerdida}</Text>}
           {mensaje &&<Text style={styles.mensaje}>{mensaje}</Text>}
 
-          <Pressable style={[styles.button, avisoPerdida && styles.buttonDisabled]} onPress={publicar} disabled={loading || !!avisoPerdida}>
+          <Pressable style={styles.button} onPress={publicar} disabled={loading}>
             {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar tasas</Text>}
           </Pressable>
         </>
@@ -289,7 +308,7 @@ export default function TasaDelDia() {
           editar.
         </Text>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
