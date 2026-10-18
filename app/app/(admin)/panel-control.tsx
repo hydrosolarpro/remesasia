@@ -10,6 +10,7 @@ import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { CalendarioDias } from '../../components/CalendarioFecha';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { Collapsible } from '../../components/Collapsible';
+import { AdminEstadisticaPagos } from '../../components/AdminEstadisticaPagos';
 import {
   DIAS_DEMO,
   ORDEN_PLANES,
@@ -41,17 +42,6 @@ interface Pago {
   plan_a_medida: boolean;
   limite_clientes: number | null;
   comprobante_url: string | null;
-}
-
-// Pago o cambio de plan de un operador principal, para la sección Estadística.
-interface EventoPago {
-  id: string;
-  operadorId: string;
-  concepto: string;
-  monto: number;
-  estado: 'pendiente' | 'verificado' | 'rechazado';
-  comprobante: boolean;
-  fecha: string;
 }
 
 interface CambioPendienteFila {
@@ -147,8 +137,6 @@ export default function PanelControl() {
   // más uno abierto por operador (ver cambios_plan_pendientes).
   const [cambiosPendientes, setCambiosPendientes] = useState<Record<string, CambioPendienteFila>>({});
   const [procesandoCambio, setProcesandoCambio] = useState<string | null>(null);
-  // Historial completo de cambios/renovaciones (todos los estados) solo para la sección Estadística.
-  const [historialCambios, setHistorialCambios] = useState<EventoPago[]>([]);
 
   // Eliminar operador (borrado físico irreversible, ver
   // supabase/functions/eliminar-operador-peru): el panel de confirmación
@@ -197,21 +185,6 @@ export default function PanelControl() {
       };
     });
     setCambiosPendientes(mapaCambios);
-
-    const { data: todosCambios } = await supabase
-      .from('cambios_plan_pendientes')
-      .select('id, operador_peru_id, plan_solicitado, monto, estado, comprobante_url, created_at');
-    setHistorialCambios(
-      ((todosCambios as { id: string; operador_peru_id: string; plan_solicitado: string; monto: number; estado: EventoPago['estado']; comprobante_url: string | null; created_at: string }[] | null) ?? []).map((c) => ({
-        id: c.id,
-        operadorId: c.operador_peru_id,
-        concepto: `Cambio a ${planLabel(c.plan_solicitado)}`,
-        monto: Number(c.monto),
-        estado: c.estado,
-        comprobante: !!c.comprobante_url,
-        fecha: c.created_at,
-      }))
-    );
 
     const { data: clientes } = await supabase
       .from('usuarios')
@@ -510,25 +483,6 @@ export default function PanelControl() {
     });
   const gananciaBruta = Object.values(desglosePorPlan).reduce((acc, fila) => acc + fila.subtotal, 0);
 
-  const nombreOperador = (id: string) => operadores.find((o) => o.id === id)?.nombre ?? '—';
-  const eventosPago: EventoPago[] = [
-    ...operadores.flatMap((op) =>
-      op.pagos_suscripcion.map((p) => ({
-        id: p.id,
-        operadorId: op.id,
-        concepto: p.monto_por_definir ? `UNLIMITED a consultar (${p.periodo})` : `Suscripción ${p.periodo}`,
-        monto: Number(p.monto),
-        estado: p.estado,
-        comprobante: !!p.comprobante_url,
-        fecha: p.periodo,
-      }))
-    ),
-    ...historialCambios,
-  ].sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const conteoEstado = (e: EventoPago['estado']) => eventosPago.filter((x) => x.estado === e).length;
-  const totalVerificado = eventosPago.filter((x) => x.estado === 'verificado').reduce((acc, x) => acc + x.monto, 0);
-  const porRevisar = eventosPago.filter((x) => x.estado === 'pendiente');
-
   if (cargando) {
     return (
       <View style={styles.center}>
@@ -544,44 +498,7 @@ export default function PanelControl() {
       <Text style={styles.titulo}>Panel de control</Text>
 
       <Collapsible titulo="📊 Estadística" subtitulo="Estados de pago de los operadores principales">
-        <View style={styles.resumenFila}>
-          <View style={styles.resumenItem}>
-            <Text style={styles.resumenLabel}>Pendientes</Text>
-            <Text style={[styles.resumenValor, { color: colors.warning }]}>{conteoEstado('pendiente')}</Text>
-          </View>
-          <View style={styles.resumenItem}>
-            <Text style={styles.resumenLabel}>Verificados</Text>
-            <Text style={styles.resumenValor}>{conteoEstado('verificado')}</Text>
-          </View>
-          <View style={styles.resumenItem}>
-            <Text style={styles.resumenLabel}>Rechazados</Text>
-            <Text style={[styles.resumenValor, { color: colors.danger }]}>{conteoEstado('rechazado')}</Text>
-          </View>
-        </View>
-        <View style={styles.desgloseWrap}>
-          <Text style={styles.desgloseTitulo}>Total verificado: S/ {totalVerificado.toFixed(2)}</Text>
-          <Text style={styles.desgloseTitulo}>Por revisar ahora</Text>
-          {porRevisar.length === 0 && <Text style={styles.desgloseDato}>No hay pagos pendientes.</Text>}
-          {porRevisar.map((x) => (
-            <View key={x.id} style={styles.desgloseFila}>
-              <Text style={styles.desglosePlan}>{nombreOperador(x.operadorId)}</Text>
-              <Text style={styles.desgloseDato}>
-                {x.concepto} · {x.comprobante ? 'con comprobante' : 'sin comprobante'}
-              </Text>
-              <Text style={styles.desgloseSubtotal}>S/ {x.monto.toFixed(2)}</Text>
-            </View>
-          ))}
-          <Text style={[styles.desgloseTitulo, { marginTop: 8 }]}>Historial reciente</Text>
-          {eventosPago.slice(0, 15).map((x) => (
-            <View key={`h-${x.id}`} style={styles.desgloseFila}>
-              <Text style={styles.desglosePlan}>{nombreOperador(x.operadorId)}</Text>
-              <Text style={styles.desgloseDato}>
-                {x.concepto} · {x.estado}
-              </Text>
-              <Text style={styles.desgloseSubtotal}>S/ {x.monto.toFixed(2)}</Text>
-            </View>
-          ))}
-        </View>
+        <AdminEstadisticaPagos />
       </Collapsible>
 
       <View style={[styles.resumen, cardShadow]}>
