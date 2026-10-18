@@ -257,58 +257,68 @@ export default function TasaDelDia() {
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={[styles.container, { flex: undefined, flexGrow: 1, paddingBottom: 48 }]} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>Tasa del día — {HOY()}</Text>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.container, { flex: undefined, flexGrow: 1, paddingBottom: 24 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>Tasa del día — {HOY()}</Text>
         <SelectorCorredor />
-      {tasaActual && (
-        <Text style={styles.hint}>
-          Última publicada{tasaActual.fecha !== HOY() ? ` (${tasaActual.fecha})` : ''}: venta {corredor.monedaSimbolo}1 = Bs {tasaActual.tasa_pen_ves}
-          {tasaActual.tasa_adquisicion != null ? ` · adquisición ${corredor.monedaSimbolo}1 = Bs ${tasaActual.tasa_adquisicion}` : ''}
-        </Text>
-      )}
+        {tasaActual && (
+          <Text style={styles.hint}>
+            Última publicada{tasaActual.fecha !== HOY() ? ` (${tasaActual.fecha})` : ''}: venta {corredor.monedaSimbolo}1 = Bs {tasaActual.tasa_pen_ves}
+            {tasaActual.tasa_adquisicion != null ? ` · adquisición ${corredor.monedaSimbolo}1 = Bs ${tasaActual.tasa_adquisicion}` : ''}
+          </Text>
+        )}
 
-      {esPrincipal ? (
-        <>
-          <Text style={styles.label}>Tasa de adquisición (Ta) — cuántos bolívares compras tú con cada {unidadTxt}</Text>
-          <TextInput
-            style={styles.input}
-            value={tasaAdquisicion}
-            onChangeText={(t) => { editado.current = true; setTasaAdquisicion(t); }}
-            keyboardType="decimal-pad"
-            placeholder="33.50"
-            placeholderTextColor={colors.textMuted}
-          />
+        {esPrincipal ? (
+          <>
+            <Text style={styles.label}>Tasa de adquisición (Ta) — cuántos bolívares compras tú con cada {unidadTxt}</Text>
+            <TextInput
+              style={styles.input}
+              value={tasaAdquisicion}
+              onChangeText={(t) => { editado.current = true; setTasaAdquisicion(t); }}
+              keyboardType="decimal-pad"
+              placeholder="33.50"
+              placeholderTextColor={colors.textMuted}
+            />
 
-          <Text style={styles.label}>Tasa de venta al cliente (Tv) — {monedaTxt} → Bolívares Soberanos</Text>
-          <TextInput
-            style={styles.input}
-            value={penVes}
-            onChangeText={(t) => { editado.current = true; setPenVes(t); }}
-            keyboardType="decimal-pad"
-            placeholder="34.20"
-            placeholderTextColor={colors.textMuted}
-          />
+            <Text style={styles.label}>Tasa de venta al cliente (Tv) — {monedaTxt} → Bolívares Soberanos</Text>
+            <TextInput
+              style={styles.input}
+              value={penVes}
+              onChangeText={(t) => { editado.current = true; setPenVes(t); }}
+              keyboardType="decimal-pad"
+              placeholder="34.20"
+              placeholderTextColor={colors.textMuted}
+            />
+          </>
+        ) : (
+          <Text style={styles.soloLectura}>
+            Las tasas del día solo pueden ser actualizadas por el Operador principal de Perú. Tú las ves en tu Panel, sin opción a
+            editar.
+          </Text>
+        )}
+      </ScrollView>
 
+      {/* Pie fijo: el margen y "Guardar tasas" quedan siempre a la vista,
+          en cualquier corredor y tamaño de pantalla. */}
+      {esPrincipal && (
+        <View style={styles.pie}>
           {margenBruto !== null && (
             <Text style={[styles.margen, margenBruto < 0 && styles.margenNegativo]}>
               Margen bruto: {margenBruto.toFixed(2)} %
             </Text>
           )}
-
           {avisoPerdida && <Text style={styles.avisoPerdida}>{avisoPerdida}</Text>}
-          {mensaje &&<Text style={styles.mensaje}>{mensaje}</Text>}
-
-          <Pressable style={styles.button} onPress={publicar} disabled={loading}>
+          {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
+          <Pressable style={[styles.button, { marginTop: 10 }]} onPress={publicar} disabled={loading}>
             {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar tasas</Text>}
           </Pressable>
-        </>
-      ) : (
-        <Text style={styles.soloLectura}>
-          Las tasas del día solo pueden ser actualizadas por el Operador principal de Perú. Tú las ves en tu Panel, sin opción a
-          editar.
-        </Text>
+        </View>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -320,6 +330,7 @@ const styles = StyleSheet.create({
   label: { color: colors.textMuted, fontSize: 15, marginTop: 8 },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, fontSize: 21 },
   mensaje: { color: colors.accent, fontSize: 15, marginTop: 8 },
+  pie: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg },
   margen: { color: colors.accent, fontSize: 18, fontWeight: '800', marginTop: 8 },
   margenNegativo: { color: colors.danger },
   avisoPerdida: { color: colors.danger, fontSize: 15, lineHeight: 20, marginTop: 8 },
