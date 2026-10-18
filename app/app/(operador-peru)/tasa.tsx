@@ -147,6 +147,14 @@ export default function TasaDelDia() {
     return `⚠ Con estas tasas pierdes dinero en todas las operaciones: la tasa del día (${tv}) debe ser menor que tu tasa de adquisición (${ta}). No se puede guardar así.`;
   }, [tasaAdquisicion, penVes]);
 
+  // Margen bruto = (Ta − Tv) / Ta × 100, con la Tv ingresada (tasa del día).
+  const margenBruto = useMemo(() => {
+    const ta = Number(tasaAdquisicion.replace(',', '.'));
+    const tv = Number(penVes.replace(',', '.'));
+    if (!(ta > 0) || !(tv > 0)) return null;
+    return ((ta - tv) / ta) * 100;
+  }, [tasaAdquisicion, penVes]);
+
   // Misma regla para la tasa propia del miembro: nunca puede ser mayor o
   // igual que la Ta del principal (el miembro no fija Ta, siempre usa la
   // del principal -- ver tasaAdquisicion en calcularGananciaOperacion).
@@ -262,8 +270,14 @@ export default function TasaDelDia() {
             placeholderTextColor={colors.textMuted}
           />
 
+          {margenBruto !== null && (
+            <Text style={[styles.margen, margenBruto < 0 && styles.margenNegativo]}>
+              Margen bruto: {margenBruto.toFixed(2)} %
+            </Text>
+          )}
+
           {avisoPerdida && <Text style={styles.avisoPerdida}>{avisoPerdida}</Text>}
-          {mensaje && <Text style={styles.mensaje}>{mensaje}</Text>}
+          {mensaje &&<Text style={styles.mensaje}>{mensaje}</Text>}
 
           <Pressable style={[styles.button, avisoPerdida && styles.buttonDisabled]} onPress={publicar} disabled={loading || !!avisoPerdida}>
             {loading ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>Guardar tasas</Text>}
@@ -287,6 +301,8 @@ const styles = StyleSheet.create({
   label: { color: colors.textMuted, fontSize: 15, marginTop: 8 },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, fontSize: 21 },
   mensaje: { color: colors.accent, fontSize: 15, marginTop: 8 },
+  margen: { color: colors.accent, fontSize: 18, fontWeight: '800', marginTop: 8 },
+  margenNegativo: { color: colors.danger },
   avisoPerdida: { color: colors.danger, fontSize: 15, lineHeight: 20, marginTop: 8 },
   button: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
   buttonDisabled: { backgroundColor: colors.border },
