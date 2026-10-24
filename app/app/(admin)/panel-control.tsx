@@ -10,6 +10,7 @@ import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { CalendarioDias } from '../../components/CalendarioFecha';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { Collapsible } from '../../components/Collapsible';
+import { SoporteYPrivacidadCard } from '../../components/SoporteYPrivacidadCard';
 import { AdminEstadisticaPagos } from '../../components/AdminEstadisticaPagos';
 import {
   DIAS_DEMO,
@@ -915,6 +916,8 @@ export default function PanelControl() {
       })}
 
       {operadores.length === 0 && <Text style={styles.vacio}>Todavía no hay ningún Operador Perú registrado.</Text>}
+
+      <SoporteYPrivacidadCard />
     </ScrollView>
     <ZoomableImageModal visible={!!zoomUri} uri={zoomUri} onClose={() => setZoomUri(null)} />
     </>

@@ -89,6 +89,7 @@ export default function RootLayout() {
               <Stack.Screen name="(admin)" options={{ headerShown: false }} />
               <Stack.Screen name="invitacion/[token]" options={{ headerShown: false }} />
               <Stack.Screen name="demo-acceso" options={{ headerShown: false }} />
+              <Stack.Screen name="privacidad" options={{ headerShown: false }} />
             </Stack>
           </View>
         </View>

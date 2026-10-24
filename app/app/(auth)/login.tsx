@@ -170,6 +170,9 @@ export default function Login() {
           )}
         </Pressable>
       )}
+      <Pressable onPress={() => router.push('/privacidad')}>
+        <Text style={styles.olvide}>Política de privacidad</Text>
+      </Pressable>
     </ScrollView>
   );
 }

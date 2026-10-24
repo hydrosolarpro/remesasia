@@ -1,0 +1,17 @@
+-- ─────────────────────────────────────────────────────────────
+-- 0128 — Bucket de documentos de identidad PRIVADO (Ley 29733).
+--
+-- NO aplicar antes de:
+--   1) aplicar 0127 (policy de lectura firmada), y
+--   2) desplegar la versión de la app que muestra los documentos con
+--      enlaces firmados (lib/documentoIdentidad.ts). Con el bucket privado,
+--      la URL pública guardada en usuarios.documento_imagen_url deja de
+--      abrir la imagen: una app antigua dejaría de mostrar los documentos.
+--
+-- La columna documento_imagen_url no cambia: sigue guardando la URL con el
+-- formato público, que la app usa solo para extraer la ruta del archivo.
+--
+-- El bucket de prueba "zzz-test-bucket" no se puede borrar por SQL (Storage
+-- bloquea el DELETE directo): bórralo desde el panel de Supabase > Storage.
+-- ─────────────────────────────────────────────────────────────
+update storage.buckets set public = false where id = 'documentos-identidad';

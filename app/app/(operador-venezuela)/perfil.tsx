@@ -6,6 +6,8 @@ import { registrarPushToken } from '../../lib/notifications';
 import { OperadorVenezuelaPerfil, Usuario } from '../../types/database';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
 import { PinAccesoCard } from '../../components/PinAccesoCard';
+import { TelegramVinculoCard } from '../../components/TelegramVinculoCard';
+import { SoporteYPrivacidadCard } from '../../components/SoporteYPrivacidadCard';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
 // El Operador Venezuela ve, en solo lectura, los datos del Operador
@@ -75,9 +77,13 @@ export default function Perfil() {
         </View>
       )}
 
+      <TelegramVinculoCard />
+
       <PinAccesoCard />
 
       <InstalarAppCard puedeEnviar />
+
+      <SoporteYPrivacidadCard />
     </ScrollView>
   );
 }

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Modal, View, Pressable, Text, StyleSheet, PanResponder, Animated, Dimensions, Linking } from 'react-native';
 import { colors, radius } from '../constants/theme';
 import { descargarArchivo } from '../lib/descargarArchivo';
+import { rutaDocumentoIdentidad, useUrlDocumentoIdentidad } from '../lib/documentoIdentidad';
 
 const { width, height } = Dimensions.get('window');
 const ZOOM_MAX = 3;
@@ -21,6 +22,11 @@ export function ZoomableImageModal({ visible, uri, onClose }: { visible: boolean
   const translateValue = useRef({ x: 0, y: 0 });
   const panInicio = useRef({ x: 0, y: 0 });
   const ultimoToque = useRef(0);
+  // Los documentos de identidad viven en un bucket privado: se muestran con un
+  // enlace firmado y temporal. Cualquier otra URL (comprobantes, archivos
+  // locales) se usa tal cual.
+  const uriDocumento = useUrlDocumentoIdentidad(uri);
+  const uriFinal = uri && rutaDocumentoIdentidad(uri) ? uriDocumento : uri;
 
   const aplicarZoom = (nuevo: number) => {
     const acotado = Math.max(1, Math.min(ZOOM_MAX, nuevo));
@@ -68,7 +74,7 @@ export function ZoomableImageModal({ visible, uri, onClose }: { visible: boolean
     onClose();
   };
 
-  if (!uri) return null;
+  if (!uri || !uriFinal) return null;
 
   // Un Documento de Identidad puede ser un PDF (ver lib/perfilCliente.ts,
   // MIME_DOCUMENTO_IDENTIDAD) -- <Image> no lo puede previsualizar, así que
@@ -77,7 +83,7 @@ export function ZoomableImageModal({ visible, uri, onClose }: { visible: boolean
   const esPdf = uri.toLowerCase().endsWith('.pdf');
 
   const descargar = () => {
-    descargarArchivo(uri, `comprobante-${Date.now()}`).catch(() => Linking.openURL(uri));
+    descargarArchivo(uriFinal, `comprobante-${Date.now()}`).catch(() => Linking.openURL(uriFinal));
   };
 
   return (
@@ -103,7 +109,7 @@ export function ZoomableImageModal({ visible, uri, onClose }: { visible: boolean
             <Text style={styles.ayuda}>Doble toque, o +/- para hacer zoom · arrastra para moverte</Text>
             <View style={styles.contenedorImagen} {...panResponder.panHandlers}>
               <Animated.Image
-                source={{ uri }}
+                source={{ uri: uriFinal }}
                 style={[
                   styles.imagen,
                   { transform: [{ translateX }, { translateY }, { scale: nivelZoom }] },

@@ -25,6 +25,8 @@ import { useEstadoPlanNegocio } from '../../lib/useEstadoPlanNegocio';
 import { FormularioSolicitudPlan } from '../../components/FormularioSolicitudPlan';
 import { PlanDetalle, encabezadoPlan } from '../../components/PlanesInfo';
 import { PinAccesoCard } from '../../components/PinAccesoCard';
+import { TelegramVinculoCard } from '../../components/TelegramVinculoCard';
+import { SoporteYPrivacidadCard } from '../../components/SoporteYPrivacidadCard';
 import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { Collapsible } from '../../components/Collapsible';
 import { CorredoresNegocio } from '../../components/CorredoresNegocio';
@@ -1005,9 +1007,13 @@ export default function Perfil() {
         </Pressable>
       )}
 
+      <TelegramVinculoCard />
+
       <PinAccesoCard />
 
       <InstalarAppCard puedeEnviar />
+
+      <SoporteYPrivacidadCard />
 
       {/* Modal de asignación: elige qué operadores de Perú atiende cada VE */}
       <Modal visible={!!asignandoVe} transparent animationType="fade" onRequestClose={() => setAsignandoVe(null)}>

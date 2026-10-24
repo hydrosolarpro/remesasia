@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { registrarPushToken } from '../../lib/notifications';
 import { reservarPestanaExterna } from '../../lib/pestanaExterna';
+import { useUrlDocumentoIdentidad } from '../../lib/documentoIdentidad';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
 import {
   DOCUMENTO_TIPO_ETIQUETA,
@@ -18,6 +19,7 @@ import {
 import { CanalNotificacion, DocumentoTipo } from '../../types/database';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
 import { PinAccesoCard } from '../../components/PinAccesoCard';
+import { SoporteYPrivacidadCard } from '../../components/SoporteYPrivacidadCard';
 import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { colors, radius } from '../../constants/theme';
 
@@ -56,6 +58,7 @@ export default function Perfil() {
   const [guardandoCanal, setGuardandoCanal] = useState(false);
   const [operador, setOperador] = useState<{ nombre: string; telefono: string | null; email: string | null } | null>(null);
   const [dandoDeBaja, setDandoDeBaja] = useState(false);
+  const documentoGuardadoUrl = useUrlDocumentoIdentidad(usuario?.documento_imagen_url);
 
   useEffect(() => {
     if (usuario) registrarPushToken(usuario.id);
@@ -358,7 +361,7 @@ export default function Perfil() {
           (documentoImagenNueva || usuario?.documento_imagen_url) && (
             <Pressable onPress={() => setZoomDocumento(true)}>
               <Image
-                source={{ uri: documentoImagenNueva ? documentoImagenNueva.uri : usuario!.documento_imagen_url! }}
+                source={{ uri: documentoImagenNueva ? documentoImagenNueva.uri : (documentoGuardadoUrl ?? undefined) }}
                 style={styles.docPreview}
                 resizeMode="contain"
               />
@@ -490,7 +493,9 @@ export default function Perfil() {
           <Text style={styles.exito}>✓ Telegram conectado{usuario.telegram_username ? ` (@${usuario.telegram_username})` : ''}</Text>
         ) : (
           <>
-            <Text style={styles.telegramDato}>Conecta tu Telegram para recibir el aviso apenas se valide tu depósito en Perú.</Text>
+            <Text style={styles.telegramDato}>
+              Para vincular tu cuenta debes tener una cuenta de Telegram (es gratuita; descárgala en telegram.org/apps si aún no la tienes). Conéctala para recibir el aviso apenas se valide tu depósito en Perú y los avisos importantes de seguridad de tu cuenta.
+            </Text>
             <Pressable style={styles.buttonOutline} onPress={conectarTelegram} disabled={conectandoTelegram}>
               {conectandoTelegram ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.buttonOutlineText}>Conectar Telegram</Text>}
             </Pressable>
@@ -501,6 +506,8 @@ export default function Perfil() {
       <PinAccesoCard />
 
       <InstalarAppCard />
+
+      <SoporteYPrivacidadCard />
 
       <Pressable style={styles.bajaBtn} onPress={darseDeBaja} disabled={dandoDeBaja}>
         {dandoDeBaja ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.bajaBtnTexto}>Dar de baja mi cuenta</Text>}
