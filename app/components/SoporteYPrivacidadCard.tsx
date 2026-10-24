@@ -1,7 +1,9 @@
-import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
+import { useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Linking, ActivityIndicator, Platform, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { CONTACTO_SOPORTE, enlaceWhatsAppSoporteUrgente } from '../lib/soporte';
+import { descargarMisDatos } from '../lib/exportarMisDatos';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 // Bloque que va en el Perfil de TODAS las sesiones: aviso de protección de
@@ -9,6 +11,20 @@ import { colors, radius, cardShadow } from '../constants/theme';
 // técnico 24/7 por WhatsApp con el mensaje URGENTE ya armado.
 export function SoporteYPrivacidadCard() {
   const { usuario } = useAuth();
+  const [descargando, setDescargando] = useState(false);
+
+  const descargar = async () => {
+    setDescargando(true);
+    try {
+      await descargarMisDatos();
+    } catch (err) {
+      const mensaje = err instanceof Error ? err.message : 'No se pudieron descargar tus datos.';
+      if (Platform.OS === 'web') window.alert(mensaje);
+      else Alert.alert('No se pudo descargar', mensaje);
+    } finally {
+      setDescargando(false);
+    }
+  };
 
   return (
     <>
@@ -21,6 +37,9 @@ export function SoporteYPrivacidadCard() {
         </Text>
         <Pressable onPress={() => router.push('/privacidad')}>
           <Text style={styles.enlace}>Ver política de privacidad</Text>
+        </Pressable>
+        <Pressable style={styles.boton} onPress={descargar} disabled={descargando}>
+          {descargando ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.botonTexto}>Descargar mis datos</Text>}
         </Pressable>
       </View>
 

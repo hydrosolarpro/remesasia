@@ -12,6 +12,7 @@ import { ZoomableImageModal } from '../../components/ZoomableImageModal';
 import { PinAccesoCard } from '../../components/PinAccesoCard';
 import { ConfiguracionPagosAdmin } from '../../types/database';
 import { colors, radius, cardShadow } from '../../constants/theme';
+import { ComprobanteMiniatura } from '../../components/ComprobanteMiniatura';
 
 interface OperadorPeru {
   id: string;
@@ -199,7 +200,7 @@ export default function PanelAdmin() {
             </Text>
             {pago.comprobante_url && (
               <Pressable onPress={() => setZoomUri(pago.comprobante_url)}>
-                <Image source={{ uri: pago.comprobante_url }} style={styles.comprobante} resizeMode="contain" />
+                <ComprobanteMiniatura uri={pago.comprobante_url} style={styles.comprobante} resizeMode="contain" />
                 <Text style={styles.verCompletoTexto}>🔍 Toca para verla completa y hacer zoom</Text>
               </Pressable>
             )}

@@ -27,6 +27,7 @@ import {
 import { PlanOperador } from '../../types/database';
 import { useTipoCambioSunat } from '../../lib/tipoCambio';
 import { colors, radius, cardShadow } from '../../constants/theme';
+import { ComprobanteMiniatura } from '../../components/ComprobanteMiniatura';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7);
 const MS_POR_DIA = 86_400_000;
@@ -647,7 +648,7 @@ export default function PanelControl() {
                       )}
                       {pagoPeriodo.comprobante_url && comprobantesAbiertos[pagoPeriodo.id] && (
                         <Pressable onPress={() => setZoomUri(pagoPeriodo.comprobante_url)}>
-                          <Image source={{ uri: pagoPeriodo.comprobante_url }} style={styles.comprobanteThumb} resizeMode="cover" />
+                          <ComprobanteMiniatura uri={pagoPeriodo.comprobante_url} style={styles.comprobanteThumb} resizeMode="cover" />
                           <Text style={styles.comprobanteVerTexto}>🔍 Toca para verlo completo</Text>
                         </Pressable>
                       )}
@@ -688,7 +689,7 @@ export default function PanelControl() {
                       )}
                       {cambiosPendientes[op.id].comprobante_url && comprobantesAbiertos[cambiosPendientes[op.id].id] && (
                         <Pressable onPress={() => setZoomUri(cambiosPendientes[op.id].comprobante_url)}>
-                          <Image source={{ uri: cambiosPendientes[op.id].comprobante_url! }} style={styles.comprobanteThumb} resizeMode="cover" />
+                          <ComprobanteMiniatura uri={cambiosPendientes[op.id].comprobante_url!} style={styles.comprobanteThumb} resizeMode="cover" />
                           <Text style={styles.comprobanteVerTexto}>🔍 Toca para verlo completo</Text>
                         </Pressable>
                       )}

@@ -3,6 +3,7 @@ import { Modal, View, Pressable, Text, StyleSheet, PanResponder, Animated, Dimen
 import { colors, radius } from '../constants/theme';
 import { descargarArchivo } from '../lib/descargarArchivo';
 import { rutaDocumentoIdentidad, useUrlDocumentoIdentidad } from '../lib/documentoIdentidad';
+import { esPdfUri } from './ComprobanteMiniatura';
 
 const { width, height } = Dimensions.get('window');
 const ZOOM_MAX = 3;
@@ -80,7 +81,7 @@ export function ZoomableImageModal({ visible, uri, onClose }: { visible: boolean
   // MIME_DOCUMENTO_IDENTIDAD) -- <Image> no lo puede previsualizar, así que
   // en ese caso se muestra una tarjeta con acceso directo a "Descargar"
   // en vez de intentar dibujarlo como imagen (quedaría en blanco/roto).
-  const esPdf = uri.toLowerCase().endsWith('.pdf');
+  const esPdf = esPdfUri(uri);
 
   const descargar = () => {
     descargarArchivo(uriFinal, `comprobante-${Date.now()}`).catch(() => Linking.openURL(uriFinal));

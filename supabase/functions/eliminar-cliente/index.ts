@@ -111,6 +111,54 @@ Deno.serve(async (req) => {
       console.error('eliminar-cliente: error borrando cuenta de auth', authError);
     }
 
+    // Derecho de cancelación (Ley 29733): además del borrado lógico, se
+    // eliminan los datos personales que no hay obligación legal de conservar.
+    // Cada paso registra su error pero no revierte la baja. Se CONSERVAN, a
+    // propósito, los registros de operaciones (solicitudes y su nombre /
+    // teléfono histórico) y el documento de identidad, porque pueden ser
+    // exigibles por ley (tributaria y de prevención de lavado de activos);
+    // el plazo exacto debe confirmarlo el asesor legal. Para purgar también
+    // el documento, define el secret PURGAR_DOCUMENTO_IDENTIDAD=true.
+    const limpiezas: Array<[string, PromiseLike<{ error: unknown }>]> = [
+      [
+        'datos de contacto',
+        admin
+          .from('usuarios')
+          .update({
+            push_token: null,
+            telegram_chat_id: null,
+            telegram_username: null,
+            telegram_connected: false,
+            referido_nombre: null,
+            referido_apellido: null,
+            referido_telefono: null,
+          })
+          .eq('id', cliente_id),
+      ],
+      ['beneficiarios guardados', admin.from('beneficiarios_cliente').delete().eq('cliente_id', cliente_id)],
+      ['cuentas utilizadas', admin.from('cuentas_utilizadas_cliente').delete().eq('cliente_id', cliente_id)],
+      ['tasas especiales', admin.from('tasas_cliente').delete().eq('cliente_id', cliente_id)],
+      ['PIN de acceso', admin.from('acceso_pin').delete().eq('usuario_id', cliente_id)],
+    ];
+    for (const [etiqueta, operacion] of limpiezas) {
+      const { error: limpiezaError } = await operacion;
+      if (limpiezaError) console.error(`eliminar-cliente: error limpiando ${etiqueta}`, limpiezaError);
+    }
+
+    if (Deno.env.get('PURGAR_DOCUMENTO_IDENTIDAD') === 'true') {
+      await admin
+        .from('usuarios')
+        .update({ documento_tipo: null, documento_numero: null, documento_imagen_url: null })
+        .eq('id', cliente_id);
+      const { data: archivos } = await admin.storage.from('documentos-identidad').list(cliente_id);
+      if (archivos && archivos.length > 0) {
+        const { error: borradoError } = await admin.storage
+          .from('documentos-identidad')
+          .remove(archivos.map((a) => `${cliente_id}/${a.name}`));
+        if (borradoError) console.error('eliminar-cliente: error borrando documento de identidad', borradoError);
+      }
+    }
+
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
   } catch (err) {
     console.error('eliminar-cliente: error inesperado', err);

@@ -54,13 +54,31 @@ export async function sendTelegramPhoto(chatId: string, imageUrl: string, captio
  */
 export async function sendTelegramPhotos(chatId: string, imageUrls: string[], caption?: string): Promise<boolean> {
   if (imageUrls.length === 0) return true;
-  if (imageUrls.length === 1) return sendTelegramPhoto(chatId, imageUrls[0], caption);
-  const media = imageUrls.slice(0, 10).map((url, i) => ({
-    type: 'photo',
-    media: url,
-    ...(i === 0 && caption ? { caption } : {}),
-  }));
-  return llamarApi('sendMediaGroup', { chat_id: chatId, media });
+
+  // Los comprobantes pueden ser PDF: Telegram no los acepta como foto
+  // (sendPhoto / sendMediaGroup), así que se mandan aparte como documento.
+  const esPdf = (url: string) => url.split('?')[0].toLowerCase().endsWith('.pdf');
+  const pdfs = imageUrls.filter(esPdf);
+  const fotos = imageUrls.filter((url) => !esPdf(url));
+
+  let ok = true;
+  if (fotos.length === 1) {
+    ok = await sendTelegramPhoto(chatId, fotos[0], caption);
+  } else if (fotos.length > 1) {
+    const media = fotos.slice(0, 10).map((url, i) => ({
+      type: 'photo',
+      media: url,
+      ...(i === 0 && caption ? { caption } : {}),
+    }));
+    ok = await llamarApi('sendMediaGroup', { chat_id: chatId, media });
+  }
+
+  // Si no hubo fotos, el mensaje (caption) viaja con el primer PDF.
+  for (let i = 0; i < pdfs.length; i++) {
+    const enviado = await sendTelegramDocument(chatId, pdfs[i], fotos.length === 0 && i === 0 ? caption : undefined);
+    ok = ok && enviado;
+  }
+  return ok;
 }
 
 export async function sendTelegramDocument(chatId: string, fileUrl: string, caption?: string): Promise<boolean> {

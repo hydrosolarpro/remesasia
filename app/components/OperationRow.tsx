@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking, Alert, ActivityIndicator } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { Solicitud, CanalNotificacion } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { CopyField } from './CopyField';
@@ -12,11 +11,12 @@ import {
   mensajeAvisoClienteVeValidado,
 } from '../lib/whatsapp';
 import { formatearBs } from '../lib/formato';
-import { extensionDeImagen, validarTamanoImagen, MAX_IMAGEN_KB } from '../lib/imagenUtil';
 import { ZoomableImageModal } from './ZoomableImageModal';
 import { descargarArchivos } from '../lib/descargarArchivo';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { colors, radius, cardShadow } from '../constants/theme';
+import { ComprobanteMiniatura } from './ComprobanteMiniatura';
+import { elegirComprobantes } from '../lib/comprobanteArchivo';
 
 export const FORMATTER_FECHA_HORA = new Intl.DateTimeFormat('es-PE', {
   day: '2-digit',
@@ -149,43 +149,22 @@ export function OperationRow({
   const [abierto, setAbierto] = useState(false);
 
   const tocarCheckVe = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permiso.granted) {
-      Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos para subir el comprobante del depósito en Venezuela.');
-      return;
-    }
-    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsMultipleSelection: true });
-    if (resultado.canceled) return;
-    const comprobantes: { uri: string; ext: string }[] = [];
-    let algunaPesada = false;
-    for (const asset of resultado.assets) {
-      if (!(await validarTamanoImagen(asset))) {
-        algunaPesada = true;
-        continue;
-      }
-      comprobantes.push({ uri: asset.uri, ext: extensionDeImagen(asset) });
-    }
-    if (algunaPesada) {
-      Alert.alert('Imagen muy pesada', `Una o más imágenes superan el límite de ${MAX_IMAGEN_KB} KB y no se agregaron.`);
-    }
+    const comprobantes = await elegirComprobantes({
+      multiple: true,
+      mensajePermiso: 'Habilita el acceso a tus fotos para subir el comprobante del depósito en Venezuela.',
+    });
     if (comprobantes.length === 0) return;
     onValidarVe(comprobantes);
   };
 
   const tocarRecargarComprobante = async () => {
     if (!onRecargarComprobanteVe) return;
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permiso.granted) {
-      Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos para subir el comprobante corregido.');
-      return;
-    }
-    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (resultado.canceled) return;
-    if (!(await validarTamanoImagen(resultado.assets[0]))) {
-      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
-      return;
-    }
-    onRecargarComprobanteVe(resultado.assets[0].uri, extensionDeImagen(resultado.assets[0]));
+    const [elegido] = await elegirComprobantes({
+      multiple: false,
+      mensajePermiso: 'Habilita el acceso a tus fotos para subir el comprobante corregido.',
+    });
+    if (!elegido) return;
+    onRecargarComprobanteVe(elegido.uri, elegido.ext);
   };
 
   // Botón de respaldo para reenviar manualmente (el envío automático ya
@@ -422,13 +401,13 @@ function ImagenDesplegable({ titulo, uris }: { titulo: string; uris: string[] })
           <View style={styles.comprobantesGrid}>
             {uris.map((uri, i) => (
               <Pressable key={uri} style={styles.comprobanteItem} onPress={() => setZoomIndex(i)}>
-                <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />
+                <ComprobanteMiniatura uri={uri} style={styles.comprobante} resizeMode="contain" />
               </Pressable>
             ))}
           </View>
-          <Text style={styles.verCompletoTexto}>🔍 Toca una imagen para verla completa y hacer zoom</Text>
+          <Text style={styles.verCompletoTexto}>🔍 Toca un comprobante para verlo completo y hacer zoom</Text>
           <Pressable onPress={() => descargarArchivos(uris, `comprobante-${titulo.toLowerCase().includes('venezuela') ? 'venezuela' : 'peru'}`).catch(() => Linking.openURL(uris[0]))}>
-            <Text style={styles.verCompletoTexto}>⬇ Descargar {uris.length > 1 ? `las ${uris.length} imágenes` : 'comprobante'}</Text>
+            <Text style={styles.verCompletoTexto}>⬇ Descargar {uris.length > 1 ? `los ${uris.length} archivos` : 'comprobante'}</Text>
           </Pressable>
         </>
       )}

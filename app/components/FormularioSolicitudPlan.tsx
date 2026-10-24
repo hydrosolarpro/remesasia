@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Image, ActivityIndicator, Alert, Linking, TouchableOpacity } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Alert, Linking, TouchableOpacity } from 'react-native';
 import { useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { CopyField } from './CopyField';
-import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../lib/imagenUtil';
+import { mimeDeExtension } from '../lib/imagenUtil';
 import { ConfiguracionPagosAdmin } from '../types/database';
 import {
   PRECIO_PLAN,
@@ -18,6 +17,8 @@ import {
 import { construirEnlaceWhatsAppAdmin } from '../lib/whatsapp';
 import { useTipoCambioSunat, usdTxt, solesADolares } from '../lib/tipoCambio';
 import { colors, radius, cardShadow } from '../constants/theme';
+import { ComprobanteMiniatura } from './ComprobanteMiniatura';
+import { elegirComprobantes } from '../lib/comprobanteArchivo';
 
 const periodoActual = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 
@@ -235,19 +236,10 @@ function FormularioSolicitudPlanFijo({
   }, []);
 
   const elegirComprobante = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permiso.granted) {
-      Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos.');
-      return;
-    }
-    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (resultado.canceled) return;
-    if (!(await validarTamanoImagen(resultado.assets[0]))) {
-      Alert.alert('Imagen muy pesada', `La imagen supera el límite de ${MAX_IMAGEN_KB} KB. Elige una más liviana.`);
-      return;
-    }
-    setComprobanteUri(resultado.assets[0].uri);
-    setComprobanteExt(extensionDeImagen(resultado.assets[0]));
+    const [elegido] = await elegirComprobantes({ multiple: false, mensajePermiso: 'Habilita el acceso a tus fotos.' });
+    if (!elegido) return;
+    setComprobanteUri(elegido.uri);
+    setComprobanteExt(elegido.ext);
   };
 
   const enviarSolicitud = async () => {
@@ -408,9 +400,9 @@ function FormularioSolicitudPlanFijo({
         <Text style={styles.seccionTitulo}>Comprobante de depósito</Text>
         <Pressable style={styles.subirBtn} onPress={elegirComprobante}>
           {comprobanteUri ? (
-            <Image source={{ uri: comprobanteUri }} style={styles.comprobantePreview} resizeMode="cover" />
+            <ComprobanteMiniatura uri={comprobanteUri} esPdf={comprobanteExt === 'pdf'} style={styles.comprobantePreview} resizeMode="cover" />
           ) : (
-            <Text style={styles.subirBtnTexto}>Elegir captura del depósito</Text>
+            <Text style={styles.subirBtnTexto}>Elegir captura o PDF del depósito</Text>
           )}
         </Pressable>
       </View>

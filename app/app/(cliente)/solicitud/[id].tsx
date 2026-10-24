@@ -9,6 +9,7 @@ import { Solicitud } from '../../../types/database';
 import { EstadoBadge } from '../../../components/EstadoBadge';
 import { ZoomableImageModal } from '../../../components/ZoomableImageModal';
 import { colors, radius, cardShadow } from '../../../constants/theme';
+import { ComprobanteMiniatura } from '../../../components/ComprobanteMiniatura';
 
 const ETIQUETA_TIPO_TRANSFERENCIA: Record<Solicitud['tipo_transferencia'], string> = {
   transferencia_bancaria: 'Transferencia bancaria',
@@ -94,7 +95,7 @@ export default function DetalleSolicitud() {
         <View style={styles.comprobantesGrid}>
           {solicitud.comprobante_pago_urls.map((uri, i) => (
             <Pressable key={uri} style={styles.comprobanteItem} onPress={() => setZoomIndex(i)}>
-              <Image source={{ uri }} style={styles.preview} />
+              <ComprobanteMiniatura uri={uri} style={styles.preview} resizeMode="cover" />
             </Pressable>
           ))}
         </View>

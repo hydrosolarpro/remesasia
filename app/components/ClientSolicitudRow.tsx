@@ -10,6 +10,7 @@ import { RoundCheck } from './RoundCheck';
 import { ZoomableImageModal } from './ZoomableImageModal';
 import { descargarArchivo } from '../lib/descargarArchivo';
 import { colors, radius, cardShadow } from '../constants/theme';
+import { ComprobanteMiniatura } from './ComprobanteMiniatura';
 
 const ETIQUETA_METODO_PAGO: Record<Solicitud['metodo_pago'], string> = {
   yape: 'Yape',
@@ -183,7 +184,7 @@ export function ClienteSolicitudRow({
                 {solicitud.comprobante_vz_urls.map((uri, i) => (
                   <View key={uri} style={styles.comprobanteItem}>
                     <Pressable onPress={() => setZoomIndex(i)}>
-                      <Image source={{ uri }} style={styles.comprobante} resizeMode="contain" />
+                      <ComprobanteMiniatura uri={uri} style={styles.comprobante} resizeMode="contain" />
                     </Pressable>
                     <Pressable onPress={() => descargarArchivo(uri, `comprobante-venezuela-${i + 1}`).catch(() => Linking.openURL(uri))}>
                       <Text style={styles.descargarLink}>Descargar</Text>

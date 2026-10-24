@@ -12,8 +12,7 @@ import {
   Switch,
 } from 'react-native';
 import { router } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import { extensionDeImagen, validarTamanoImagen, mimeDeExtension, MAX_IMAGEN_KB } from '../../lib/imagenUtil';
+import { mimeDeExtension } from '../../lib/imagenUtil';
 import { documentoClienteCompleto } from '../../lib/perfilCliente';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -43,6 +42,8 @@ import {
 
 type BeneficiarioConCuentas = BeneficiarioCliente & { cuentas: BeneficiarioCuentaBancaria[] };
 import { colors, radius, cardShadow } from '../../constants/theme';
+import { ComprobanteMiniatura } from '../../components/ComprobanteMiniatura';
+import { elegirComprobantes } from '../../lib/comprobanteArchivo';
 
 export default function InicioCliente() {
   const { usuario, refreshUsuario } = useAuth();
@@ -311,25 +312,7 @@ export default function InicioCliente() {
   const beneficiarioSeleccionado = beneficiariosGuardados.find((b) => b.id === beneficiarioSeleccionadoId) ?? null;
 
   const agregarComprobantes = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permiso.granted) {
-      Alert.alert('Permiso necesario', 'Habilita el acceso a tus fotos.');
-      return;
-    }
-    const resultado = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsMultipleSelection: true });
-    if (resultado.canceled) return;
-    const nuevos: { uri: string; ext: string }[] = [];
-    let algunaPesada = false;
-    for (const asset of resultado.assets) {
-      if (!(await validarTamanoImagen(asset))) {
-        algunaPesada = true;
-        continue;
-      }
-      nuevos.push({ uri: asset.uri, ext: extensionDeImagen(asset) });
-    }
-    if (algunaPesada) {
-      Alert.alert('Imagen muy pesada', `Una o más imágenes superan el límite de ${MAX_IMAGEN_KB} KB y no se agregaron.`);
-    }
+    const nuevos = await elegirComprobantes({ multiple: true, mensajePermiso: 'Habilita el acceso a tus fotos.' });
     if (nuevos.length > 0) setComprobantes((prev) => [...prev, ...nuevos]);
   };
 
@@ -724,7 +707,7 @@ export default function InicioCliente() {
                   {comprobantes.map((c, i) => (
                     <View key={c.uri} style={styles.comprobanteItem}>
                       <Pressable onPress={() => setZoomComprobanteIndex(i)}>
-                        <Image source={{ uri: c.uri }} style={styles.comprobantePreview} resizeMode="contain" />
+                        <ComprobanteMiniatura uri={c.uri} esPdf={c.ext === 'pdf'} style={styles.comprobantePreview} resizeMode="contain" />
                       </Pressable>
                       <Pressable style={styles.quitarImagenBtn} onPress={() => quitarComprobante(i)} hitSlop={8}>
                         <Text style={styles.quitarImagenTexto}>✕ Quitar</Text>
@@ -732,11 +715,11 @@ export default function InicioCliente() {
                     </View>
                   ))}
                 </View>
-                <Text style={styles.verCompletoTexto}>🔍 Toca una imagen para verla completa y hacer zoom</Text>
+                <Text style={styles.verCompletoTexto}>🔍 Toca un comprobante para verlo completo y hacer zoom</Text>
               </>
             )}
             <Pressable style={styles.subirBtn} onPress={agregarComprobantes}>
-              <Text style={styles.subirBtnTexto}>{comprobantes.length === 0 ? 'Elegir captura del depósito' : '+ Agregar otra imagen'}</Text>
+              <Text style={styles.subirBtnTexto}>{comprobantes.length === 0 ? 'Elegir captura o PDF del depósito' : '+ Agregar otra imagen o PDF'}</Text>
             </Pressable>
           </View>
 

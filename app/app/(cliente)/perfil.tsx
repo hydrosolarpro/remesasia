@@ -177,7 +177,7 @@ export default function Perfil() {
     };
 
     const mensaje =
-      '¿Seguro que deseas darte de baja? Perderás el acceso a la app; tus solicitudes anteriores se conservarán en los reportes de tu operador. Esta acción no se puede deshacer.';
+      '¿Seguro que deseas darte de baja? Perderás el acceso a la app y se eliminarán tus beneficiarios guardados, tu PIN y tus conexiones (Telegram). Las operaciones ya realizadas y tu documento de identidad se conservan, bloqueados, solo por el plazo que la ley exija. Esta acción no se puede deshacer.';
     if (Platform.OS === 'web') {
       if (window.confirm(mensaje)) confirmarYDarseDeBaja();
       return;

@@ -45,6 +45,7 @@ const EXT_A_MIME: Record<string, string> = {
   webp: 'image/webp',
   heic: 'image/heic',
   heif: 'image/heif',
+  pdf: 'application/pdf',
 };
 
 /**
