@@ -23,7 +23,9 @@ Fuentes: [CMS – notificación de incidentes](https://cms.law/content/download/
 | Nombre, teléfono, email, país | `usuarios` | todos |
 | Tipo y número de documento, **foto del documento** | `usuarios`, bucket `documentos-identidad` | clientes |
 | Referido (nombre, apellido, teléfono) | `usuarios` | clientes (opcional) |
-| Beneficiario: nombre, CI, teléfono, banco, cuenta | `solicitudes`, `beneficiarios_cliente`, `beneficiario_cuentas_bancarias`, `cuentas_utilizadas_cliente` | clientes |
+| Beneficiario: nombre, CI, teléfono | `solicitudes`, `beneficiarios_cliente` | clientes |
+| **Datos bancarios del beneficiario**: banco, número de cuenta, teléfono asociado | `solicitudes`, `beneficiario_cuentas_bancarias`, `cuentas_utilizadas_cliente` | clientes |
+| **Datos bancarios y de pago del operador**: cuentas, CCI, titular, Yape/Plin, QR | `cuentas_bancarias_operador`, `perfil_negocio_corredor`, `perfil_negocio` | operadores |
 | Montos, tasas, comprobantes de pago | `solicitudes`, bucket `comprobantes` | clientes/operadores |
 | Cuentas bancarias, Yape/Plin, QR del negocio | `cuentas_bancarias_operador`, `perfil_negocio*` | operadores |
 | PIN (hash), intentos fallidos | `acceso_pin` | todos |

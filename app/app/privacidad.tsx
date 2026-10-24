@@ -21,14 +21,26 @@ const FILAS_DATOS: { dato: string; para: string; base: string; plazo: string }[]
     plazo: 'El plazo que la ley exija conservar los registros de operaciones; luego se elimina.',
   },
   {
-    dato: 'Datos del beneficiario (nombre, documento, teléfono, banco y cuenta)',
-    para: 'Ejecutar la remesa que ordenas.',
+    dato: 'Datos del beneficiario (nombre, documento de identidad y teléfono)',
+    para: 'Identificar a quien recibe la remesa y avisarle cuando se complete.',
     base: 'Ejecución del servicio que solicitas.',
     plazo: 'Mientras sea necesario para el servicio y, después, el plazo legal de conservación de operaciones.',
   },
   {
-    dato: 'Montos, tasas y comprobantes de pago',
-    para: 'Registrar cada operación, emitir reportes y cumplir obligaciones contables y tributarias.',
+    dato: 'Datos bancarios de tus beneficiarios (banco, número de cuenta y teléfono asociado)',
+    para: 'Depositar la remesa en la cuenta de destino que indicas y, si lo eliges, guardar esa cuenta para tus próximas remesas.',
+    base: 'Ejecución del servicio que solicitas. Guardar la cuenta para futuras remesas es opcional: puedes quitarla cuando quieras.',
+    plazo: 'Las cuentas guardadas, hasta que las elimines o elimines tu cuenta. La cuenta usada en cada operación se conserva con ella por el plazo legal exigible.',
+  },
+  {
+    dato: 'Datos bancarios y de pago del operador (cuentas bancarias, CCI, titular, Yape/Plin y códigos QR)',
+    para: 'Mostrar a los clientes dónde depositar su pago y registrar las suscripciones de los operadores.',
+    base: 'Ejecución del servicio.',
+    plazo: 'Mientras el negocio esté activo en la plataforma y, después, el plazo legal aplicable.',
+  },
+  {
+    dato: 'Montos, tasas y comprobantes de pago (fotos o PDF, que pueden mostrar tu nombre y datos de tu cuenta)',
+    para: 'Registrar cada operación, validar tu depósito, emitir reportes y cumplir obligaciones contables y tributarias.',
     base: 'Obligación legal y ejecución del servicio.',
     plazo: 'El plazo que la ley exija (tributario y de prevención de lavado de activos).',
   },
@@ -96,7 +108,7 @@ export default function Privacidad() {
 
         <Text style={styles.h}>3. Con quién compartimos tus datos</Text>
         <Text style={styles.p}>
-          • Los operadores de tu negocio (Perú y Venezuela), solo los datos necesarios para atender tu operación.{'\n'}• Proveedores
+          • Los operadores de tu negocio (Perú y Venezuela), solo los datos necesarios para atender tu operación. En particular, los datos bancarios del beneficiario los ve el operador de Venezuela que realiza el depósito, y tu comprobante de pago lo ve el operador de Perú que valida tu depósito.{'\n'}• Proveedores
           técnicos que actúan por nuestra cuenta: Supabase (base de datos y archivos), Vercel (alojamiento de la web), Telegram y servicios
           de notificaciones push (avisos), Google (inicio de sesión) y PayPal (pago de planes).{'\n'}• Autoridades, cuando una ley lo exija.
           {'\n'}• No vendemos tus datos ni los usamos para publicidad de terceros.
