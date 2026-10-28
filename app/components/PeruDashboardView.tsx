@@ -20,6 +20,8 @@ import {
 } from '../lib/materiales';
 import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
+import { useAlarmaOperador } from '../lib/useAlarmaOperador';
+import { AlarmaBanner } from './AlarmaBanner';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { TipoSesionOperador, etiquetaSesion } from '../lib/sesionOperador';
@@ -328,28 +330,17 @@ export function PeruDashboardView({
   // validó y espera que VE la cargue; para Perú, una solicitud nueva del
   // cliente que todavía no valida; para ambos, un caso reportado por el
   // cliente en "Operaciones por revisar" (cualquier operador lo resuelve).
-  // Se repite cada 2 minutos mientras siga pendiente, hasta que se atienda.
+  // Es una ALARMA: repite el ciclo sonoro hasta que el operador la silencie
+  // o atienda todo (ver useAlarmaOperador / AlarmaBanner).
   const reproducirAlerta = useAlertaSonora();
-  const pendientesAccion = useMemo(
+  const pendientesAlarma = useMemo(
     () =>
-      operaciones.filter(
-        (o) => (esVenezuela ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru) || o.en_revision
-      ),
-    [operaciones, esVenezuela]
+      operaciones
+        .filter((o) => (esVenezuela ? o.check_deposito_peru && !o.check_deposito_ve : !o.check_deposito_peru) || o.en_revision)
+        .map((o) => ({ id: o.id, resumen: `${o.cliente_nombre} · ${moneda} ${o.monto_pen.toFixed(2)}` })),
+    [operaciones, esVenezuela, moneda]
   );
-  const pendientesAccionRef = useRef(0);
-
-  useEffect(() => {
-    if (pendientesAccion.length > pendientesAccionRef.current) reproducirAlerta();
-    pendientesAccionRef.current = pendientesAccion.length;
-  }, [pendientesAccion.length, reproducirAlerta]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (pendientesAccionRef.current > 0) reproducirAlerta();
-    }, 2 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [reproducirAlerta]);
+  const alarma = useAlarmaOperador(pendientesAlarma);
 
   // Aviso de una sola vez (no se repite) para el Operador Perú cuando
   // Venezuela confirma un depósito: a esa altura ya no hay nada pendiente
@@ -810,6 +801,17 @@ export function PeruDashboardView({
 
   return (
     <View style={styles.raiz}>
+    <AlarmaBanner
+      sonando={alarma.sonando}
+      nuevas={alarma.nuevas}
+      habilitada={alarma.habilitada}
+      audioBloqueado={alarma.audioBloqueado}
+      cantidad={alarma.cantidad}
+      onSilenciar={alarma.silenciar}
+      onAlternar={alarma.alternarHabilitada}
+      onActivarAudio={alarma.activarAudio}
+      onProbar={alarma.probar}
+    />
     <ScrollView contentContainerStyle={styles.container}>
       <RoleTag rol={esVenezuela ? 'operador_venezuela' : 'operador_peru'} etiqueta={etiquetaSesion(tipoSesion, esConsolidado ? 'todos tus países' : corredor.paisRecepcion)} />
       <View style={styles.encabezadoNegocio}>
