@@ -13,7 +13,7 @@ const BOT_TELEGRAM = 'Remesaspv_bot';
 // + webhook `telegram-webhook`, que funciona para cualquier rol). Se usa en
 // los perfiles de operadores; el cliente tiene su propia tarjeta en
 // app/(cliente)/perfil.tsx.
-export function TelegramVinculoCard() {
+export function TelegramVinculoCard({ avisoSolicitudes = false }: { avisoSolicitudes?: boolean } = {}) {
   const { usuario, refreshUsuario } = useAuth();
   const [conectando, setConectando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +40,19 @@ export function TelegramVinculoCard() {
     pestana.asignar(`https://t.me/${BOT_TELEGRAM}?start=${token}`);
   };
 
+  const pendiente = avisoSolicitudes && !usuario?.telegram_connected;
+
   return (
-    <View style={[styles.card, cardShadow]}>
+    <View style={[styles.card, cardShadow, pendiente && styles.cardUrgente]}>
+      {pendiente && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerTitulo}>🔔 ¡VINCULA TU TELEGRAM AHORA!</Text>
+          <Text style={styles.bannerTexto}>
+            Sin vincular Telegram NO recibirás el aviso de cada nueva solicitud de tus clientes (cliente, monto y hora). Pulsa el botón de abajo y
+            toca “Iniciar” en el chat del bot.
+          </Text>
+        </View>
+      )}
       <Text style={styles.titulo}>Vincular mi Telegram</Text>
       {usuario?.telegram_connected ? (
         <Text style={styles.exito}>✓ Telegram conectado{usuario.telegram_username ? ` (@${usuario.telegram_username})` : ''}</Text>
@@ -57,8 +68,12 @@ export function TelegramVinculoCard() {
           <Text style={styles.dato}>
             Al vincularla, el bot de Remesas IA te enviará avisos importantes de tu cuenta, incluidos avisos de seguridad.
           </Text>
-          <Pressable style={styles.boton} onPress={conectar} disabled={conectando}>
-            {conectando ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.botonTexto}>Conectar Telegram</Text>}
+          <Pressable style={[styles.boton, pendiente && styles.botonUrgente]} onPress={conectar} disabled={conectando}>
+            {conectando ? (
+              <ActivityIndicator color={pendiente ? '#fff' : colors.accent} />
+            ) : (
+              <Text style={[styles.botonTexto, pendiente && styles.botonTextoUrgente]}>Conectar Telegram</Text>
+            )}
           </Pressable>
           {error && <Text style={styles.error}>{error}</Text>}
         </>
@@ -77,4 +92,10 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 14 },
   boton: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, alignItems: 'center' },
   botonTexto: { color: colors.accent, fontWeight: '700' },
+  cardUrgente: { borderColor: '#F59E0B', borderWidth: 3 },
+  banner: { backgroundColor: '#F59E0B', borderRadius: radius.md, padding: 14, gap: 6 },
+  bannerTitulo: { color: '#1F1300', fontSize: 18, fontWeight: '900' },
+  bannerTexto: { color: '#1F1300', fontSize: 14, fontWeight: '700' },
+  botonUrgente: { backgroundColor: '#229ED9', borderColor: '#229ED9' },
+  botonTextoUrgente: { color: '#fff', fontSize: 16, fontWeight: '900' },
 });

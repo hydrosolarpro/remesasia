@@ -551,6 +551,8 @@ export default function Perfil() {
         </>
       )}
 
+      <TelegramVinculoCard avisoSolicitudes />
+
       {esPrincipal && usuario && (
         <View style={[styles.card, cardShadow, styles.planCardGrande]}>
           <Text style={styles.cardTitulo}>TU PLAN</Text>
@@ -1006,8 +1008,6 @@ export default function Perfil() {
           <Text style={styles.buttonOutlineText}>Editar datos del negocio</Text>
         </Pressable>
       )}
-
-      <TelegramVinculoCard />
 
       <PinAccesoCard />
 
