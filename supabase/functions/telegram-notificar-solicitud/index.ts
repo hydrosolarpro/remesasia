@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
 
     const supabase = supabaseAdmin();
     const { data: solicitud } = await supabase.from('solicitudes').select('*').eq('id', solicitud_id).single();
-    if (!solicitud || solicitud.estado !== 'PENDIENTE') return ok();
+    if (!solicitud || !['PENDIENTE', 'EN_VERIFICACION'].includes(solicitud.estado)) return ok();
 
     const { data: cliente } = await supabase.from('usuarios').select('nombre').eq('id', solicitud.cliente_id).maybeSingle();
     const moneda = await monedaDeSolicitud(supabase, solicitud);
