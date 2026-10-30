@@ -29,7 +29,12 @@ Deno.serve(async (req) => {
     const { data: solicitud } = await supabase.from('solicitudes').select('*').eq('id', solicitud_id).single();
     if (!solicitud || !['PENDIENTE', 'EN_VERIFICACION'].includes(solicitud.estado)) return ok();
 
-    const { data: cliente } = await supabase.from('usuarios').select('nombre').eq('id', solicitud.cliente_id).maybeSingle();
+    const { data: clienteRow } = await supabase
+      .from('usuarios')
+      .select('nombre, invitado_por_operador_miembro_id')
+      .eq('id', solicitud.cliente_id)
+      .maybeSingle();
+    const cliente = clienteRow;
     const moneda = await monedaDeSolicitud(supabase, solicitud);
 
     const fecha = new Date(solicitud.created_at ?? Date.now()).toLocaleString('es-PE', {
@@ -51,13 +56,18 @@ Deno.serve(async (req) => {
     // IDs de usuario a avisar: principal + miembro asignado (si existe).
     const usuarioIds = new Set<string>();
     if (solicitud.negocio_operador_peru_id) usuarioIds.add(solicitud.negocio_operador_peru_id);
-    if (solicitud.operador_peru_miembro_id) {
-      const { data: miembro } = await supabase
+    // Los miembros manejan sus propios clientes: el miembro es el que atiende
+    // la solicitud (operador_peru_miembro_id) o el que invitó al cliente.
+    const miembroIds = new Set<string>();
+    if (solicitud.operador_peru_miembro_id) miembroIds.add(solicitud.operador_peru_miembro_id);
+    if (clienteRow?.invitado_por_operador_miembro_id) miembroIds.add(clienteRow.invitado_por_operador_miembro_id);
+    if (miembroIds.size > 0) {
+      const { data: miembros } = await supabase
         .from('operador_peru_miembro')
         .select('usuario_id')
-        .eq('id', solicitud.operador_peru_miembro_id)
-        .maybeSingle();
-      if (miembro?.usuario_id) usuarioIds.add(miembro.usuario_id);
+        .in('id', [...miembroIds])
+        .eq('operador_peru_id', solicitud.negocio_operador_peru_id);
+      for (const m of miembros ?? []) if (m.usuario_id) usuarioIds.add(m.usuario_id);
     }
     if (usuarioIds.size === 0) return ok();
 
