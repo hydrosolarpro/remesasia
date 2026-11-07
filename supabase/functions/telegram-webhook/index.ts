@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
-import { sendTelegramMessage } from '../_shared/telegram.ts';
+import { sendTelegramMessage, sendTelegramPhoto } from '../_shared/telegram.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
@@ -44,6 +44,37 @@ Deno.serve(async (req) => {
     }
 
     const supabase = supabaseAdmin();
+
+    // Invitación de cliente compartida por Telegram: `/start inv_<token>`.
+    // El token es el de public.invitaciones (tipo 'cliente', reutilizable).
+    // Se responde con la guía de instalación y el enlace de registro del
+    // negocio que invita (misma landing que la invitación por WhatsApp).
+    if (token.startsWith('inv_')) {
+      const tokenInv = token.slice(4);
+      const { data: inv } = await supabase
+        .from('invitaciones')
+        .select('token, negocio_operador_peru_id')
+        .eq('token', tokenInv)
+        .eq('tipo', 'cliente')
+        .maybeSingle();
+      if (!inv) {
+        await sendTelegramMessage(String(chatId), 'Esta invitación no es válida. Pídele a tu operador que te comparta una nueva.');
+        return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const webBase = (Deno.env.get('WEB_BASE_URL') ?? 'https://remesasia.vercel.app').trim().replace(/\/$/, '');
+      const landingBase = (Deno.env.get('LANDING_BASE_URL') ?? 'https://remesas-per-venezuela-env-oya.ai.studio').trim().replace(/\/$/, '');
+      await sendTelegramPhoto(
+        String(chatId),
+        `${webBase}/instalar-app.jpg`,
+        '📲 ¡Bienvenido a Remesas IA! Así instalas la app en tu celular, paso a paso.'
+      );
+      await sendTelegramMessage(
+        String(chatId),
+        `✅ Ya estás vinculado con el bot de Remesas IA.\n\nPara registrarte como cliente y enviar tus remesas a Venezuela, abre tu invitación aquí:\n${landingBase}/?op=${encodeURIComponent(inv.token)}\n\nCuando termines tu registro, entra a tu Perfil → "Vincular mi Telegram" para recibir aquí los avisos de tus depósitos.`
+      );
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
     const { data: tokenRow } = await supabase.from('telegram_link_tokens').select('*').eq('token', token).maybeSingle();
 
     const invalido = !tokenRow || tokenRow.used_at !== null || new Date(tokenRow.expires_at).getTime() < Date.now();

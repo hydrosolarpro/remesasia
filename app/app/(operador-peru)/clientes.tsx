@@ -7,6 +7,8 @@ import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
+import { IMAGEN_INSTALAR_APP_URL } from '../../lib/materiales';
+import { construirEnlaceTelegramInvitacionCliente } from '../../lib/telegramInvitacion';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { useCorredor } from '../../lib/corredor';
 import { hoyLima } from '../../lib/tasaEspecial';
@@ -37,6 +39,7 @@ export default function ClientesRegistrados() {
   const [busqueda, setBusqueda] = useState('');
 
   const [enlaceCliente, setEnlaceCliente] = useState<string | null>(null);
+  const [tokenCliente, setTokenCliente] = useState<string | null>(null);
   const [cargandoEnlace, setCargandoEnlace] = useState(true);
   const [errorEnlace, setErrorEnlace] = useState<string | null>(null);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
@@ -277,7 +280,10 @@ export default function ClientesRegistrados() {
     setCargandoEnlace(true);
     setErrorEnlace(null);
     obtenerOCrearInvitacionCliente(negocioId, miembroId)
-      .then((inv) => setEnlaceCliente(construirEnlaceLandingCliente(inv.token)))
+      .then((inv) => {
+        setTokenCliente(inv.token);
+        setEnlaceCliente(construirEnlaceLandingCliente(inv.token));
+      })
       .catch((err) => setErrorEnlace(err instanceof Error ? err.message : 'No se pudo generar tu enlace de invitación.'))
       .finally(() => setCargandoEnlace(false));
   }, [negocioId, miembroId]);
@@ -290,8 +296,15 @@ export default function ClientesRegistrados() {
   // teléfono cargado en el perfil.
   const compartirInvitacionWhatsApp = () => {
     if (!enlaceCliente) return;
-    const mensaje = `${MENSAJE_INVITACION_CLIENTE} ${enlaceCliente}`;
+    const mensaje = `${MENSAJE_INVITACION_CLIENTE} ${enlaceCliente}\n\n📲 Así instalas la app en tu celular, paso a paso: ${IMAGEN_INSTALAR_APP_URL}`;
     Linking.openURL(construirEnlaceWhatsAppSinDestino(mensaje));
+  };
+
+  // Misma invitación por Telegram: el cliente se vincula con el bot y este
+  // le entrega la imagen de instalación y el enlace para registrarse.
+  const compartirInvitacionTelegram = () => {
+    if (!tokenCliente) return;
+    Linking.openURL(construirEnlaceTelegramInvitacionCliente(tokenCliente, MENSAJE_INVITACION_CLIENTE));
   };
 
   // El buscador solo filtra lo que se ve en pantalla (nombre o teléfono);
@@ -366,9 +379,14 @@ export default function ClientesRegistrados() {
         ) : errorEnlace ? (
           <Text style={styles.errorEnlace}>{errorEnlace}</Text>
         ) : (
-          <Pressable style={styles.botonWhatsApp} onPress={compartirInvitacionWhatsApp}>
-            <Text style={styles.botonWhatsAppTexto}>💬 Compartir por WhatsApp</Text>
-          </Pressable>
+          <>
+            <Pressable style={styles.botonWhatsApp} onPress={compartirInvitacionWhatsApp}>
+              <Text style={styles.botonWhatsAppTexto}>💬 Compartir por WhatsApp</Text>
+            </Pressable>
+            <Pressable style={[styles.botonWhatsApp, { backgroundColor: '#2AABEE' }]} onPress={compartirInvitacionTelegram}>
+              <Text style={styles.botonWhatsAppTexto}>✈️ Compartir por Telegram</Text>
+            </Pressable>
+          </>
         )}
       </View>
 

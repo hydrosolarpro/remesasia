@@ -40,6 +40,8 @@ import { useTipoCambioSunat, usdTxt } from '../../lib/tipoCambio';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { IMAGEN_INSTALAR_APP_URL } from '../../lib/materiales';
+import { construirEnlaceTelegramBienvenidaOperador } from '../../lib/telegramInvitacion';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
 import { colors, radius, cardShadow } from '../../constants/theme';
 
@@ -431,8 +433,18 @@ export default function Perfil() {
   // (VE o miembro de Perú): le confirma su rol y el correo Gmail exacto con
   // el que debe iniciar sesión, ya que la vinculación a su sesión es por
   // ese correo (ver handle_new_user / vincular_cuenta_pendiente).
+  const mensajeBienvenidaBase = (nombre: string, email: string | null, rolTexto: string) =>
+    `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Perú'} te registró como ${rolTexto} en Remesas IA. Ingresa a https://remesasia.vercel.app/ y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
+
+  // Misma bienvenida por Telegram: el selector de chats de Telegram permite
+  // elegir al destinatario (no requiere su teléfono), con la imagen de
+  // instalación como enlace compartido.
+  const enviarBienvenidaTelegram = (nombre: string, email: string | null, rolTexto: string) => {
+    Linking.openURL(construirEnlaceTelegramBienvenidaOperador(mensajeBienvenidaBase(nombre, email, rolTexto)));
+  };
+
   const enviarBienvenidaWhatsApp = (nombre: string, telefono: string | null, email: string | null, rolTexto: string) => {
-    const mensaje = `Hola ${nombre}, ${usuario?.nombre ?? 'tu Operador principal de Perú'} te registró como ${rolTexto} en Remesas IA. Ingresa a https://remesasia.vercel.app/ y elige "Iniciar sesión con Google" usando exactamente este correo: ${email ?? ''}`;
+    const mensaje = `${mensajeBienvenidaBase(nombre, email, rolTexto)}\n\n📲 Así instalas la app en tu celular, paso a paso: ${IMAGEN_INSTALAR_APP_URL}`;
     const enlace = construirEnlaceWhatsAppGenerico(telefono, mensaje);
     if (!enlace) {
       const aviso = 'Agrega un teléfono válido para poder enviar el mensaje de bienvenida por WhatsApp.';
@@ -839,6 +851,12 @@ export default function Perfil() {
                 >
                   <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
                 </Pressable>
+                <Pressable
+                  style={[styles.whatsappBtn, { backgroundColor: '#2AABEE' }]}
+                  onPress={() => enviarBienvenidaTelegram(v.nombre, v.email, 'Operador de Venezuela')}
+                >
+                  <Text style={styles.whatsappBtnTexto}>✈️ Bienvenida por Telegram</Text>
+                </Pressable>
               </View>
               {esPrincipal && (
                 <GestionPinUsuario
@@ -956,6 +974,12 @@ export default function Perfil() {
                   onPress={() => enviarBienvenidaWhatsApp(p.nombre, p.telefono, p.email, 'Operador de Perú')}
                 >
                   <Text style={styles.whatsappBtnTexto}>📲 Enviar bienvenida</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.whatsappBtn, { backgroundColor: '#2AABEE' }]}
+                  onPress={() => enviarBienvenidaTelegram(p.nombre, p.email, 'Operador de Perú')}
+                >
+                  <Text style={styles.whatsappBtnTexto}>✈️ Bienvenida por Telegram</Text>
                 </Pressable>
 
                 <GestionPinUsuario

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { CONTACTO_SOPORTE, enlaceWhatsAppSoporteUrgente } from '../lib/soporte';
 import { descargarMisDatos } from '../lib/exportarMisDatos';
+import { URL_TERMINOS_PDF } from '../lib/materiales';
 import { colors, radius, cardShadow } from '../constants/theme';
 
 // Bloque que va en el Perfil de TODAS las sesiones: aviso de protección de
@@ -38,6 +39,17 @@ export function SoporteYPrivacidadCard() {
         <Pressable onPress={() => router.push('/privacidad')}>
           <Text style={styles.enlace}>Ver política de privacidad</Text>
         </Pressable>
+        {/* Términos y cookies: en todas las sesiones menos el administrador. */}
+        {usuario?.rol !== 'administrador' && (
+          <>
+            <Pressable onPress={() => Linking.openURL(URL_TERMINOS_PDF)}>
+              <Text style={styles.enlace}>Ver términos y condiciones</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/cookies')}>
+              <Text style={styles.enlace}>Ver política de cookies</Text>
+            </Pressable>
+          </>
+        )}
         <Pressable style={styles.boton} onPress={descargar} disabled={descargando}>
           {descargando ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.botonTexto}>Descargar mis datos</Text>}
         </Pressable>

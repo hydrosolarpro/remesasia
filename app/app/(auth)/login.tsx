@@ -7,6 +7,7 @@ import { loginConPin, enlaceWaOlvidePin } from '../../lib/pinAuth';
 import { TelefonoInput, telefonoCompleto } from '../../components/TelefonoInput';
 import { SelectorCorredorLogin } from '../../components/SelectorCorredor';
 import { useAuth } from '../../lib/auth';
+import { URL_TERMINOS_PDF } from '../../lib/materiales';
 import { colors, radius } from '../../constants/theme';
 
 const DESTACADOS = [
@@ -172,6 +173,12 @@ export default function Login() {
       )}
       <Pressable onPress={() => router.push('/privacidad')}>
         <Text style={styles.olvide}>Política de privacidad</Text>
+      </Pressable>
+      <Pressable onPress={() => Linking.openURL(URL_TERMINOS_PDF)}>
+        <Text style={styles.olvide}>Términos y condiciones</Text>
+      </Pressable>
+      <Pressable onPress={() => router.push('/cookies')}>
+        <Text style={styles.olvide}>Política de cookies</Text>
       </Pressable>
     </ScrollView>
   );

@@ -6,6 +6,9 @@ import { BASE_URL } from './invitaciones';
 // la necesitan así, sin importar la plataforma.
 export const IMAGEN_INSTALAR_APP_URL = `${BASE_URL}/instalar-app.jpg`;
 
+// Términos legales y de uso (PDF en app/public/legal/).
+export const URL_TERMINOS_PDF = `${BASE_URL}/legal/terminos-legales-remesas-ia.pdf`;
+
 // Video de inicio rápido para la sesión del cliente en Perú (app/public/videos/).
 export const VIDEO_INICIO_CLIENTE_URL = `${BASE_URL}/videos/inicio-rapido-cliente.mp4`;
 export const VIDEO_INICIO_CLIENTE_MINIATURA_URL = `${BASE_URL}/videos/inicio-rapido-cliente.jpg`;
