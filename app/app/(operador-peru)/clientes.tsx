@@ -7,6 +7,8 @@ import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
+import { acortarEnlace, mensajeWaInvitacionCliente } from '../../lib/whatsappManual';
+import { reservarPestanaExterna } from '../../lib/pestanaExterna';
 import { IMAGEN_INSTALAR_APP_URL } from '../../lib/materiales';
 import { construirEnlaceTelegramInvitacionCliente } from '../../lib/telegramInvitacion';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
@@ -294,10 +296,14 @@ export default function ClientesRegistrados() {
   // destino fijo: WhatsApp abre su propio selector de contactos para que
   // el operador elija a quién reenviarlo, sin depender de tener su
   // teléfono cargado en el perfil.
-  const compartirInvitacionWhatsApp = () => {
+  const compartirInvitacionWhatsApp = async () => {
     if (!enlaceCliente) return;
-    const mensaje = `${MENSAJE_INVITACION_CLIENTE} ${enlaceCliente}\n\n📲 Así instalas la app en tu celular, paso a paso: ${IMAGEN_INSTALAR_APP_URL}`;
-    Linking.openURL(construirEnlaceWhatsAppSinDestino(mensaje));
+    // Pestaña reservada de forma síncrona (gesto de usuario) por si el
+    // acortador opcional hace una llamada de red antes de abrir wa.me.
+    const pestana = reservarPestanaExterna();
+    const enlaceCorto = await acortarEnlace(enlaceCliente);
+    const mensaje = mensajeWaInvitacionCliente(MENSAJE_INVITACION_CLIENTE, enlaceCorto, IMAGEN_INSTALAR_APP_URL);
+    pestana.asignar(construirEnlaceWhatsAppSinDestino(mensaje));
   };
 
   // Misma invitación por Telegram: el cliente se vincula con el bot y este

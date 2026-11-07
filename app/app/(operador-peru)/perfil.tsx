@@ -40,6 +40,7 @@ import { useTipoCambioSunat, usdTxt } from '../../lib/tipoCambio';
 import { OperadorVenezuelaPerfil, OperadorPeruMiembro, Usuario } from '../../types/database';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
 import { construirEnlaceWhatsAppGenerico } from '../../lib/whatsapp';
+import { mensajeWaBienvenidaEquipo } from '../../lib/whatsappManual';
 import { IMAGEN_INSTALAR_APP_URL } from '../../lib/materiales';
 import { construirEnlaceTelegramBienvenidaOperador } from '../../lib/telegramInvitacion';
 import { InstalarAppCard } from '../../components/InstalarAppCard';
@@ -444,7 +445,7 @@ export default function Perfil() {
   };
 
   const enviarBienvenidaWhatsApp = (nombre: string, telefono: string | null, email: string | null, rolTexto: string) => {
-    const mensaje = `${mensajeBienvenidaBase(nombre, email, rolTexto)}\n\n📲 Así instalas la app en tu celular, paso a paso: ${IMAGEN_INSTALAR_APP_URL}`;
+    const mensaje = mensajeWaBienvenidaEquipo(mensajeBienvenidaBase(nombre, email, rolTexto), email, IMAGEN_INSTALAR_APP_URL);
     const enlace = construirEnlaceWhatsAppGenerico(telefono, mensaje);
     if (!enlace) {
       const aviso = 'Agrega un teléfono válido para poder enviar el mensaje de bienvenida por WhatsApp.';
