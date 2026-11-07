@@ -18,18 +18,26 @@ export function construirEnlaceBotInvitacionCliente(token: string): string {
 }
 
 /**
- * Invitación de CLIENTE por Telegram. Lleva el mensaje de presentación y las
- * instrucciones para vincularse con el bot: ahí recibirá la imagen de
- * instalación y el enlace para abrir la invitación y registrarse.
+ * Invitación de CLIENTE por Telegram. Llega igual que la de WhatsApp: mensaje
+ * de presentación + enlace de registro + guía de instalación. La guía va como
+ * `url` compartido, así Telegram muestra la IMAGEN directamente como vista
+ * previa. Además lleva el enlace al bot: al pulsar Start el cliente queda
+ * vinculado y el bot le reenvía la imagen y el enlace de registro, y a partir
+ * de ahí recibe sus notificaciones por Telegram.
  */
-export function construirEnlaceTelegramInvitacionCliente(token: string, mensajePresentacion: string): string {
+export function construirEnlaceTelegramInvitacionCliente(token: string, mensajePresentacion: string, enlaceRegistro: string): string {
   const texto =
-    `${mensajePresentacion}\n\n` +
-    `📲 Para recibir la información, vincúlate con nuestro bot de Telegram:\n` +
-    `1) Pulsa el enlace de abajo.\n` +
-    `2) Presiona "Start" (Iniciar).\n` +
-    `3) El bot te enviará la guía para instalar la app en tu celular y el enlace de invitación para registrarte como cliente.`;
-  return enlaceCompartirTelegram(construirEnlaceBotInvitacionCliente(token), texto);
+    `${mensajePresentacion}
+
+` +
+    `👉 Regístrate aquí: ${enlaceRegistro}
+
+` +
+    `🤖 Recibe tus notificaciones por Telegram: pulsa este enlace y presiona "Start" (Iniciar): ${construirEnlaceBotInvitacionCliente(token)}
+
+` +
+    `📲 Así instalas la app en tu celular, paso a paso:`;
+  return enlaceCompartirTelegram(IMAGEN_INSTALAR_APP_URL, texto);
 }
 
 /** Bienvenida de OPERADOR (miembro o Venezuela) por Telegram: misma información que la de WhatsApp. */

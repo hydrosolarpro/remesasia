@@ -7,8 +7,7 @@ import { generarYCompartirPdf } from '../../lib/pdfReporte';
 import { generarYCompartirExcel } from '../../lib/excelReporte';
 import { obtenerOCrearInvitacionCliente, construirEnlaceLandingCliente } from '../../lib/invitaciones';
 import { construirEnlaceWhatsAppSinDestino } from '../../lib/whatsapp';
-import { acortarEnlace, mensajeWaInvitacionCliente } from '../../lib/whatsappManual';
-import { reservarPestanaExterna } from '../../lib/pestanaExterna';
+import { mensajeWaInvitacionCliente } from '../../lib/whatsappManual';
 import { IMAGEN_INSTALAR_APP_URL } from '../../lib/materiales';
 import { construirEnlaceTelegramInvitacionCliente } from '../../lib/telegramInvitacion';
 import { resolverContextoOperador } from '../../lib/sesionOperador';
@@ -296,21 +295,17 @@ export default function ClientesRegistrados() {
   // destino fijo: WhatsApp abre su propio selector de contactos para que
   // el operador elija a quién reenviarlo, sin depender de tener su
   // teléfono cargado en el perfil.
-  const compartirInvitacionWhatsApp = async () => {
+  const compartirInvitacionWhatsApp = () => {
     if (!enlaceCliente) return;
-    // Pestaña reservada de forma síncrona (gesto de usuario) por si el
-    // acortador opcional hace una llamada de red antes de abrir wa.me.
-    const pestana = reservarPestanaExterna();
-    const enlaceCorto = await acortarEnlace(enlaceCliente);
-    const mensaje = mensajeWaInvitacionCliente(MENSAJE_INVITACION_CLIENTE, enlaceCorto, IMAGEN_INSTALAR_APP_URL);
-    pestana.asignar(construirEnlaceWhatsAppSinDestino(mensaje));
+    const mensaje = mensajeWaInvitacionCliente(MENSAJE_INVITACION_CLIENTE, enlaceCliente, IMAGEN_INSTALAR_APP_URL);
+    Linking.openURL(construirEnlaceWhatsAppSinDestino(mensaje));
   };
 
   // Misma invitación por Telegram: el cliente se vincula con el bot y este
   // le entrega la imagen de instalación y el enlace para registrarse.
   const compartirInvitacionTelegram = () => {
-    if (!tokenCliente) return;
-    Linking.openURL(construirEnlaceTelegramInvitacionCliente(tokenCliente, MENSAJE_INVITACION_CLIENTE));
+    if (!tokenCliente || !enlaceCliente) return;
+    Linking.openURL(construirEnlaceTelegramInvitacionCliente(tokenCliente, MENSAJE_INVITACION_CLIENTE, enlaceCliente));
   };
 
   // El buscador solo filtra lo que se ve en pantalla (nombre o teléfono);
