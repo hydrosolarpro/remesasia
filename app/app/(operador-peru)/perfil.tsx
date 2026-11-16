@@ -30,6 +30,7 @@ import { SoporteYPrivacidadCard } from '../../components/SoporteYPrivacidadCard'
 import { GestionPinUsuario } from '../../components/GestionPinUsuario';
 import { Collapsible } from '../../components/Collapsible';
 import { CorredoresNegocio } from '../../components/CorredoresNegocio';
+import { IngresosPorCorredor } from '../../components/IngresosPorCorredor';
 import { ClientesMiembroList } from '../../components/ClientesMiembroList';
 import { ComisionInput } from '../../components/ComisionInput';
 import { ComisionPorCorredor } from '../../components/ComisionPorCorredor';
@@ -767,6 +768,16 @@ export default function Perfil() {
           subtitulo="Países con los que trabajas: Perú, Colombia, Chile u otro → Venezuela."
         >
           <CorredoresNegocio />
+        </Collapsible>
+      )}
+
+      {esPrincipal && (
+        <Collapsible
+          abiertoPorDefecto
+          titulo="INGRESOS POR CORREDOR (USD)"
+          subtitulo="Monto total, operaciones y % de cada corredor, en dólares."
+        >
+          <IngresosPorCorredor />
         </Collapsible>
       )}
 
