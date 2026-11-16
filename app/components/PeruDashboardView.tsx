@@ -848,8 +848,8 @@ export function PeruDashboardView({
       {esPrincipal && (
         <Collapsible
           abiertoPorDefecto
-          titulo="📊 Ingresos por corredor (USD)"
-          subtitulo="Monto total, operaciones y % de cada corredor, en dólares."
+          titulo="📊 Ganancia neta por corredor (USD)"
+          subtitulo="Lo que gana el negocio en cada corredor, con operaciones y %, en dólares."
         >
           <IngresosPorCorredor />
         </Collapsible>
