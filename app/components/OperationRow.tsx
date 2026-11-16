@@ -467,7 +467,12 @@ function ImagenDesplegable({ titulo, uris }: { titulo: string; uris: string[] })
   return (
     <View>
       <Pressable style={styles.imagenToggle} onPress={() => setVisible((v) => !v)}>
-        <Text style={styles.imagenToggleTexto}>{titulo}</Text>
+        <View style={styles.imagenToggleTitulo}>
+          <View style={styles.verEtiqueta}>
+            <Text style={styles.verEtiquetaTexto}>VER</Text>
+          </View>
+          <Text style={styles.imagenToggleTexto}>{titulo}</Text>
+        </View>
         <Text style={styles.imagenToggleChevron}>{visible ? '▲' : '▼'}</Text>
       </Pressable>
       {visible && (
@@ -530,7 +535,10 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 4,
   },
-  imagenToggleTexto: { color: colors.accent, fontSize: 16, fontWeight: '700' },
+  imagenToggleTitulo: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
+  verEtiqueta: { backgroundColor: colors.accent, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3 },
+  verEtiquetaTexto: { color: colors.bg, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  imagenToggleTexto: { color: colors.accent, fontSize: 16, fontWeight: '700', flexShrink: 1 },
   imagenToggleChevron: { color: colors.textMuted, fontSize: 12 },
   comprobantesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   comprobanteItem: { width: '48%' },
