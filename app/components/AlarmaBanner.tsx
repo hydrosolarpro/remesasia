@@ -38,8 +38,8 @@ function pasosSonido(): { titulo: string; pasos: string[] } {
       pasos: [
         'Sube el volumen multimedia y el de notificaciones al máximo (botones laterales → ícono de ajustes del volumen).',
         'Desactiva "No molestar" y el modo silencio.',
-        'Ajustes → Aplicaciones → Chrome → Notificaciones: activadas, con sonido y en importancia Alta.',
-        'Mantén esta pestaña abierta y toca "Probar sonido" para comprobarlo.',
+        'Con la app CERRADA el sonido lo pone Android: Ajustes → Aplicaciones → "Remesas IA" (o Chrome) → Notificaciones → categoría de avisos → Sonido, y elige un tono de campana. Déjala en importancia Alta (sonido y ventana emergente).',
+        'Con la app ABIERTA suena la campana de la app: toca "Probar sonido" para comprobarlo.',
       ],
     };
   }
