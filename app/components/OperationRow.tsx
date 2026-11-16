@@ -4,6 +4,7 @@ import { Solicitud, CanalNotificacion } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { CopyField } from './CopyField';
 import * as Clipboard from 'expo-clipboard';
+import { abrirEnlaceExterno, construirEnlaceWaManual } from '../lib/whatsappManual';
 import {
   construirEnlaceWhatsApp,
   construirEnlaceWhatsAppGenerico,
@@ -150,10 +151,12 @@ export function OperationRow({
   const [abierto, setAbierto] = useState(false);
   const [todoCopiado, setTodoCopiado] = useState(false);
 
-  // Copia en un solo texto los datos de cliente, beneficiario y transferencia
-  // (a propósito sin la comisión).
-  const copiarTodo = async () => {
-    const texto = [
+  const [datosAbiertos, setDatosAbiertos] = useState(false);
+
+  // Texto con los datos de cliente, beneficiario y transferencia (a propósito
+  // sin la comisión): para copiar o enviar por Telegram / WhatsApp.
+  const textoDatos = () =>
+    [
       'CLIENTE',
       `Nombre: ${op.cliente_nombre}`,
       `Teléfono: ${op.cliente_telefono ?? '—'}`,
@@ -172,10 +175,18 @@ export function OperationRow({
       `Forma de pago: ${ETIQUETA_METODO_PAGO[op.metodo_pago]}`,
       `Recibe: VES ${op.monto_ves.toFixed(2)}`,
     ].join('\n');
-    await Clipboard.setStringAsync(texto);
+
+  const copiarTodo = async () => {
+    await Clipboard.setStringAsync(textoDatos());
     setTodoCopiado(true);
     setTimeout(() => setTodoCopiado(false), 1500);
   };
+
+  // Sin destinatario fijo: WhatsApp (wa.me/?text=) y Telegram (t.me/share)
+  // abren su selector de contactos con el texto ya escrito.
+  const enviarPorWhatsApp = () => abrirEnlaceExterno(construirEnlaceWaManual(null, textoDatos()));
+  const enviarPorTelegram = () =>
+    abrirEnlaceExterno(`https://t.me/share/url?url=${encodeURIComponent(' ')}&text=${encodeURIComponent(textoDatos())}`);
 
   const tocarCheckVe = async () => {
     const comprobantes = await elegirComprobantes({
@@ -396,9 +407,14 @@ export function OperationRow({
             />
           )}
 
-          {/* 6. Sub-tabla con todos los datos (siempre visible) */}
+          {/* 6. Sub-tabla con todos los datos (desplegable) */}
           <View style={styles.subTabla}>
-            <Text style={styles.subTablaTitulo}>Datos de la operación</Text>
+            <Pressable style={styles.subTablaCabecera} onPress={() => setDatosAbiertos((v) => !v)}>
+              <Text style={styles.subTablaTitulo}>Datos de la operación</Text>
+              <Text style={styles.imagenToggleChevron}>{datosAbiertos ? '▲' : '▼'}</Text>
+            </Pressable>
+            {datosAbiertos && (
+              <>
             <Text style={styles.subTablaSeccion}>Cliente</Text>
             <CopyField label="Cliente" value={op.cliente_nombre} />
             <CopyField label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
@@ -423,8 +439,20 @@ export function OperationRow({
             {op.check_deposito_peru_at && op.check_deposito_ve_at && (
               <CopyField label="Tramo interno PE → VE" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
             )}
-            <Pressable style={styles.copiarTodoBtn} onPress={copiarTodo}>
-              <Text style={styles.copiarTodoTexto}>{todoCopiado ? '✓ Copiado' : '📋 Copiar todos los datos (sin comisión)'}</Text>
+                        </>
+            )}
+          </View>
+
+          {/* Acciones debajo de la sub-tabla: copiar y enviar los datos (sin comisión) */}
+          <Pressable style={styles.copiarTodoBtn} onPress={copiarTodo}>
+            <Text style={styles.copiarTodoTexto}>{todoCopiado ? '✓ Copiado' : '📋 Copiar todos los datos (sin comisión)'}</Text>
+          </Pressable>
+          <View style={styles.enviarRow}>
+            <Pressable style={[styles.enviarBtn, styles.enviarTelegram]} onPress={enviarPorTelegram}>
+              <Text style={styles.enviarTexto}>✈️ Enviar por Telegram</Text>
+            </Pressable>
+            <Pressable style={[styles.enviarBtn, styles.enviarWhatsApp]} onPress={enviarPorWhatsApp}>
+              <Text style={styles.enviarTexto}>💬 Enviar por WhatsApp</Text>
             </Pressable>
           </View>
         </View>
@@ -539,7 +567,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 8,
   },
-  subTablaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  subTablaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800' },
   subTablaSeccion: {
     color: colors.accent,
     fontSize: 12,
@@ -551,6 +579,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  subTablaCabecera: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  enviarRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  enviarBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center' },
+  enviarTelegram: { backgroundColor: '#229ED9' },
+  enviarWhatsApp: { backgroundColor: colors.success },
+  enviarTexto: { color: '#fff', fontWeight: '700', fontSize: 14, textAlign: 'center' },
   copiarTodoBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
   copiarTodoTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
   derivadaVeTexto: { color: colors.textMuted, fontSize: 14, marginTop: 4, textAlign: 'center' },
