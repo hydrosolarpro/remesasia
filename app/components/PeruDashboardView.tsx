@@ -30,6 +30,7 @@ import { useAuth } from '../lib/auth';
 import { GuiaPasoAPaso } from './GuiaPasoAPaso';
 import { FlujoProcesoDiagrama } from './FlujoProcesoDiagrama';
 import { Collapsible } from './Collapsible';
+import { IngresosPorCorredor } from './IngresosPorCorredor';
 import { SelectorCorredor } from './SelectorCorredor';
 import { CupoClientesPrincipal } from './CupoClientesAviso';
 import { useCorredor } from '../lib/corredor';
@@ -844,6 +845,15 @@ export function PeruDashboardView({
       </Text>
       <LiveClock />
       <SelectorCorredor permitirTodos />
+      {esPrincipal && (
+        <Collapsible
+          abiertoPorDefecto
+          titulo="📊 Ingresos por corredor (USD)"
+          subtitulo="Monto total, operaciones y % de cada corredor, en dólares."
+        >
+          <IngresosPorCorredor />
+        </Collapsible>
+      )}
       {esPrincipal && <CupoClientesPrincipal />}
       {esPrincipal && !multiCorredor && (
         <Pressable style={styles.corredoresCta} onPress={() => router.push('/(operador-peru)/perfil')}>
