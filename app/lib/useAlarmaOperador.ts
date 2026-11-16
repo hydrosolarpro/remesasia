@@ -139,6 +139,24 @@ export function useAlarmaOperador(pendientes: PendienteAlarma[]) {
     return quitar;
   }, [esWeb, tocarCiclo]);
 
+  // Push recibido por el service worker con la app abierta: suena la campana
+  // fuerte (3 ciclos) y responde al worker si pudo tocarla.
+  useEffect(() => {
+    if (!esWeb || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+    const alMensaje = (e: MessageEvent) => {
+      if (!e.data || e.data.tipo !== 'alarma-push') return;
+      const ok = audioWebListo();
+      if (ok) {
+        tocarCiclo();
+        setTimeout(tocarCiclo, INTERVALO_CICLO_MS);
+        setTimeout(tocarCiclo, INTERVALO_CICLO_MS * 2);
+      }
+      e.ports?.[0]?.postMessage({ tocada: ok });
+    };
+    navigator.serviceWorker.addEventListener('message', alMensaje);
+    return () => navigator.serviceWorker.removeEventListener('message', alMensaje);
+  }, [esWeb, tocarCiclo]);
+
   // Pantalla encendida mientras el panel esté abierto y el audio activo: un
   // celular bloqueado suspende la página y la alarma no podría sonar.
   useEffect(() => {

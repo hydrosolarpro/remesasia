@@ -18,12 +18,19 @@ function obtenerContexto(): AudioContext | null {
     if (!Ctor) return null;
     ctx = new Ctor();
     const compresor = ctx.createDynamicsCompressor();
-    compresor.threshold.value = -14;
-    compresor.ratio.value = 8;
+    compresor.threshold.value = -10;
+    compresor.knee.value = 0;
+    compresor.ratio.value = 12;
+    compresor.attack.value = 0.002;
+    // Ganancia de compensación: el compresor evita que distorsione y esta
+    // etapa devuelve el nivel, para que la campana se oiga fuerte y clara.
+    const compensacion = ctx.createGain();
+    compensacion.gain.value = 1.9;
     salida = ctx.createGain();
-    salida.gain.value = 1;
+    salida.gain.value = 1.4;
     salida.connect(compresor);
-    compresor.connect(ctx.destination);
+    compresor.connect(compensacion);
+    compensacion.connect(ctx.destination);
   }
   return ctx;
 }
@@ -33,7 +40,8 @@ function campana(c: AudioContext, frecuencia: number, inicio: number, duracion: 
   const parciales: { mult: number; tipo: OscillatorType; nivel: number }[] = [
     { mult: 1, tipo: 'triangle', nivel: 0.55 },
     { mult: 2.01, tipo: 'sine', nivel: 0.3 },
-    { mult: 3.02, tipo: 'sine', nivel: 0.12 },
+    { mult: 3.02, tipo: 'sine', nivel: 0.2 },
+    { mult: 4.16, tipo: 'sine', nivel: 0.1 }, // brillo metálico de campana
   ];
   for (const p of parciales) {
     const osc = c.createOscillator();
@@ -82,9 +90,10 @@ export function tocarCicloWeb(): boolean {
   for (const desfase of [0, 0.8]) {
     const t = base + desfase;
     golpeCaja(c, t);
-    campana(c, 2637, t + 0.07, 1.0, 1); // Mi7
-    campana(c, 3520, t + 0.13, 1.1, 1); // La7
-    campana(c, 1760, t + 0.07, 0.6, 0.7); // cuerpo grave de la moneda
+    campana(c, 2637, t + 0.07, 1.5, 1.2); // Mi7
+    campana(c, 3520, t + 0.13, 1.6, 1.2); // La7
+    campana(c, 1760, t + 0.07, 1.0, 1); // cuerpo grave de la moneda
+    campana(c, 880, t + 0.07, 0.8, 0.8); // cuerpo de campana, se oye en bocinas pequeñas
   }
   return true;
 }

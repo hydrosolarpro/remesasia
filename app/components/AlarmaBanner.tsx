@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius } from '../constants/theme';
 
@@ -16,6 +16,43 @@ type Props = {
 };
 
 const NATIVO = Platform.OS !== 'web';
+
+// Pasos para que el operador deje el sonido de SU dispositivo listo: la
+// campana sale por el volumen del equipo, que la app no puede subir sola.
+function pasosSonido(): { titulo: string; pasos: string[] } {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return {
+      titulo: 'iPhone / iPad',
+      pasos: [
+        'Quita el modo silencio: el interruptor lateral no debe mostrar naranja.',
+        'Sube el volumen con los botones laterales mientras pulsas "Probar sonido".',
+        'Ajustes → Notificaciones → Remesas IA: activa Sonidos y desactiva el Modo concentración.',
+        'Abre la app desde el icono de pantalla de inicio (Compartir → Agregar a pantalla de inicio).',
+      ],
+    };
+  }
+  if (/Android/i.test(ua)) {
+    return {
+      titulo: 'Celular Android',
+      pasos: [
+        'Sube el volumen multimedia y el de notificaciones al máximo (botones laterales → ícono de ajustes del volumen).',
+        'Desactiva "No molestar" y el modo silencio.',
+        'Ajustes → Aplicaciones → Chrome → Notificaciones: activadas, con sonido y en importancia Alta.',
+        'Mantén esta pestaña abierta y toca "Probar sonido" para comprobarlo.',
+      ],
+    };
+  }
+  return {
+    titulo: 'Laptop / PC',
+    pasos: [
+      'Sube el volumen del equipo y comprueba que no esté en silencio ni en otra salida (audífonos, TV, Bluetooth).',
+      'Windows: clic derecho en el ícono de volumen → Mezclador de volumen → sube el del navegador. Mac: Ajustes → Sonido → Salida.',
+      'Desactiva "Asistente de concentración" (Windows) o "No molestar" (Mac) para que se vean y oigan los avisos.',
+      'En el navegador: candado junto a la dirección → Notificaciones y Sonido en "Permitir".',
+    ],
+  };
+}
 
 // Aviso estilo Hotmart: al llegar una solicitud entra un mensaje emergente
 // con los datos (cliente y monto) mientras suena el "cha-ching". Queda en
@@ -44,6 +81,8 @@ export function AlarmaBanner({ sonando, nuevas, habilitada, audioBloqueado, cant
     return () => anim.stop();
   }, [sonando, entrada, pulso]);
 
+  const [guiaAbierta, setGuiaAbierta] = useState(false);
+  const guia = pasosSonido();
   const principal = nuevas[0] ?? '';
   const otras = Math.max(cantidad, nuevas.length) - 1;
 
@@ -62,10 +101,28 @@ export function AlarmaBanner({ sonando, nuevas, habilitada, audioBloqueado, cant
                 <Text style={styles.enlace}>Probar sonido</Text>
               </Pressable>
             )}
+            <Pressable onPress={() => setGuiaAbierta((v) => !v)} hitSlop={8}>
+              <Text style={styles.enlace}>{guiaAbierta ? 'Ocultar ayuda' : '¿No se oye?'}</Text>
+            </Pressable>
             <Pressable onPress={onAlternar} hitSlop={8}>
               <Text style={styles.enlace}>{habilitada ? 'Desactivar' : 'Activar'}</Text>
             </Pressable>
           </View>
+        </View>
+      )}
+
+      {guiaAbierta && (
+        <View style={styles.guia}>
+          <Text style={styles.guiaTitulo}>🔊 Configura el sonido de tu dispositivo ({guia.titulo})</Text>
+          <Text style={styles.guiaTexto}>
+            La campana usa el volumen de tu equipo. Si no la oyes bien, revisa esto y luego toca "Probar sonido":
+          </Text>
+          {guia.pasos.map((p, i) => (
+            <Text key={i} style={styles.guiaPaso}>
+              {i + 1}. {p}
+            </Text>
+          ))}
+          <Text style={styles.guiaNota}>Con la app cerrada, el aviso lo suena el sistema con el tono de notificaciones del dispositivo.</Text>
         </View>
       )}
 
@@ -108,6 +165,12 @@ const styles = StyleSheet.create({
   textoReposo: { color: colors.textMuted, fontSize: 12, fontWeight: '600', flexShrink: 1 },
   acciones: { flexDirection: 'row', gap: 14 },
   enlace: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+
+  guia: { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 14, paddingVertical: 10, gap: 4 },
+  guiaTitulo: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  guiaTexto: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
+  guiaPaso: { color: colors.text, fontSize: 12, lineHeight: 17 },
+  guiaNota: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic', marginTop: 2 },
 
   capa: { position: 'absolute', top: 10, left: 12, right: 12, zIndex: 1000, alignItems: 'flex-end' },
   tarjeta: {
