@@ -34,6 +34,10 @@ export async function enviarPush(pushToken: string, titulo: string, cuerpo: stri
       message: {
         token: pushToken,
         notification: { title: titulo, body: cuerpo },
+        // Sonido de notificacion en Android (canal 'default', importancia MAX, ver
+        // app/lib/notifications.ts) e iOS, aun con la app cerrada.
+        android: { priority: 'HIGH', notification: { channel_id: 'default', sound: 'default' } },
+        apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } },
         data,
       },
     }),

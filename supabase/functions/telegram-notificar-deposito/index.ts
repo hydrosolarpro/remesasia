@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { sendTelegramMessage, sendTelegramPhotos } from '../_shared/telegram.ts';
 import { formatearBs } from '../_shared/formato.ts';
 import { monedaDeSolicitud } from '../_shared/moneda.ts';
+import { enviarPushAUsuarios } from '../_shared/push.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
@@ -44,7 +45,9 @@ Deno.serve(async (req) => {
 
     if (tipo === 'peru') {
       await notificarCliente(supabase, solicitud);
+      await notificarOperadores(supabase, solicitud, 've');
     } else if (tipo === 'venezuela' || tipo === 'revision_resuelta') {
+      await notificarOperadores(supabase, solicitud, 'peru');
       // Una revisión resuelta ("por revisar" -> el dinero sí está en la
       // cuenta del beneficiario) termina en el mismo resultado que una
       // validación normal en Venezuela -- reutiliza los mismos avisos ya
@@ -185,4 +188,72 @@ async function notificarBeneficiario(supabase: any, solicitud: any) {
   const urls: string[] = Array.isArray(solicitud.comprobante_vz_urls) ? solicitud.comprobante_vz_urls : [];
   const enviado = urls.length > 0 ? await sendTelegramPhotos(chatId, urls, mensaje) : await sendTelegramMessage(chatId, mensaje);
   if (!enviado) console.error(`telegram-notificar-deposito: falló el envío al beneficiario de solicitud ${solicitud.id}`);
+}
+
+// Aviso entre operadores (funciona con la app cerrada: lo dispara el trigger
+// en la base de datos). 've': depósito validado en Perú -> avisa al operador
+// de Venezuela que debe transferir. 'peru': Venezuela ya transfirió -> avisa
+// al Operador principal y al miembro que atiende. Quien no tenga Telegram
+// vinculado se omite; nunca lanza error.
+// deno-lint-ignore no-explicit-any
+async function notificarOperadores(supabase: any, solicitud: any, destino: 've' | 'peru') {
+  try {
+    const { data: cliente } = await supabase.from('usuarios').select('nombre').eq('id', solicitud.cliente_id).maybeSingle();
+    const moneda = await monedaDeSolicitud(supabase, solicitud);
+    const nombreCliente = cliente?.nombre ?? 'Cliente';
+    const usuarioIds = new Set<string>();
+    let mensaje = '';
+
+    // Miembro de Perú que atiende (asignado o el que invitó al cliente).
+    let miembro: { usuario_id: string | null; operador_venezuela_id: string | null } | null = null;
+    if (solicitud.operador_peru_miembro_id) {
+      const { data } = await supabase
+        .from('operador_peru_miembro')
+        .select('usuario_id, operador_venezuela_id')
+        .eq('id', solicitud.operador_peru_miembro_id)
+        .maybeSingle();
+      miembro = data;
+    }
+
+    if (destino === 've') {
+      const veId = solicitud.derivada_ve_perfil_id ?? miembro?.operador_venezuela_id ?? null;
+      if (!veId) return;
+      const { data: ve } = await supabase.from('operador_venezuela_perfil').select('usuario_id').eq('id', veId).maybeSingle();
+      if (ve?.usuario_id) usuarioIds.add(ve.usuario_id);
+      mensaje =
+        `💸 Depósito validado en Perú — pendiente de transferir\n` +
+        `👤 Cliente: ${nombreCliente}\n` +
+        `💰 ${moneda.etiqueta} ${Number(solicitud.monto_pen).toFixed(2)} → VES ${formatearBs(solicitud.monto_ves)}\n` +
+        `🏦 ${solicitud.beneficiario_nombre} · ${solicitud.beneficiario_banco}`;
+    } else {
+      if (solicitud.negocio_operador_peru_id) usuarioIds.add(solicitud.negocio_operador_peru_id);
+      if (miembro?.usuario_id) usuarioIds.add(miembro.usuario_id);
+      mensaje =
+        `✅ Venezuela transfirió la operación\n` +
+        `👤 Cliente: ${nombreCliente}\n` +
+        `💰 ${moneda.etiqueta} ${Number(solicitud.monto_pen).toFixed(2)} → VES ${formatearBs(solicitud.monto_ves)}\n` +
+        `🏦 ${solicitud.beneficiario_nombre} · ${solicitud.beneficiario_banco}`;
+    }
+    if (usuarioIds.size === 0) return;
+
+    // Push con sonido y aviso flotante (app cerrada), además de Telegram.
+    await enviarPushAUsuarios(supabase, [...usuarioIds], {
+      titulo: destino === 've' ? '💸 Operación lista para transferir' : '✅ Venezuela transfirió la operación',
+      cuerpo: `${nombreCliente} · ${moneda.etiqueta} ${Number(solicitud.monto_pen).toFixed(2)} → VES ${formatearBs(solicitud.monto_ves)}`,
+      url: '/',
+      tag: `operacion-${solicitud.id}-${destino}`,
+    });
+
+    const { data: operadores } = await supabase
+      .from('usuarios')
+      .select('id, telegram_chat_id, telegram_connected')
+      .in('id', [...usuarioIds]);
+    for (const op of operadores ?? []) {
+      if (!op.telegram_connected || !op.telegram_chat_id) continue;
+      const enviado = await sendTelegramMessage(op.telegram_chat_id, mensaje);
+      if (!enviado) console.error(`telegram-notificar-deposito: falló el aviso al operador ${op.id}`);
+    }
+  } catch (err) {
+    console.error('telegram-notificar-deposito: error avisando a operadores', err);
+  }
 }

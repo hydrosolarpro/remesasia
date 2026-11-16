@@ -75,6 +75,7 @@ export default function InicioCliente() {
   };
 
   const [cargando, setCargando] = useState(true);
+  const primeraCargaRef = useRef(false);
   const [tasa, setTasa] = useState<Tasa | null>(null);
   // true cuando la tasa mostrada es la tasa especial del día que el operador fijó para este cliente.
   const [tasaEsEspecial, setTasaEsEspecial] = useState(false);
@@ -123,7 +124,10 @@ export default function InicioCliente() {
 
   const cargar = useCallback(async () => {
     if (!usuario) return;
-    setCargando(true);
+    // Spinner de pantalla completa solo en la primera carga: en recargas
+    // posteriores los datos se actualizan en silencio, sin "saltar".
+    if (!primeraCargaRef.current) setCargando(true);
+    primeraCargaRef.current = true;
 
     if (!negocioId) {
       setCargando(false);
@@ -225,7 +229,8 @@ export default function InicioCliente() {
     setCuentasOperador((cuentasData as CuentaBancariaOperador[] | null) ?? []);
     setBeneficiariosGuardados((guardadasData as BeneficiarioConCuentas[] | null) ?? []);
     setCargando(false);
-  }, [usuario, negocioId, corredor.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id, negocioId, corredor.id]);
 
   useEffect(() => {
     cargar();

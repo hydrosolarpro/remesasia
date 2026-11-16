@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, Image, ViewStyle, StyleProp, Linking
 import { Solicitud, CanalNotificacion } from '../types/database';
 import { RoundCheck } from './RoundCheck';
 import { CopyField } from './CopyField';
+import * as Clipboard from 'expo-clipboard';
 import {
   construirEnlaceWhatsApp,
   construirEnlaceWhatsAppGenerico,
@@ -147,6 +148,34 @@ export function OperationRow({
   style?: StyleProp<ViewStyle>;
 }) {
   const [abierto, setAbierto] = useState(false);
+  const [todoCopiado, setTodoCopiado] = useState(false);
+
+  // Copia en un solo texto los datos de cliente, beneficiario y transferencia
+  // (a propósito sin la comisión).
+  const copiarTodo = async () => {
+    const texto = [
+      'CLIENTE',
+      `Nombre: ${op.cliente_nombre}`,
+      `Teléfono: ${op.cliente_telefono ?? '—'}`,
+      `Correo: ${op.cliente_email ?? '—'}`,
+      '',
+      'BENEFICIARIO (VE)',
+      `Nombre: ${op.beneficiario_nombre}`,
+      `C.I.: ${op.beneficiario_ci ?? '—'}`,
+      `Teléfono: ${op.beneficiario_telefono ?? '—'}`,
+      '',
+      'TRANSFERENCIA',
+      `Tipo: ${ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]}`,
+      `Entidad bancaria: ${op.beneficiario_banco}`,
+      `N° cuenta: ${op.beneficiario_cuenta}`,
+      `Monto depositado: ${moneda} ${op.monto_pen.toFixed(2)}`,
+      `Forma de pago: ${ETIQUETA_METODO_PAGO[op.metodo_pago]}`,
+      `Recibe: VES ${op.monto_ves.toFixed(2)}`,
+    ].join('\n');
+    await Clipboard.setStringAsync(texto);
+    setTodoCopiado(true);
+    setTimeout(() => setTodoCopiado(false), 1500);
+  };
 
   const tocarCheckVe = async () => {
     const comprobantes = await elegirComprobantes({
@@ -245,41 +274,16 @@ export function OperationRow({
               <Text style={styles.derivadaBadgeTexto}>Derivada del Operador principal de Perú</Text>
             </View>
           )}
+
+          {/* 1. Atendido por + WhatsApp */}
           {!!atendidoPor && <CopyField label="Atendido por" value={atendidoPor} />}
           {enlaceWhatsAppOperador && (
             <Pressable style={styles.whatsappBtnChico} onPress={contactarOperador}>
               <Text style={styles.whatsappBtnChicoTexto}>Contactar a {atendidoPor} por WhatsApp</Text>
             </Pressable>
           )}
-          <CopyField label="Generada" value={FORMATTER_FECHA_HORA.format(new Date(op.created_at))} />
-          <CopyField label="Atendida" value={op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '—'} />
-          {op.check_deposito_ve_at && (
-            <CopyField label="Tiempo de respuesta total" value={formatearTiempoRespuesta(op.created_at, op.check_deposito_ve_at)} />
-          )}
-          {/* Todos los campos son copiables (CopyField): el operador los
-              necesita para pegarlos al hacer la transferencia. */}
-          <CopyField label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
-          <CopyField label="Correo cliente" value={op.cliente_email ?? '—'} />
-          <CopyField label="Beneficiario (VE)" value={op.beneficiario_nombre} />
-          <CopyField label="C.I." value={op.beneficiario_ci ?? '—'} />
-          <CopyField label="Teléfono beneficiario" value={op.beneficiario_telefono ?? '—'} />
-          <CopyField label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]} />
-          <CopyField label="Entidad bancaria" value={op.beneficiario_banco} />
-          <CopyField label="N° cuenta" value={op.beneficiario_cuenta} />
-          <CopyField label="Monto depositado" value={`${moneda} ${op.monto_pen.toFixed(2)}`} />
-          <CopyField label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
-          <CopyField label="Recibe" value={`VES ${op.monto_ves.toFixed(2)}`} />
-          {op.check_deposito_peru_at && op.check_deposito_ve_at && (
-            <CopyField label="Tramo interno PE → VE" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
-          )}
-          {op.ganancia && verComisionPeru && <CopyField label="Comisión Perú" value={`${moneda} ${op.ganancia.comisionPeruPen.toFixed(2)}`} />}
-          {op.ganancia && verComisionVenezuela && (
-            <CopyField
-              label="Comisión Venezuela"
-              value={`VES ${op.ganancia.comisionVenezuelaVes.toFixed(2)} · ${moneda} ${op.ganancia.comisionVenezuelaPen.toFixed(2)}`}
-            />
-          )}
 
+          {/* 2. Comprobantes + checks de validación */}
           {op.comprobante_pago_urls.length > 0 && (
             <ImagenDesplegable titulo="Comprobante de pago en Perú (cliente)" uris={op.comprobante_pago_urls} />
           )}
@@ -343,6 +347,7 @@ export function OperationRow({
             </View>
           )}
 
+          {/* 3. Botones de WhatsApp */}
           {enlaceWhatsApp && (
             <Pressable style={styles.whatsappBtn} onPress={notificarWhatsApp}>
               <Text style={styles.whatsappBtnTexto}>Notificar por WhatsApp al beneficiario</Text>
@@ -365,12 +370,12 @@ export function OperationRow({
             </Pressable>
           )}
 
+          {/* 4. Derivaciones */}
           {onDerivar && (
             <Pressable style={styles.derivarBtn} onPress={onDerivar}>
               <Text style={styles.derivarBtnTexto}>Derivar a un operador de Perú →</Text>
             </Pressable>
           )}
-
           {derivadaAVeNombre ? (
             <Text style={styles.derivadaVeTexto}>Derivada al operador de Venezuela: {derivadaAVeNombre}</Text>
           ) : null}
@@ -381,6 +386,47 @@ export function OperationRow({
               </Text>
             </Pressable>
           )}
+
+          {/* 5. Comisión */}
+          {op.ganancia && verComisionPeru && <CopyField label="Comisión Perú" value={`${moneda} ${op.ganancia.comisionPeruPen.toFixed(2)}`} />}
+          {op.ganancia && verComisionVenezuela && (
+            <CopyField
+              label="Comisión Venezuela"
+              value={`VES ${op.ganancia.comisionVenezuelaVes.toFixed(2)} · ${moneda} ${op.ganancia.comisionVenezuelaPen.toFixed(2)}`}
+            />
+          )}
+
+          {/* 6. Sub-tabla con todos los datos (siempre visible) */}
+          <View style={styles.subTabla}>
+            <Text style={styles.subTablaTitulo}>Datos de la operación</Text>
+            <Text style={styles.subTablaSeccion}>Cliente</Text>
+            <CopyField label="Cliente" value={op.cliente_nombre} />
+            <CopyField label="Teléfono cliente" value={op.cliente_telefono ?? '—'} />
+            <CopyField label="Correo cliente" value={op.cliente_email ?? '—'} />
+            <Text style={styles.subTablaSeccion}>Beneficiario (VE)</Text>
+            <CopyField label="Beneficiario (VE)" value={op.beneficiario_nombre} />
+            <CopyField label="C.I." value={op.beneficiario_ci ?? '—'} />
+            <CopyField label="Teléfono beneficiario" value={op.beneficiario_telefono ?? '—'} />
+            <Text style={styles.subTablaSeccion}>Transferencia</Text>
+            <CopyField label="Tipo de transferencia" value={ETIQUETA_TIPO_TRANSFERENCIA[op.tipo_transferencia]} />
+            <CopyField label="Entidad bancaria" value={op.beneficiario_banco} />
+            <CopyField label="N° cuenta" value={op.beneficiario_cuenta} />
+            <CopyField label="Monto depositado" value={`${moneda} ${op.monto_pen.toFixed(2)}`} />
+            <CopyField label="Forma de pago" value={ETIQUETA_METODO_PAGO[op.metodo_pago]} />
+            <CopyField label="Recibe" value={`VES ${op.monto_ves.toFixed(2)}`} />
+            <Text style={styles.subTablaSeccion}>Tiempos</Text>
+            <CopyField label="Generada" value={FORMATTER_FECHA_HORA.format(new Date(op.created_at))} />
+            <CopyField label="Atendida" value={op.check_deposito_ve_at ? FORMATTER_FECHA_HORA.format(new Date(op.check_deposito_ve_at)) : '—'} />
+            {op.check_deposito_ve_at && (
+              <CopyField label="Tiempo de respuesta total" value={formatearTiempoRespuesta(op.created_at, op.check_deposito_ve_at)} />
+            )}
+            {op.check_deposito_peru_at && op.check_deposito_ve_at && (
+              <CopyField label="Tramo interno PE → VE" value={formatearTiempoRespuesta(op.check_deposito_peru_at, op.check_deposito_ve_at)} />
+            )}
+            <Pressable style={styles.copiarTodoBtn} onPress={copiarTodo}>
+              <Text style={styles.copiarTodoTexto}>{todoCopiado ? '✓ Copiado' : '📋 Copiar todos los datos (sin comisión)'}</Text>
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -485,6 +531,28 @@ const styles = StyleSheet.create({
   derivadaBadgeTexto: { color: colors.warning, fontSize: 14, fontWeight: '800' },
   derivarBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 4 },
   derivarBtnTexto: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  subTabla: {
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+    marginTop: 8,
+  },
+  subTablaTitulo: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  subTablaSeccion: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 8,
+    paddingBottom: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  copiarTodoBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 12, alignItems: 'center', marginTop: 12 },
+  copiarTodoTexto: { color: colors.text, fontWeight: '700', fontSize: 15 },
   derivadaVeTexto: { color: colors.textMuted, fontSize: 14, marginTop: 4, textAlign: 'center' },
   revisionCard: {
     backgroundColor: `${colors.danger}18`,

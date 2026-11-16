@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
 import { sendTelegramMessage } from '../_shared/telegram.ts';
 import { monedaDeSolicitud } from '../_shared/moneda.ts';
+import { enviarPushAUsuarios } from '../_shared/push.ts';
 import { corsHeaders, manejarPreflight } from '../_shared/cors.ts';
 
 /**
@@ -70,6 +71,14 @@ Deno.serve(async (req) => {
       for (const m of miembros ?? []) if (m.usuario_id) usuarioIds.add(m.usuario_id);
     }
     if (usuarioIds.size === 0) return ok();
+
+    // Push con sonido y aviso flotante (funciona con la app cerrada), además de Telegram.
+    await enviarPushAUsuarios(supabase, [...usuarioIds], {
+      titulo: '🔔 Nueva solicitud',
+      cuerpo: `${cliente?.nombre ?? 'Cliente'} · ${moneda.etiqueta} ${Number(solicitud.monto_pen).toFixed(2)}`,
+      url: '/',
+      tag: `solicitud-${solicitud.id}`,
+    });
 
     const { data: operadores } = await supabase
       .from('usuarios')

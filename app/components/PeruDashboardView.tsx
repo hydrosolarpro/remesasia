@@ -22,6 +22,7 @@ import { calcularGananciaOperacion } from '../lib/tasaCalculo';
 import { useAlertaSonora } from '../lib/useAlertaSonora';
 import { useAlarmaOperador } from '../lib/useAlarmaOperador';
 import { AlarmaBanner } from './AlarmaBanner';
+import { AvisosPushCard } from './AvisosPushCard';
 import { LiveClock } from './LiveClock';
 import { RoleTag } from './RoleTag';
 import { TipoSesionOperador, etiquetaSesion } from '../lib/sesionOperador';
@@ -801,6 +802,7 @@ export function PeruDashboardView({
 
   return (
     <View style={styles.raiz}>
+    <AvisosPushCard />
     <AlarmaBanner
       sonando={alarma.sonando}
       nuevas={alarma.nuevas}

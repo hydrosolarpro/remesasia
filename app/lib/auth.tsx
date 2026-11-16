@@ -1,5 +1,5 @@
 import { Session } from '@supabase/supabase-js';
-import { createContext, useContext, useEffect, useState, PropsWithChildren } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, PropsWithChildren } from 'react';
 import { router } from 'expo-router';
 import { supabase } from './supabase';
 import { leerTokenPendiente, limpiarTokenPendiente, canjearInvitacion } from './invitaciones';
@@ -32,8 +32,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
   const [avisoSesionCerrada, setAvisoSesionCerrada] = useState<string | null>(null);
 
+  const usuarioIdRef = useRef<string | null>(null);
+
   const loadUsuario = async (userId: string | undefined) => {
     if (!userId) {
+      usuarioIdRef.current = null;
       setUsuario(null);
       return;
     }
@@ -96,7 +99,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     }
 
-    setUsuario(data as Usuario | null);
+    // Si nada cambió se conserva el MISMO objeto: así los efectos que
+    // dependen de `usuario` no se vuelven a ejecutar sin necesidad.
+    const nuevo = data as Usuario | null;
+    usuarioIdRef.current = nuevo?.id ?? null;
+    setUsuario((prev) => (prev && nuevo && JSON.stringify(prev) === JSON.stringify(nuevo) ? prev : nuevo));
   };
 
   useEffect(() => {
@@ -106,7 +113,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    // supabase-js emite eventos cada vez que se refresca el token o la
+    // pestaña/app vuelve a primer plano (TOKEN_REFRESHED, y SIGNED_IN /
+    // INITIAL_SESSION repetidos para el MISMO usuario). Antes cada uno
+    // recreaba `usuario` y re-disparaba las cargas de las pantallas (con su
+    // spinner de pantalla completa): ese era el "salto" que reiniciaba la
+    // app. Ahora solo se recarga ante un cambio real de usuario o cierre
+    // de sesión; en un refresco de token solo se actualiza la sesión.
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      const mismoUsuario = !!newSession && newSession.user.id === usuarioIdRef.current;
+      if (mismoUsuario && event !== 'USER_UPDATED') {
+        setSession((prev) => (prev?.access_token === newSession.access_token ? prev : newSession));
+        return;
+      }
       setSession(newSession);
       await loadUsuario(newSession?.user.id);
     });
